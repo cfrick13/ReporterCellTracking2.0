@@ -14,7 +14,7 @@
     cd(parentdir)
 
     % dateArray = {'2017_03_02 plate exp1'};
-    dateArray = {'2017_03_13 plate exp1','2017_03_13 plate exp2'};
+    dateArray = {'2017_03_13 plate exp1'};
     for BB = dateArray
 
     %get directory name from date Array

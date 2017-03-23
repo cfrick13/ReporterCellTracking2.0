@@ -1,5 +1,5 @@
 
-function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
+function [If,testOut] = segmentHoechstNuclei(img,nucleus_seg,pStruct,frames)
     nucDiameter = pStruct.(nucleus_seg).nucDiameter;
     threshFactor = pStruct.(nucleus_seg).threshFactor;
     sigmaScaledToParticle = pStruct.(nucleus_seg).sigmaScaledToParticle;
@@ -78,9 +78,15 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             waterBoundary = imerode(Im,strel('disk',1));
 
             %BEGIN THE WATERSHET ALGORITHM
-            I = imgRawDenoised;
-            I = gaussianBlurz(rawMinusLPScaled,sigma./4,kernelgsize);
+%             I = imgRawDenoised;
+%             I = gaussianBlurz(rawMinusLPScaled,sigma./4,kernelgsize);
+
+            
             I = rawMinusLPScaledContrasted;
+                ivec = I(Ihcf);
+                lowperc = prctile(ivec,10);
+                I(I>lowperc) = lowperc;
+%             I = wiener2(I,[wienerP wienerP]);
 
             %gradmag
             hy = fspecial('sobel');

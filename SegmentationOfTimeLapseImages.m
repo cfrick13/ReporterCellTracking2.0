@@ -84,6 +84,7 @@ SceneList = SceneList(bkgscenelog);
             tic
             sceneStr = SceneList{i};
             sceneName = char(sceneStr);
+            disp(sceneName)
 
             cd(mstackPath)
             nucleusFileList = dir(strcat('*',sceneName,'*',nucleus_seg,'*.mat'));
@@ -95,7 +96,7 @@ SceneList = SceneList(bkgscenelog);
             nucleusFileName = char(nucleusFileList.name);
             fileObject = matfile(nucleusFileName);
             FinalImage = fileObject.flatstack;
-            disp(sceneName)
+            
             [~,~] = segmentationNucleus(FinalImage,segmentPath,nucleus_seg,nucleusFileName,pStruct);
                 
 
@@ -119,8 +120,9 @@ SceneList = SceneList(bkgscenelog);
             backgroundFileName = char(backgroundFileList.name);
             fileObject = matfile(backgroundFileName);
             FinalImage = fileObject.flatstack;
-            disp(sceneName)
-            [~,~] = segmentationImageBackground(FinalImage,segmentPath,background_seg,backgroundFileName,pStruct);
+%             disp(sceneName)
+%             [~,~] = segmentationImageBackground(FinalImage,segmentPath,background_seg,backgroundFileName,pStruct);
+            [~,~] = segmentationImageBackground(FinalImage,segmentPath,background_seg,backgroundFileName,pStruct);  
             toc
             
             cd ..
@@ -171,20 +173,15 @@ end
 
 
 function [IfFinal,testOut] = segmentationNucleus(FinalImage,segmentPath,nucleus_seg,nucleusFileName,pStruct)
-                           
-    testOut = struct();
-    frames = 1;
-    img = FinalImage(:,:,frames); 
-    [~,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames);
-    
-    IfFinal = false(size(FinalImage));
+    testOut = struct();                           
+    img = FinalImage(:,:,1);
     
     
     %determine number of parallel cores to employ based on memory requirements
         dim = size(img);
         memoryrequired = size(dim(1)*dim(2)*2);%background stack + imagestack
-            disp(strcat('memory required for one imgae =',num2str(round(memoryrequired./(1e6),1,'decimals')),'MegaBytes'))
-        detWorkers = 4.5./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
+            disp(strcat('memory required for one image =',num2str(round(memoryrequired./(1e6),1,'decimals')),'MegaBytes'))
+        detWorkers = 6./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
         nWorkers = floor(detWorkers);
         possibleWorkers = feature('numcores');
         if nWorkers>possibleWorkers
@@ -209,7 +206,11 @@ function [IfFinal,testOut] = segmentationNucleus(FinalImage,segmentPath,nucleus_
     % start segmentation
     parfor frames = 1:size(FinalImage,3)
         img = FinalImage(:,:,frames); 
+        if strcmp(nucleus_seg,'Hoechst')
+        [If,~] = segmentHoechstNuclei(img,nucleus_seg,pStruct,frames);  
+        else
         [If,~] = segmentNuclei(img,nucleus_seg,pStruct,frames);
+        end
         IfFinal(:,:,frames)=If;
     end
                 
@@ -382,172 +383,49 @@ end
 end
 
 function [IfFinal,testOut] = segmentationImageBackground(FinalImage,segmentPath,background_seg,backgroundFileName,pStruct)
-% parameters
-testOut = struct();
-nucDiameter = pStruct.(background_seg).nucDiameter;
-threshFactor = pStruct.(background_seg).threshFactor;
-sigmaScaledToParticle = pStruct.(background_seg).sigmaScaledToParticle;
-kernelgsize = nucDiameter; %set kernelgsize to diameter of nuclei at least
-sigma = nucDiameter./sigmaScaledToParticle; %make the sigma about 1/5th of kernelgsize
-
-
-
-%initial segmentation to determine how much of image is covered by cells
-img = FinalImage(:,:,1); 
-imgW = wiener2(img,[1 20]);
-imgWW = wiener2(imgW,[20 1]);
-imgWWW = wiener2(imgWW,[5 5]);
-imgRawDenoised = imgWWW;
-denoiseVec = single(reshape(imgRawDenoised,size(imgRawDenoised,1)^2,1));
-highpoints = prctile(denoiseVec,95);
-imgRawDenoised(imgRawDenoised>highpoints) = highpoints;
-%
-imgLowPass = gaussianBlurz(single(imgRawDenoised),sigma,kernelgsize);
-rawMinusLP = single(imgRawDenoised) -single(imgLowPass);%%%%%%% key step!
-rawMinusLPvec = reshape(rawMinusLP,size(rawMinusLP,1)^2,1);
-globalMinimaValues = prctile(rawMinusLPvec,0.01);
-globalMinimaIndices = find(rawMinusLP < globalMinimaValues);
-LPscalingFactor = imgRawDenoised(globalMinimaIndices)./imgLowPass(globalMinimaIndices);
-imgLPScaled = imgLowPass.*nanmedian(LPscalingFactor);
-rawMinusLPScaled = single(imgRawDenoised) - single(imgLPScaled);
-
-rawMinusLPScaledvec = reshape(rawMinusLPScaled,size(rawMinusLPScaled,1)^2,1);
-high_in = prctile(rawMinusLPScaledvec,99);
-rawMinusLPScaledContrasted = imadjust(rawMinusLPScaled./high_in,[0.1; 0.99],[0; 1]);
-
-vecOG = single(reshape(rawMinusLPScaledContrasted,size(rawMinusLPScaledContrasted,1)^2,1));
-logvecpre = vecOG; logvecpre(logvecpre==0)=[];
-logvec = log10(logvecpre);
-vec = logvec;
-[numbers,bincenters] = hist(vec,prctile(vec,1):(prctile(vec,99)-prctile(vec,1))/1000:max(vec));
-numbersone = medfilt1(numbers, 10); %smooths curve
-numberstwo = medfilt1(numbersone, 100); %smooths curve
-fraction = numberstwo./sum(numberstwo);
-mf = max(fraction);
-    %%%%%%%%%%%%%%%%%%%% Important parameters for finding minima of
-    %%%%%%%%%%%%%%%%%%%% histogram
-    left=0.5*mf;
-    slopedown=0.4*mf;
-    %%%%%%%%%%%%%%%%%%%%%
-leftedge = find(fraction > left,1,'first');
-insideslopedown = find(fraction(leftedge:end) < slopedown,1,'first');
-threshLocation = bincenters(leftedge+insideslopedown-1);
-subtractionThreshold = threshLocation;
-
-if size(subtractionThreshold,1)==size(subtractionThreshold,2)
-    else
-     subtractionThreshold = mean(threshLocation);
-end
-subtractionThresholdScaled = (10.^subtractionThreshold).*threshFactor;
-subtracted = single(rawMinusLPScaledContrasted)-subtractionThresholdScaled;
-subzero = (subtracted<0);
-Ih = ~subzero;
-Ih = imclose(Ih,strel('disk',20));
-areaOfSegmentation = sum(sum(Ih));
-%
-percentageOfImageSegmented = round(100*(areaOfSegmentation./(size(img,1)*size(img,2))));
-if percentageOfImageSegmented > 99
-    percentageOfImageSegmented = 99;
-end
-% disp(percentageOfImageSegmented);
-
+    testOut = struct();                           
+    img = FinalImage(:,:,1);
     
-IfFinal = false(size(FinalImage));
-parfor frames = 1:size(FinalImage,3)
-
-    img = FinalImage(:,:,frames); 
-    imgW = wiener2(img,[1 20]);
-    imgWW = wiener2(imgW,[20 1]);
-    imgWWW = wiener2(imgWW,[5 5]);
-    imgRawDenoised = imgWWW;
-    denoiseVec = single(reshape(imgRawDenoised,size(imgRawDenoised,1)^2,1));
-    highpoints = prctile(denoiseVec,percentageOfImageSegmented);
-    imgRawDenoised(imgRawDenoised>highpoints) = highpoints;
-
-    
-    %Based on algorithm of Fast and accurate automated cell boundary determination for fluorescence microscopy by Arce et al (2013)   
-    %LOW PASS FILTER THE IMAGE (scale the gaussian filter to diameter of
-    %nuclei -- diameter of nuclei is about 50 to 60))
-    
-    imgLowPass = gaussianBlurz(single(imgRawDenoised),sigma,kernelgsize);
-    rawMinusLP = single(imgRawDenoised) -single(imgLowPass);%%%%%%% key step!
-    rawMinusLPvec = reshape(rawMinusLP,size(rawMinusLP,1)^2,1);
-    globalMinimaValues = prctile(rawMinusLPvec,0.01);
-    globalMinimaIndices = find(rawMinusLP < globalMinimaValues);
-    LPscalingFactor = imgRawDenoised(globalMinimaIndices)./imgLowPass(globalMinimaIndices);
-    imgLPScaled = imgLowPass.*nanmedian(LPscalingFactor);
-    rawMinusLPScaled = single(imgRawDenoised) - single(imgLPScaled);
-
-
-    %determine the threshold by looking for minima in log-scaled histogram
-    %of pixels from rawMinusLPScaled
-    rawMinusLPScaledvec = reshape(rawMinusLPScaled,size(rawMinusLPScaled,1)^2,1);
-    high_in = prctile(rawMinusLPScaledvec,99);
-    rawMinusLPScaledContrasted = imadjust(rawMinusLPScaled./high_in,[0.1; 0.99],[0; 1]);
-    
-    vecOG = single(reshape(rawMinusLPScaledContrasted,size(rawMinusLPScaledContrasted,1)^2,1));
-    logvecpre = vecOG; logvecpre(logvecpre==0)=[];
-    logvec = log10(logvecpre);
-    vec = logvec;
-    [numbers,bincenters] = hist(vec,prctile(vec,1):(prctile(vec,99)-prctile(vec,1))/1000:max(vec));
-    numbersone = medfilt1(numbers, 10); %smooths curve
-    numberstwo = medfilt1(numbersone, 100); %smooths curve
-    fraction = numberstwo./sum(numberstwo);
-    mf = max(fraction);
-        %%%%%%%%%%%%%%%%%%%% Important parameters for finding minima of
-        %%%%%%%%%%%%%%%%%%%% histogram
-        left=0.5*mf;
-        slopedown=0.4*mf;
-        %%%%%%%%%%%%%%%%%%%%%
-    leftedge = find(fraction > left,1,'first');
-    insideslopedown = find(fraction(leftedge:end) < slopedown,1,'first');
-    threshLocation = bincenters(leftedge+insideslopedown-1);
-    subtractionThreshold = threshLocation;
-
-    if size(subtractionThreshold,1)==size(subtractionThreshold,2)
+    %determine number of parallel cores to employ based on memory requirements
+        dim = size(img);
+        memoryrequired = size(dim(1)*dim(2)*2);%background stack + imagestack
+            disp(strcat('memory required for one image =',num2str(round(memoryrequired./(1e6),1,'decimals')),'MegaBytes'))
+        detWorkers = 6./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
+        nWorkers = floor(detWorkers);
+        possibleWorkers = feature('numcores');
+        if nWorkers>possibleWorkers
+            nWorkers = possibleWorkers;
+        elseif nWorkers <1
+            nWorkers = 1;
+        end
+        
+     % Enter parallel loop
+        poolobj = gcp('nocreate');
+        if isempty(poolobj)
+            poolobj = parpool(nWorkers);
         else
-         subtractionThreshold = mean(threshLocation);
+        nw = poolobj.NumWorkers;
+            if nw ==nWorkers
+            else
+                delete(poolobj)
+                poolobj = parpool(nWorkers);
+            end
+        end
+    IfFinal = false(size(FinalImage));
+    
+    parfor frames = 1:size(FinalImage,3)
+        img = FinalImage(:,:,frames); 
+        [If,~] = segmentCellBackground(img,background_seg,pStruct,frames);
+        IfFinal(:,:,frames)=If;
     end
-
-
-    subtractionThresholdScaled = (10.^subtractionThreshold).*threshFactor;
-    subtracted = single(rawMinusLPScaledContrasted)-subtractionThresholdScaled;
-    subzero = (subtracted<0);
-    Ih = ~subzero;
-
-    width = 10;
-    Ihc = imclose(Ih,strel('disk',width));
-    Im=Ihc;
-
-
-    If = imgRawDenoised;
-    mmIf = max(max(If)) ;
-    If(If<mmIf)=0;
-    If(If == mmIf)=1;
-    If = logical(If);
-    arealimit = (100-percentageOfImageSegmented)./8;
-    imgarea = (size(If,1).*size(If,2));
-
-   a = length(If==0);
-   width = 10;
-   Ig= If;
-   while  1
-       se = strel('disk',width);
-       a = ((imgarea-sum(sum(Ig)))./imgarea).*100;
-       if a<arealimit
-           break
-       else
-            Ig = imdilate(Ig,se);
-       end
-
-   end
-
-    If=Ig;
-    IfFinal(:,:,frames)=If;
-end
-
+                
 savethatimagestack(IfFinal,backgroundFileName,segmentPath)
+
+
+% parameters
+
 end
+
 
 
 function If = segmentationREPORTERBKG(FinalImage,channel,scenename,filename,segchannel,pStruct)

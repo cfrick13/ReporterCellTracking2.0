@@ -145,7 +145,7 @@ clear A dirlist
 
     disp(strcat('memory required for one set =',num2str(round(memoryrequired./(1e6),1,'decimals')),'MegaBytes'))
 
-    detWorkers = 4.5./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
+    detWorkers = 7./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
     nWorkers = floor(detWorkers);
     possibleWorkers = feature('numcores');
     if nWorkers>possibleWorkers

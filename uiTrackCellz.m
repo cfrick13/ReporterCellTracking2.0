@@ -1,11 +1,11 @@
 function uiTrackCellz
-global cfoName trackingPath background_seg bfoName backgroundimgstack sfoName cell_quantify nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterate ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs adjuster cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes OGExpDate plottingON PlotAxes cmap TC A AA timeFrames frameToLoad ImageDetails MainAxes SceneList displaytracking imgsize ExpDate
+global DICimgstack dfoName cfoName trackingPath background_seg bfoName backgroundimgstack sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterate ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs adjuster cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes OGExpDate plottingON PlotAxes cmap TC A AA timeFrames frameToLoad ImageDetails MainAxes SceneList displaytracking imgsize ExpDate
 adjuster=0;
 plottingTotalOrMedian = 'median';
 tcontrast = 99;
 lcontrast = 1;
 % exportdir = 'C:\Users\Kibeom\Desktop\Tracking\Export\';
-ExportNameKey = 'initial';
+ExportNameKey = 'final';
 if strcmp(ExportNameKey,'final')
 else
 disp(strcat('Export name key is "',ExportNameKey,'" not FINAL'))
@@ -16,9 +16,10 @@ channelimgstack =[];
 segmentimgstack =[];
 sfoName =[];
 bfoName = [];
-nucleus_seg = 'mKate';
-cell_quantify = 'EGFP';
-background_seg = 'EGFP';
+
+DICimgstack=[];
+dfoName=[];
+
 
 runIterate =0;
 TC = 1;
@@ -91,6 +92,11 @@ filelist = dir(datequery);
         dosestructstruct = load(char(filelist.name));
         dosestruct = dosestructstruct.dosestruct;
     end
+    segInstruct = dosestructstruct.segInstruct;
+    
+nucleus_seg = segInstruct.nucleus;
+cell_seg = segInstruct.cell;
+background_seg = segInstruct.background;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % renamemCherrytoMkate(A,B)
 % renamemWRONGtoRIGHT(A,B)
@@ -146,7 +152,7 @@ frameToLoad = 1;
 f = figure;
 % f.Visible ='off';
 f.Units = 'pixels';
-f.Position =[10,10,1800,1000];
+f.Position =[10,10,1800,1200];
 
 
 buttonwidth = 80;
@@ -235,8 +241,12 @@ hDestroy = uicontrol('Style','pushbutton','String','DestroySubsequent',...
 hchosenOnes = uicontrol('Style','pushbutton','String','Chosen Ones',...
     'Position',[xpositions(mmm)+40,ypositions(mmm),buttonwidth,buttonheight],...
     'Callback',@chosenOnes_Callback);
+hchosenOnes = uicontrol('Style','pushbutton','String','Chosen OnesAllOnFrame',...
+    'Position',[xpositions(mmm)+120,ypositions(mmm),buttonwidth,buttonheight],...
+    'Callback',@chosenOnesAllOnFrame_Callback);
        mmm=mmm+1;
        mmm=mmm+1;
+       
        
 hRemoveArea = uicontrol('Style', 'pushbutton', 'String', 'Remove area',...
     'Position',[xpositions(mmm),ypositions(mmm),buttonwidth,buttonheight/1.5],...
@@ -390,6 +400,7 @@ imgdim = 512.*1.8;
 Position = [25 25 imgdim imgdim];
 % Position = [0.1 0.3 0.65 0.65];
 MainAxes.Position = Position;
+MainAxes.Units = 'normalized';
 
 
 PlotAxes = axes;
@@ -408,6 +419,7 @@ ThirdPlotAxes = axes;
 Position = [0.6440    0.2605    0.1500    0.1500];
 ThirdPlotAxes.Position = Position;
 
+f.Position =[0.1,0.1,0.7,0.8];
 set(f,'KeyPressFcn',@keypress);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -446,7 +458,7 @@ switch key
         ImageDetails.Channel = 'mKate';
         setSceneAndTime    
     case '3'
-        ImageDetails.Channel = 'mKate';
+        ImageDetails.Channel = 'DIC';
         setSceneAndTime
     case '4'
         ImageDetails.Channel = 'DIC';
@@ -532,7 +544,7 @@ if frameToLoad>timeFrames
 end
 
 ImageDetails.Frame = frameToLoad;
-disp(frameToLoad)
+% disp(frameToLoad)
 setSceneAndTime
 end
 function prevbutton_callback(~,~) 
@@ -547,7 +559,7 @@ frameToLoad = ImageDetails.Frame - 1;
 if frameToLoad<1
     frameToLoad = 1;
 end
-disp(frameToLoad)
+% disp(frameToLoad)
 ImageDetails.Frame = frameToLoad;
 setSceneAndTime
 end
@@ -1004,6 +1016,32 @@ PX = CC.PixelIdxList;
       end
       end
       
+
+      
+% Trackedz = crushThem(Tracked,~idxs,length(Tracked),length(Tracked));
+Trackedz = crushThem(Tracked,~idxs,1,length(Tracked)); 
+Tracked = Trackedz;
+
+
+   setSceneAndTime
+
+
+end
+function chosenOnesAllOnFrame_Callback(~,~)
+%choose the cells you want
+global ImageDetails frameToLoad Tracked imgsize
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%   determine the frame to load
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+t = ImageDetails.Frame;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+CC = Tracked{t}.Cellz;
+PX = CC.PixelIdxList;   
+    
+    
+  idxs = ~cellfun(@(x) length(x)>1,PX,'UniformOutput',1); %choose all cells on frame
+  
 % Trackedz = crushThem(Tracked,~idxs,length(Tracked),length(Tracked));
 Trackedz = crushThem(Tracked,~idxs,1,length(Tracked)); 
 Tracked = Trackedz;
@@ -1195,7 +1233,7 @@ CC = Stacked{i}.Cellz;
 PX = CC.PixelIdxList;   
     for jim = idxf
     pixxies = PX{jim};
-    disp(pixxies)
+%     disp(pixxies)
         if ~isnan(pixxies)
         imdub = zeros(imgsize);
         imdub(pixxies) = 1;
@@ -1604,10 +1642,9 @@ ThirdPlotAxes.YLim = ([0 6]);
 end
 
 function [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,A,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat)
-global plottingTotalOrMedian cell_quantify nucleus_seg background_seg segmentPath
+global plottingTotalOrMedian cell_seg nucleus_seg background_seg segmentPath
 
 
-plotbc=0;
 plotTracesCell = cell(length(makeIMGidx),length(Tracked));
     for i = 1:length(Tracked)
         PXX = Tracked{i}.Cellz.PixelIdxList;
@@ -1622,11 +1659,11 @@ cd(mstackPath)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                      %  open smad img  %
             cd(mstackPath)         
-            ff = dir(strcat('*',ImageDetails.Scene,'*',cell_quantify,'*'));
+            ff = dir(strcat('*',ImageDetails.Scene,'*',cell_seg,'*'));
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
             channelfileObject = matfile(filename);
-            smadimgstack = channelfileObject.flatstack;
+            cellQ_imgstack = channelfileObject.flatstack;
             
                      %  open mKate img  %
             cd(mstackPath)         
@@ -1643,7 +1680,7 @@ cd(mstackPath)
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
             channelfileObject = matfile(filename);
-            cfpimgstack = channelfileObject.flatstack;
+            nuc_imgstack = channelfileObject.flatstack;
             
                     % open background Logical img  %
             cd(segmentPath)         
@@ -1673,60 +1710,60 @@ mkatebkg = zeros(1,timeFrames,'single');
 bkgstd = zeros(1,timeFrames,'single');
 for k=1:timeFrames
     bkglog = ~bkglogimgstack(:,:,k);
-    smadimg = single(smadimgstack(:,:,k));
-    cfpimg = single(cfpimgstack(:,:,k));
+    cellQ_img = single(cellQ_imgstack(:,:,k));
+    nuc_img = single(nuc_imgstack(:,:,k));
     mkateimg = single(mkateimgstack(:,:,k));
     %background subtraction is just subtraction with a value
-    Smadbkg(k) = nanmedian(smadimg(bkglog));
-    Cfpbkg(k) = nanmedian(cfpimg(bkglog));
+    Smadbkg(k) = nanmedian(cellQ_img(bkglog));
+    Cfpbkg(k) = nanmedian(nuc_img(bkglog));
     mkatebkg(k) = nanmedian(mkateimg(bkglog));
     bkgstd(k) = nanstd(mkateimg(bkglog));
-    smadimgstack(:,:,k) = smadimg-Smadbkg(k);
-    cfpimgstack(:,:,k) = cfpimg-Cfpbkg(k);
+    cellQ_imgstack(:,:,k) = cellQ_img-Smadbkg(k);
+    nuc_imgstack(:,:,k) = nuc_img-Cfpbkg(k);
     mkateimgstack(:,:,k) = mkateimg - mkatebkg(k);
     %background subtraction is subtraction with an interpolated image
-%     smadbkgimg = regionfill(smadimg,~bkglog);
-%     cfpbkgimg = regionfill(cfpimg,~bkglog); %fill in the regions where bkglog is 0
-%     smadimgstack(:,:,k) = smadimgstack(:,:,k)-smadbkgimg;
-%     cfpimgstack(:,:,k) = cfpimgstack(:,:,k)-cfpbkgimg;
+%     smadbkgimg = regionfill(cellQ_img,~bkglog);
+%     cfpbkgimg = regionfill(nuc_img,~bkglog); %fill in the regions where bkglog is 0
+%     cellQ_imgstack(:,:,k) = cellQ_imgstack(:,:,k)-smadbkgimg;
+%     nuc_imgstack(:,:,k) = nuc_imgstack(:,:,k)-cfpbkgimg;
 end
 
 
 %extract pixel intensities
-smadpxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
-cfppxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
+cellQ_pxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
+nuc_pxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
 
 for i = 1:size(plotTracesCell,2)
-    smadimg = single(squeeze(smadimgstack(:,:,i)));
-    cfpimg = single(squeeze(cfpimgstack(:,:,i)));
+    cellQ_img = single(squeeze(cellQ_imgstack(:,:,i)));
+    nuc_img = single(squeeze(nuc_imgstack(:,:,i)));
     mkateimg = single(squeeze(mkateimgstack(:,:,i)));
     for j=1:size(plotTracesCell,1)
     pxidx = plotTracesCell{j,i};
         if ~isnan(pxidx)
-        smadpxls(j,i) = {smadimg(pxidx)};
-        cfppxls(j,i) = {cfpimg(pxidx)};
+        cellQ_pxls(j,i) = {cellQ_img(pxidx)};
+        nuc_pxls(j,i) = {nuc_img(pxidx)};
         mkatepxls(j,i) = {mkateimg(pxidx)};
         else
-        smadpxls(j,i) = {single(13579)};
-        cfppxls(j,i) = {single(13579)};
+        cellQ_pxls(j,i) = {single(13579)};
+        nuc_pxls(j,i) = {single(13579)};
         mkatepxls(j,i) = {single(13579)};
         end
     end
 end
 
 if strcmpi(plottingTotalOrMedian,'total')
-    Smad = cellfun(@nansum,smadpxls,'UniformOutput',1);
-    % Smad = cellfun(@nanmean,smadpxls,'UniformOutput',1);
+    Smad = cellfun(@nansum,cellQ_pxls,'UniformOutput',1);
+    % Smad = cellfun(@nanmean,cellQ_pxls,'UniformOutput',1);
     Smad(Smad==single(13579)) = NaN;
-    Cfp = cellfun(@nansum,cfppxls,'UniformOutput',1);
+    Cfp = cellfun(@nansum,nuc_pxls,'UniformOutput',1);
     Cfp(Cfp==single(13579)) = NaN;
     mkate = cellfun(@nansum,mkatepxls,'UniformOutput',1);
     mkate(mkate==single(13579)) = NaN;
 elseif strcmpi(plottingTotalOrMedian,'median')
-    Smad = cellfun(@nanmedian,smadpxls,'UniformOutput',1);
-    % Smad = cellfun(@nanmean,smadpxls,'UniformOutput',1);
+    Smad = cellfun(@nanmedian,cellQ_pxls,'UniformOutput',1);
+    % Smad = cellfun(@nanmean,cellQ_pxls,'UniformOutput',1);
     Smad(Smad==single(13579)) = NaN;
-    Cfp = cellfun(@nanmedian,cfppxls,'UniformOutput',1);
+    Cfp = cellfun(@nanmedian,nuc_pxls,'UniformOutput',1);
     Cfp(Cfp==single(13579)) = NaN;
     mkate = cellfun(@nanmedian,mkatepxls,'UniformOutput',1);
     mkate(mkate==single(13579)) = NaN;
@@ -1774,8 +1811,10 @@ plotStructUI.mkatebkg = mkatebkg;
     
 end
 function plotStruct = plotthemfunctionToStructure(framesThatMustBeTracked,Tracked,A,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat)
-global plottingTotalOrMedian cell_quantify nucleus_seg background_seg segmentPath
+global plottingTotalOrMedian cell_seg nucleus_seg background_seg segmentPath
 plotStruct = struct();
+
+
 
 plotTracesCell = cell(length(makeIMGidx),length(Tracked));
     for i = 1:length(Tracked)
@@ -1783,8 +1822,6 @@ plotTracesCell = cell(length(makeIMGidx),length(Tracked));
         plotTracesCell(:,i) = PXX(makeIMG);
     end
     
-cd(mstackPath)
-
 
 cd(mstackPath)
 %no bleach correction option yet
@@ -1793,11 +1830,11 @@ cd(mstackPath)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                      %  open smad img  %
             cd(mstackPath)         
-            ff = dir(strcat('*',ImageDetails.Scene,'*',cell_quantify,'*'));
+            ff = dir(strcat('*',ImageDetails.Scene,'*',cell_seg,'*'));
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
             channelfileObject = matfile(filename);
-            smadimgstack = channelfileObject.flatstack;
+            cellQ_imgstack = channelfileObject.flatstack;
             
                      %  open mKate img  %
             cd(mstackPath)         
@@ -1814,7 +1851,7 @@ cd(mstackPath)
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
             channelfileObject = matfile(filename);
-            cfpimgstack = channelfileObject.flatstack;
+            nuc_imgstack = channelfileObject.flatstack;
             
                     % open background Logical img  %
             cd(segmentPath)         
@@ -1844,81 +1881,79 @@ mkatebkg = zeros(1,timeFrames,'single');
 bkgstd = zeros(1,timeFrames,'single');
 for k=1:timeFrames
     bkglog = ~bkglogimgstack(:,:,k);
-    smadimg = single(smadimgstack(:,:,k));
-    cfpimg = single(cfpimgstack(:,:,k));
+    cellQ_img = single(cellQ_imgstack(:,:,k));
+    nuc_img = single(nuc_imgstack(:,:,k));
     mkateimg = single(mkateimgstack(:,:,k));
     %background subtraction is just subtraction with a value
-    Smadbkg(k) = nanmedian(smadimg(bkglog));
-    Cfpbkg(k) = nanmedian(cfpimg(bkglog));
+    Smadbkg(k) = nanmedian(cellQ_img(bkglog));
+    Cfpbkg(k) = nanmedian(nuc_img(bkglog));
     mkatebkg(k) = nanmedian(mkateimg(bkglog));
     bkgstd(k) = nanstd(mkateimg(bkglog));
-    smadimgstack(:,:,k) = smadimg-Smadbkg(k);
-    cfpimgstack(:,:,k) = cfpimg-Cfpbkg(k);
+    cellQ_imgstack(:,:,k) = cellQ_img-Smadbkg(k);
+    nuc_imgstack(:,:,k) = nuc_img-Cfpbkg(k);
     mkateimgstack(:,:,k) = mkateimg - mkatebkg(k);
     %background subtraction is subtraction with an interpolated image
-%     smadbkgimg = regionfill(smadimg,~bkglog);
-%     cfpbkgimg = regionfill(cfpimg,~bkglog); %fill in the regions where bkglog is 0
-%     smadimgstack(:,:,k) = smadimgstack(:,:,k)-smadbkgimg;
-%     cfpimgstack(:,:,k) = cfpimgstack(:,:,k)-cfpbkgimg;
+%     smadbkgimg = regionfill(cellQ_img,~bkglog);
+%     cfpbkgimg = regionfill(nuc_img,~bkglog); %fill in the regions where bkglog is 0
+%     cellQ_imgstack(:,:,k) = cellQ_imgstack(:,:,k)-smadbkgimg;
+%     nuc_imgstack(:,:,k) = nuc_imgstack(:,:,k)-cfpbkgimg;
 end
 
 
 %extract pixel intensities
-smadpxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
-cfppxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
+cellQ_pxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
+nuc_pxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
 
 for i = 1:size(plotTracesCell,2)
-    smadimg = single(squeeze(smadimgstack(:,:,i)));
-    cfpimg = single(squeeze(cfpimgstack(:,:,i)));
+    cellQ_img = single(squeeze(cellQ_imgstack(:,:,i)));
+    nuc_img = single(squeeze(nuc_imgstack(:,:,i)));
     mkateimg = single(squeeze(mkateimgstack(:,:,i)));
     for j=1:size(plotTracesCell,1)
     pxidx = plotTracesCell{j,i};
         if ~isnan(pxidx)
-        smadpxls(j,i) = {smadimg(pxidx)};
-        cfppxls(j,i) = {cfpimg(pxidx)};
+        cellQ_pxls(j,i) = {cellQ_img(pxidx)};
+        nuc_pxls(j,i) = {nuc_img(pxidx)};
         mkatepxls(j,i) = {mkateimg(pxidx)};
         else
-        smadpxls(j,i) = {single(13579)};
-        cfppxls(j,i) = {single(13579)};
+        cellQ_pxls(j,i) = {single(13579)};
+        nuc_pxls(j,i) = {single(13579)};
         mkatepxls(j,i) = {single(13579)};
         end
     end
 end
 
-
-
 %determine median pxl intensities
-    Smad = cellfun(@nanmedian,smadpxls,'UniformOutput',1);
-    Smad(Smad==single(13579)) = NaN;
-    Cfp = cellfun(@nanmedian,cfppxls,'UniformOutput',1);
-    Cfp(Cfp==single(13579)) = NaN;
+    Smad = cellfun(@nanmedian,cellQ_pxls,'UniformOutput',1);
+        Smad(Smad==single(13579)) = NaN;
+    Cfp = cellfun(@nanmedian,nuc_pxls,'UniformOutput',1);
+        Cfp(Cfp==single(13579)) = NaN;
     mkate = cellfun(@nanmedian,mkatepxls,'UniformOutput',1);
-    mkate(mkate==single(13579)) = NaN;
-for i = 1:size(smadpxls,1)
+        mkate(mkate==single(13579)) = NaN;
+for i = 1:size(cellQ_pxls,1)
     plotStruct(i).medianNucEGFP = Smad(i,:);
     plotStruct(i).medianNucRFP = Cfp(i,:);
 end
 
 %determine total pxl intensities
-    Smad = cellfun(@nansum,smadpxls,'UniformOutput',1);
-    Smad(Smad==single(13579)) = NaN;
-    Cfp = cellfun(@nansum,cfppxls,'UniformOutput',1);
-    Cfp(Cfp==single(13579)) = NaN;
+    Smad = cellfun(@nansum,cellQ_pxls,'UniformOutput',1);
+        Smad(Smad==single(13579)) = NaN;
+    Cfp = cellfun(@nansum,nuc_pxls,'UniformOutput',1);
+        Cfp(Cfp==single(13579)) = NaN;
     mkate = cellfun(@nansum,mkatepxls,'UniformOutput',1);
-    mkate(mkate==single(13579)) = NaN;
-for i = 1:size(smadpxls,1)
+        mkate(mkate==single(13579)) = NaN;
+for i = 1:size(cellQ_pxls,1)
     plotStruct(i).totalNucEGFP = Smad(i,:);
     plotStruct(i).totalNucRFP = Cfp(i,:);
 end
 
 %determine mean pxl intensities
-    Smad = cellfun(@nanmean,smadpxls,'UniformOutput',1);
+    Smad = cellfun(@nanmean,cellQ_pxls,'UniformOutput',1);
     Smad(Smad==single(13579)) = NaN;
-    Cfp = cellfun(@nanmean,cfppxls,'UniformOutput',1);
+    Cfp = cellfun(@nanmean,nuc_pxls,'UniformOutput',1);
     Cfp(Cfp==single(13579)) = NaN;
     mkate = cellfun(@nanmean,mkatepxls,'UniformOutput',1);
     mkate(mkate==single(13579)) = NaN;
-for i = 1:size(smadpxls,1)
+for i = 1:size(cellQ_pxls,1)
     plotStruct(i).meanNucEGFP = Smad(i,:);
     plotStruct(i).meanNucRFP = Cfp(i,:);
     plotStruct(i).medianCfpbkg = Cfpbkg;
@@ -2340,9 +2375,10 @@ cd ..
         cd(trackingPath)
         sceneN = SceneList{scenenumber};
         disp(sceneN)
+        ImageDetails.Scene = sceneN;
       
 
-        trackfile = dir(strcat(ExportNameKey,'*',ImageDetails.Scene,'*',ExportName,'.mat'));
+        trackfile = dir(strcat(ExportNameKey,'*',sceneN,'*',ExportName,'.mat'));
 %         trackfile = dir('finalfricktrack.mat');
         trackfilename = char({trackfile.name});
         
@@ -3142,7 +3178,7 @@ end
 
 %% Image Display functions
 function setSceneAndTime
-global TC nucleus_seg backgroundimgstack bfoName nfoName background_seg cell_quantify nucleusimgstack sfoName segmentimgstack  channelimgstack cfoName segmentPath frameToLoad ImageDetails  Tracked SceneList  trackPath imgfile mstackPath
+global TC DICimgstack dfoName  nucleus_seg backgroundimgstack bfoName nfoName background_seg cell_seg nucleusimgstack sfoName segmentimgstack  channelimgstack cfoName segmentPath frameToLoad ImageDetails  Tracked SceneList  trackPath imgfile mstackPath
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   determine the channel directory
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3187,7 +3223,7 @@ ChannelDirectory = dir(strcat('*',ImageDetails.Channel,'_*'));
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %         imgfile = dir(strcat('*',ImageDetails.Frame,'*.tif'));
         cd(mstackPath)
-        ff = dir(strcat('*',ImageDetails.Scene,'*',cell_quantify,'*'));
+        ff = dir(strcat('*',ImageDetails.Scene,'*',cell_seg,'*'));
 %         ff = dir(strcat(ImageDetails.Channel,'*'));
         filename = char(ff.name);
         if ~isempty(cfoName) %if channelfileObject has been made, check to see if the scene has changed. 
@@ -3196,21 +3232,21 @@ ChannelDirectory = dir(strcat('*',ImageDetails.Channel,'_*'));
                  channelfileObject = matfile(filename);
                  channelimgstack = channelfileObject.flatstack;
                  cfoName = char(channelfileObject.Properties.Source);%update cfoName
-                 disp('if -> if')
+                 
             elseif ~isempty(a) && isempty(channelimgstack)  %if the scene is same but unloaded
                  channelfileObject = matfile(filename);
                  channelimgstack = channelfileObject.flatstack;
                  cfoName = char(channelfileObject.Properties.Source);%update cfoName
-                 disp('if -> elseif')
+%                  disp('if -> elseif')
             else
-                disp('if -> else')
+%                 disp('if -> else')
                 %dont do anything
             end
         else %if no cfoName, then 
                  channelfileObject = matfile(filename);
                  channelimgstack = channelfileObject.flatstack;
                  cfoName = char(channelfileObject.Properties.Source);%update cfoName
-                 disp('else')
+%                  disp('else')
         end
         
         cellImg = channelimgstack(:,:,t);
@@ -3226,23 +3262,53 @@ ChannelDirectory = dir(strcat('*',ImageDetails.Channel,'_*'));
                  nucleusfileObject = matfile(filename);
                  nucleusimgstack = nucleusfileObject.flatstack;
                  nfoName = char(nucleusfileObject.Properties.Source);%update cfoName
-                 disp('if -> if')
+%                  disp('if -> if')
             elseif ~isempty(a) && isempty(nucleusimgstack)  %if the scene is same but unloaded
                  nucleusfileObject = matfile(filename);
                  nucleusimgstack = nucleusfileObject.flatstack;
                  nfoName = char(nucleusfileObject.Properties.Source);%update cfoName
-                 disp('if -> elseif')
+%                  disp('if -> elseif')
             else
-                disp('if -> else')
+%                 disp('if -> else')
                 %dont do anything
             end
         else %if no cfoName, then 
                  nucleusfileObject = matfile(filename);
                  nucleusimgstack = nucleusfileObject.flatstack;
                  nfoName = char(nucleusfileObject.Properties.Source);%update cfoName
-                 disp('else')
+%                  disp('else')
         end
         nucleusImg = nucleusimgstack(:,:,t);
+        
+        
+        
+         cd(mstackPath)
+        ff = dir(strcat('*',ImageDetails.Scene,'*','DIC','*'));
+%         ff = dir(strcat(ImageDetails.Channel,'*'));
+        filename = char(ff.name);
+        if ~isempty(dfoName) %if channelfileObject has been made, check to see if the scene has changed. 
+            [a,~] = regexp(dfoName,ImageDetails.Scene);
+            if isempty(a) %if the scene has changed load the new channelimgstack
+                 DICfileObject = matfile(filename);
+                 DICimgstack = DICfileObject.flatstack;
+                 dfoName = char(DICfileObject.Properties.Source);%update cfoName
+%                  disp('if -> if')
+            elseif ~isempty(a) && isempty(DICimgstack)  %if the scene is same but unloaded
+                 DICfileObject = matfile(filename);
+                 DICimgstack = DICfileObject.flatstack;
+                 dfoName = char(DICfileObject.Properties.Source);%update cfoName
+%                  disp('if -> elseif')
+            else
+%                 disp('if -> else')
+                %dont do anything
+            end
+        else %if no cfoName, then 
+                 DICfileObject = matfile(filename);
+                 DICimgstack = DICfileObject.flatstack;
+                 dfoName = char(DICfileObject.Properties.Source);%update cfoName
+%                  disp('else')
+        end
+        DICImg = DICimgstack(:,:,t);
         
          
        %load nucleus segmented image
@@ -3256,21 +3322,21 @@ ChannelDirectory = dir(strcat('*',ImageDetails.Channel,'_*'));
                  segmentfileObject = matfile(filename);
                  segmentimgstack = segmentfileObject.IfFinal;
                  sfoName = char(segmentfileObject.Properties.Source);%update cfoName
-                 disp('if -> if')
+%                  disp('if -> if')
             elseif ~isempty(a) && isempty(segmentimgstack)  %if the scene is same but unloaded
                  segmentfileObject = matfile(filename);
                  segmentimgstack = segmentfileObject.IfFinal;
                  sfoName = char(segmentfileObject.Properties.Source);%update cfoName
-                 disp('if -> elseif')
+%                  disp('if -> elseif')
             else
-                disp('if -> else')
+%                 disp('if -> else')
                 %dont do anything
             end
         else %if no cfoName, then 
                  segmentfileObject = matfile(filename);
                  segmentimgstack = segmentfileObject.IfFinal;
                  sfoName = char(segmentfileObject.Properties.Source);%update cfoName
-                 disp('else')
+%                  disp('else')
         end
         segmentimg = segmentimgstack(:,:,t);
         
@@ -3287,21 +3353,21 @@ ChannelDirectory = dir(strcat('*',ImageDetails.Channel,'_*'));
                  backgroundfileObject = matfile(filename);
                  backgroundimgstack = backgroundfileObject.IfFinal;
                  bfoName = char(backgroundfileObject.Properties.Source);%update cfoName
-                 disp('if -> if')
+%                  disp('if -> if')
             elseif ~isempty(a) && isempty(backgroundimgstack)  %if the scene is same but unloaded
                  backgroundfileObject = matfile(filename);
                  backgroundimgstack = backgroundfileObject.IfFinal;
                  bfoName = char(backgroundfileObject.Properties.Source);%update cfoName
-                 disp('if -> elseif')
+%                  disp('if -> elseif')
             else
-                disp('if -> else')
+%                 disp('if -> else')
                 %dont do anything
             end
         else %if no cfoName, then 
                  backgroundfileObject = matfile(filename);
                  backgroundimgstack = backgroundfileObject.IfFinal;
                  bfoName = char(backgroundfileObject.Properties.Source);%update cfoName
-                 disp('else')
+%                  disp('else')
         end
         backgroundimg = backgroundimgstack(:,:,t);
          
@@ -3357,8 +3423,10 @@ TC=0;
 
 if strcmp(ImageDetails.Channel,nucleus_seg)
     channelimg = nucleusImg;
-elseif strcmp(ImageDetails.Channel,cell_quantify)
+elseif strcmp(ImageDetails.Channel,cell_seg)
     channelimg = cellImg;
+elseif strcmp(ImageDetails.Channel,'DIC')
+    channelimg = DICImg;
 elseif strcmp(ImageDetails.Channel,'BKGbinary')
      channelimg = cellImg;
      backgroundimg(segmentimg) = true; 
@@ -3539,7 +3607,7 @@ cd(trackingPath)
 prompt = 'filename of tracking structure to be saved?';
 dlg_title = 'save tracking structure as...specific filename';
 filename = char(inputdlg(prompt,dlg_title));
-
+save(strcat(filename,'_',ImageDetails.Scene,'_',ExportName,'.mat'),'Tracked')
 end
 
 function trackSaveIterate_callback(~,~)
@@ -3556,6 +3624,7 @@ runIterate =1;
             pvalue = char(str{val});
             ImageDetails.Scene = pvalue;
             setSceneAndTime
+            disp(pvalue)
 
 
         %run tracking
@@ -3573,7 +3642,7 @@ runIterate =1;
             filename = 'initial';
             save(strcat(filename,'_',ImageDetails.Scene,'_',ExportName,'.mat'),'Tracked')
 %             save(strcat(filename,ExportName,'.mat'),'Tracked')
-            disp(pvalue)
+            
     end
 runIterate =0;
 

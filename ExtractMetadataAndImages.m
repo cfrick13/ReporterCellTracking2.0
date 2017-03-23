@@ -37,12 +37,18 @@ end
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 % Construct a Bio-Formats reader decorated with the Memoizer wrapper
+maxjava = java.lang.Runtime.getRuntime.maxMemory;
+freejava = java.lang.Runtime.getRuntime.freeMemory;
+percentJavaMemFree = round(freejava./maxjava,1,'decimals');
+disp(strcat('% java mem free=',num2str(percentJavaMemFree)))
+
+
 reader = loci.formats.Memoizer(bfGetReader(), 0);
 % Initialize the reader with an input file to cache the reader
 reader.setId(FileName);
-
 omeMeta = reader.getMetadataStore();
 
+disp(strcat('% java mem free=',num2str(percentJavaMemFree)))
 % data = bfopen(FileName);
 % seriesCount = size(data, 1); %number of scenes
 [a,~] = regexp(FileName,'.czi');
@@ -111,7 +117,7 @@ clear reader omeMeta
 %determine amount of memory required to load one stack
 memoryrequired = stackSizeX*stackSizeY*planeCount;
 disp(strcat('memory required for one set =',num2str(round(memoryrequired./(1e6),1,'decimals')),'MegaBytes'))
-detWorkers = 5./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
+detWorkers = 7./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
 nWorkers = floor(detWorkers);
 possibleWorkers = feature('numcores');
 if nWorkers>possibleWorkers
