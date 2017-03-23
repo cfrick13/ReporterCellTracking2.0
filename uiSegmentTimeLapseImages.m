@@ -145,132 +145,141 @@ channelinputsUnderscore =channelregexpmaker(channelstoinput);
 f = figure;
 % f.Visible ='off';
 f.Units = 'pixels';
-f.Position =[10,10,1800,1000];
+f.Position =[70 90 1800 900];
 
 
-buttonwidth = 80;
-buttonheight = 50;
+bW = 80; %buttonWidth
+sW = 10; %spacerWidth
+bH = 50; %buttonHeigth
 
-ypositions = sort([100:20:1000],'descend');
-xpositions = ones(1,length(ypositions)).*1600;
+%row1
+    % hNextFrame
+    xPi = 1500;
+    yPi = 850;
+    xP = xPi;
+    yP = yPi;
+    uicontrol('Style','pushbutton','String','NextFrame [f]',...
+        'Position',[xP,yP,bW,bH],...
+        'Callback',@nextbutton_callback);
+    % hPreviousFrame
+    xP = xP+sW+bW;
+    uicontrol('Style','pushbutton','String','Previous frame [a]',...
+        'Position',[xP,yP,bW,bH],...
+        'Callback',@prevbutton_callback);
 
-        mmm=1;
-% htexttwo 
-uicontrol('Style','text','String','To choose channel push 1, 2, or 3',...
-          'Position',[xpositions(mmm),ypositions(mmm),buttonwidth,buttonheight]);
-        mmm=mmm+1;mmm=mmm+1;mmm=mmm+1;
+    % hGoToFrame
+    xP = xP+sW+bW;
+    uicontrol('Style','pushbutton','String','Go to Frame',...
+        'Position',[xP,yP,bW,bH],...
+        'Callback',@gotobutton_callback);
+%row2
+    % hFirstFrame
+    xP = xPi;
+    yP = yP-bH-sW;
+    uicontrol('Style','pushbutton','String','First frame [z]',...
+        'Position',[xP,yP,bW,bH],...
+        'Callback',@firstbutton_callback);
 
-% hNextFrame
-uicontrol('Style','pushbutton',...
-    'String','NextFrame [f]',...
-    'Position',[xpositions(mmm)+40,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@nextbutton_callback);
-% hPreviousFrame
-uicontrol('Style','pushbutton',...
-    'String','Previous frame [a]',...
-    'Position',[xpositions(mmm)-40,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@prevbutton_callback);
-        mmm=mmm+1;mmm=mmm+1;
-        
-% hGoToFrame
-uicontrol('Style','pushbutton',...
-    'String','Go to Frame',...
-    'Position',[xpositions(mmm)-120,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@gotobutton_callback);
+    % hFinalFrame
+    xP = xP+sW+bW;
+    uicontrol('Style','pushbutton','String','FinalFrame [g]',...
+        'Position',[xP,yP,bW,bH],...
+        'Callback',@finalbutton_callback);
 
-        
-% hFinalFrame
-uicontrol('Style','pushbutton',...
-    'String','FinalFrame [g]',...
-    'Position',[xpositions(mmm)+40,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@finalbutton_callback);
-% hFirstFrame
-uicontrol('Style','pushbutton',...
-    'String','First frame [z]',...
-    'Position',[xpositions(mmm)-40,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@firstbutton_callback);
-% hFirstFrame
-uicontrol('Style','pushbutton',...
-    'String','saveSomethingCallback',...
-    'Position',[xpositions(mmm)-300,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@saveSomethingCallback);
-        mmm=mmm+1; mmm=mmm+1;
+%section3
+bW=bW*1.5;
+    % htextone
+    xP = xPi-(sW*3)-bW;
+    yP = yPi;
+    uicontrol('Style','text','String','Choose Scene',...
+        'Position',[xP,yP,bW,bH./2]);
 
-% htextone
-uicontrol('Style','text','String','Choose Scene',...
-    'Position',[xpositions(mmm),ypositions(mmm)-buttonheight./2,buttonwidth,buttonheight]);
+    % htextone
+    xP = xP-(sW)-bW;
+    uicontrol('Style','text','String','Choose Channel',...
+        'Position',[xP,yP,bW,bH./2]);
 
-% htextone
-uicontrol('Style','text','String','Choose Channel',...
-    'Position',[xpositions(mmm)-200,ypositions(mmm)-buttonheight./2,buttonwidth,buttonheight]);
-        mmm=mmm+1;
-% hpopup
-uicontrol('Style','popupmenu',...
-    'String',SceneList',...
-    'Position',[xpositions(mmm)-buttonwidth./2,ypositions(mmm),buttonwidth.*1.5,buttonheight./2],...
-    'Callback',@popup_menu_Callback);
-        
-        
-% hpopup
-uicontrol('Style','popupmenu',...
-    'String',channelList',...
-    'Position',[xpositions(mmm)-200-buttonwidth./2,ypositions(mmm),buttonwidth.*1.5,buttonheight./2],...
-    'Callback',@popup_menu_Callback_channels);
-        mmm=mmm+1;mmm=mmm+1; mmm=mmm+1;
+%section4 (dropdown "popupmenus")
+    % hpopupSceneList
+    xP = xPi-(sW*3)-bW;
+    yP = yP-(sW*2);
+    uicontrol('Style','popupmenu',...
+        'String',SceneList',...
+        'Position',[xP,yP,bW,bH./2],...
+        'Callback',@popup_menu_Callback);
+
+    % hpopupChannelList
+    xP = xP-(sW)-bW;
+    uicontrol('Style','popupmenu',...
+        'String',channelList',...
+        'Position',[xP,yP,bW,bH./2],...
+        'Callback',@popup_menu_Callback_channels);
+    
+%final Save button
+    % hFirstFrame
+    xP = xPi;
+    yP = yPi-bH-bH-bH-bH-(sW*3);
+    uicontrol('Style','pushbutton',...
+        'String','saveSomethingCallback',...
+        'Position',[xP,yP,bW.*2,bH.*2],...
+        'Callback',@saveSomethingCallback);
+
         
   
-        %%%%
-        %%%%
-% hSaveTrackingAs
-uicontrol('Style','pushbutton',...
-    'String','SaveTrackingAs',...
-    'Position',[xpositions(mmm)-buttonwidth./2,ypositions(mmm)-buttonheight,buttonwidth.*2,buttonheight.*2],...
-    'Callback',@saveTrackingFileAs_callback);
-        mmm=mmm+1; mmm=mmm+1; mmm=mmm+1; mmm=mmm+1; mmm=mmm+1;
-
-% hLoadTracking
-uicontrol('Style','pushbutton',...
-    'String','LoadTracking',...
-    'Position',[xpositions(mmm),ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@loadTrackingFile_callback);
-        mmm=mmm+1; mmm=mmm+1; mmm=mmm+1;
-       
-
         
        
 f.Visible = 'on'   ;
-f.Units = 'normalized';
+% f.Units = 'normalized';
 for i = 1:length(f.Children)
    hhh = f.Children(i);
    hhh.Units = 'normalized';
+   hhh.FontSize = 8;
 end
-% 
-% MainAxes = axes;
-% MainAxes.Units = 'pixels';
-% MainAxes.XTick=[];
-% MainAxes.YTick = [];
-% imgdim = 512.*1.8;
-% Position = [25 25 imgdim imgdim];
-% % Position = [0.1 0.3 0.65 0.65];
-% MainAxes.Position = Position;
+
+
+
+
 
 
 channelimglength = 9;
-xinit = 0.02;
-yinit = 0.025;
+xi = 0.02;
+yi = 0.025;
 w = 0.15;
-h = 0.15;
-xspacefactor = 0.3;
-yspacefactor = 1;
-x = [xinit xinit+w+(xspacefactor*w) xinit+(w+(xspacefactor*w)).*2 xinit xinit+w+(xspacefactor*w) xinit+(w+(xspacefactor*w)).*2 xinit xinit+w+(xspacefactor*w) xinit+(w+(xspacefactor*w)).*2];
-y = fliplr([yinit yinit yinit yinit+h+(yspacefactor*w) yinit+h+(yspacefactor*w) yinit+h+(yspacefactor*w)   yinit+(w+(yspacefactor*w)).*2 yinit+(w+(yspacefactor*w)).*2 yinit+(w+(yspacefactor*w)).*2]);
+h = 0.28;
+xspf = 0.1; %xspacefactor
+yspf = 0.1;
 
-for i=1:channelimglength
+dimm = [3 3];
+xvc=[];
+yvc=[];
+for i = 1:dimm(1)
+    xvi = [];
+    yvi = [];
+    for j = 1:dimm(2)
+        xv = xi + (xspf*w)*(j-1) + (w*(j-1));
+        xvi = horzcat(xvi,xv);
+        
+        yv = yi + (yspf*h)*(i-1) + (h*(i-1));
+        yvi = horzcat(yvi,yv);
+    end
+    xvc = horzcat(xvc,xvi);
+    yvc = horzcat(yvi,yvc);
+end
+% x = [xi xi+w+(xspf*w) xi+(w+(xspf*w)).*2 xi xi+w+(xspf*w) xi+(w+(xspf*w)).*2 xi xi+w+(xspf*w) xi+(w+(xspf*w)).*2];
+% y = fliplr([yi yi yi yi+h+(yspf*w) yi+h+(yspf*w) yi+h+(yspf*w)   yi+(w+(yspf*w)).*2 yi+(w+(yspf*w)).*2 yi+(w+(yspf*w)).*2]);
+x=xvc;
+y=yvc;
+for i=1:dimm(1)*dimm(2)
     ax= axes();
     ax.Position = [x(i) y(i) w h];
     ax.Units = 'inches';
     pos = ax.Position;
-    pos(4) = pos(3);
+    %make them square
+    if pos(4)>pos(3)
+        pos(4) = pos(3);
+    else
+        pos(3) = pos(4);
+    end
     ax.Position = pos;
     ax.Units = 'normalized';
     ax.XTick = [];
@@ -278,16 +287,42 @@ for i=1:channelimglength
     subaxes(i) = ax;
 end
 
-w=0.15;
-h=0.15;
-x = [0.62 0.8 0.62 0.8];
-y = [0.32 0.32 0.02 0.02];
-for i=1:4
+xi = 0.65;
+yi = 0.025;
+w = 0.15;
+h = 0.28;
+xspf = 0.1; %xspacefactor
+yspf = 0.1;
+
+dimm = [2 2];
+xvc=[];
+yvc=[];
+for i = 1:dimm(1)
+    xvi = [];
+    yvi = [];
+    for j = 1:dimm(2)
+        xv = xi + (xspf*w)*(j-1) + (w*(j-1));
+        xvi = horzcat(xvi,xv);
+        
+        yv = yi + (yspf*h)*(i-1) + (h*(i-1));
+        yvi = horzcat(yvi,yv);
+    end
+    xvc = horzcat(xvc,xvi);
+    yvc = horzcat(yvc,yvi);
+end
+x = xvc;
+y = yvc;
+for i=1:dimm(1)*dimm(2)
     ax= axes();
     ax.Position = [x(i) y(i) w h];
     ax.Units = 'inches';
     pos = ax.Position;
-    pos(4) = pos(3);
+    %make them square
+    if pos(4)>pos(3)
+        pos(4) = pos(3);
+    else
+        pos(3) = pos(4);
+    end
     ax.Position = pos;
     ax.Units = 'normalized';
     ax.XTick = [];
@@ -299,12 +334,12 @@ end
 
 %define parameter structure and default parameter values
 pStruct = struct();
-parameterDefaults.EGFP = [106 1 15 1];
-parameterDefaults.CFP = [20 1 2 1];
-parameterDefaults.mKate = [40 1 2 1];
-parameterDefaults.Hoechst = [20 1 2 1];
-parameterDefaults.DIC = [20 1 2 1];
-parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','noparametercurrently'};
+parameterDefaults.EGFP = [100 1 15 0.5];
+parameterDefaults.CFP = [20 1 2 0.5];
+parameterDefaults.mKate = [40 1 2 0.5];
+parameterDefaults.Hoechst = [20 1 2 0.5];
+parameterDefaults.DIC = [20 1 2 0.5];
+parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','metthresh'};
 for p = 1:length(parameterStrings)
     pString = char(parameterStrings{p});
     for c = 1:length(channelList)
@@ -316,7 +351,8 @@ for p = 1:length(parameterStrings)
 end
 
 pStruct = loadSegmentParameters(pStruct,FileName,exportdir); %loads saved value of pStruct
-
+f.Units='normalized';
+f.Position =[0.1,0.2,0.8,0.7];
 set(f,'KeyPressFcn',@keypress);
 end
 
@@ -341,7 +377,7 @@ end
 end
 
 function saveSomethingCallback(~,~)
-global pStruct exportdir OGExpDate
+global  exportdir OGExpDate pStruct
 
 cd(exportdir)
 filename = strcat('*',OGExpDate,'*metaData*')
@@ -357,11 +393,9 @@ end
 
 
 function updateSliders
-global pStruct ImageDetails sliderOne sliderOneTxt
+global pStruct ImageDetails sliderOne sliderOneTxt editBox
 
-%slider1
 sliderx = 0.72;
-% slidery = 0.6;
 sliderw = 0.1;
 sliderh = 0.02;
 slidertextw = 0.1;
@@ -374,71 +408,44 @@ sliderspace = 0.1;
 channel = ImageDetails.Channel;
 
 %nucDiameter
-str = 'nucDiameter';
-val.(str) = pStruct.(channel).(str);
-slidery = 0.75;
-minz = 1;
-maxz = 400;
-sliderOne.(str) = uicontrol('Style', 'slider','String',str,'Min',minz,'Max',maxz,'SliderStep',[1 1]./((maxz-minz)./5),'Value',val.(str),'Position', [1 1 1 1],...
-        'Callback', @sliderOneAdjust); 
-    sliderOne.(str).Units='normalized';
-    sliderOne.(str).Position = [sliderx slidery sliderw sliderh];
-sliderOneTxt.(str) = uicontrol('Style','text','Units','Normalized','Position',[1 1 1 1],'String',strcat(str,'=',num2str(uint8(val.(str)))));
-    sliderOneTxt.(str).Units= 'Normalized';
-    sliderOneTxt.(str).Position = [sliderx-sliderspace slidery slidertextw sliderh];  
+fnames = fieldnames(pStruct.(channel));
+sliderspacing = linspace(0.8,0.7,4);
+    for cyc = 1:length(fnames)
+        str = fnames{cyc};
+        if strcmp(str,'nucDiameter')
+                minz = 1;
+                maxz = 400;
+                ssa = 1/5;%sliderStepAdjust
+        elseif strcmp(str,'threshFactor')
+            minz = 0.4;
+            maxz = 3;
+            ssa = 20;
+        elseif strcmp(str,'sigmaScaledToParticle')
+            minz = 1;
+            maxz = 40;
+            ssa = 20;
+        elseif strcmp(str,'metthresh')
+            minz = 0;
+            maxz = 1;
+            ssa = 20;
+        else
+            disp('parameter NOT CURRENTLY DEFINED') 
+        end
+        val.(str) = pStruct.(channel).(str);
+        slidery = sliderspacing(cyc);
+
+        
+        sliderOne.(str) = uicontrol('Style', 'slider','String',str,'Min',minz,'Max',maxz,'SliderStep',[1 1]./((maxz-minz).*ssa),'Value',val.(str),'Position', [1 1 1 1],...
+            'Callback', @sliderOneAdjust); 
+        sliderOne.(str).Units='normalized';
+        sliderOne.(str).Position = [sliderx slidery sliderw sliderh];
+        sliderOneTxt.(str) = uicontrol('Style','text','Units','Normalized','Position',[1 1 1 1],'String',strcat(str,'=',num2str((val.(str)))));
+        sliderOneTxt.(str).Units= 'Normalized';
+        sliderOneTxt.(str).Position = [sliderx-sliderspace slidery slidertextw sliderh];  
+
+    end
 
     
-    
-    
-% threshFactor
-str = 'threshFactor';
-val.(str) = pStruct.(channel).(str);
-slidery = 0.725;
-minz = 0.4;
-maxz = 3;
-sliderOne.(str) = uicontrol('Style', 'slider','String',str,'Min',minz,'Max',maxz,'SliderStep',[1 1]./(20*(maxz-minz)),'Value',val.(str),'Position', [1 1 1 1],...
-        'Callback', @sliderOneAdjust); 
-    sliderOne.(str).Units='normalized';
-    sliderOne.(str).Position = [sliderx slidery sliderw sliderh];
-sliderOneTxt.(str) = uicontrol('Style','text','Units','Normalized','Position',[1 1 1 1],'String',strcat(str,'=',num2str((val.(str)))));
-    sliderOneTxt.(str).Units= 'Normalized';
-    sliderOneTxt.(str).Position = [sliderx-sliderspace slidery slidertextw sliderh];  
-
-    
-   
-    
-    
-% sigmaScaledToParticle (the divide diameter by this factor to get sigma for
-% gaussian smoothing)
-str = 'sigmaScaledToParticle';
-val.(str) = pStruct.(channel).(str);
-slidery = 0.7;
-minz = 1;
-maxz = 40;
-sliderOne.(str) = uicontrol('Style', 'slider','String',str,'Min',minz,'Max',maxz,'SliderStep',[1 1]./(maxz-minz),'Value',val.(str),'Position', [1 1 1 1],...
-        'Callback', @sliderOneAdjust); 
-    sliderOne.(str).Units='normalized';
-    sliderOne.(str).Position = [sliderx slidery sliderw sliderh];
-sliderOneTxt.(str) = uicontrol('Style','text','Units','Normalized','Position',[1 1 1 1],'String',strcat(str,'=',num2str(uint8(val.(str)))));
-    sliderOneTxt.(str).Units= 'Normalized';
-    sliderOneTxt.(str).Position = [sliderx-sliderspace slidery slidertextw sliderh];   
-  
-    
-    
-% noparemtercurrently
-str = 'noparametercurrently';
-val.(str) = pStruct.(channel).(str);
-slidery = 0.675;
-minz = 1;
-maxz = 400;
-sliderOne.(str) = uicontrol('Style', 'slider','String',str,'Min',minz,'Max',maxz,'SliderStep',[1 1]./(maxz-minz),'Value',val.(str),'Position', [1 1 1 1],...
-        'Callback', @sliderOneAdjust); 
-    sliderOne.(str).Units='normalized';
-    sliderOne.(str).Position = [sliderx slidery sliderw sliderh];
-sliderOneTxt.(str) = uicontrol('Style','text','Units','Normalized','Position',[1 1 1 1],'String',strcat(str,'=',num2str(uint8(val.(str)))));
-    sliderOneTxt.(str).Units= 'Normalized';
-    sliderOneTxt.(str).Position = [sliderx-sliderspace slidery slidertextw sliderh];   
-
 end
 
 
@@ -479,6 +486,8 @@ function sliderOneAdjust(source,~)
 
     if strcmpi(str,'threshFactor')
         valupdate = source.Value;  
+    elseif strcmpi(str,'metthresh')
+        valupdate = source.Value; 
     else
         valupdate = round(source.Value);
     end
@@ -497,22 +506,25 @@ function sliderOneAdjust(source,~)
 end
 
 
+
 function plotTestOut(testOut,channel)
     global subaxestwo
 
     if strcmp(channel,'mKate')
     stringsToTest = {'rawMinusLPScaled','Ihcf','gradmag2','Ieg'};
-    elseif strcmp(channel,'Hoechst')
-    stringsToTest = {'rawMinusLPScaled','Ihcf','gradmag2','Ieg'};
     else
 %     stringsToTest = {'rawMinusLPScaled','Ih','Ihcd','Shapes'};
-    stringsToTest = {'initialIh','imgRawDenoised','Im','imgWWW'};
+    stringsToTest = {'imgRawDenoised','Ih','gradmag2','fgm4'};
     end
     for i = 1:length(subaxestwo)
     axes(subaxestwo(i))
     str = stringsToTest{i};
     img = testOut.(str);
-    imagesc(img);title(str);
+    imagesc(img);t=title(str);
+    t.FontSize=8;
+    h=gca;
+    h.XTick=[];
+    h.YTick=[];
     end
     
 %         testOut.img = img;
@@ -532,20 +544,12 @@ function [IfFinal,testOut] = segmentationNucleus(FinalImage,segmentPath,nucleus_
     testOut = struct();
     frames = 1;
     img = FinalImage(:,:,frames); 
-    if strcmp(nucleus_seg,'Hoechst')
-        [~,testOut] = segmentHoechstNuclei(img,nucleus_seg,pStruct,frames);  
-    else
-        [~,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames);
-    end
+    [~,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames);
     
     IfFinal = false(size(FinalImage));
     for frames = 1:size(FinalImage,3)
         img = FinalImage(:,:,frames); 
-        if strcmp(nucleus_seg,'Hoechst')
-            [If,~] = segmentHoechstNuclei(img,nucleus_seg,pStruct,frames);  
-        else
-            [If,~] = segmentNuclei(img,nucleus_seg,pStruct,frames);
-        end
+        [If,~] = segmentNuclei(img,nucleus_seg,pStruct,frames);
         IfFinal(:,:,frames)=If;
     end
                 
@@ -1150,7 +1154,7 @@ imgfile = dir(strcat('*',ImageDetails.Frame,'*.tif'));
         cd(mstackPath)
         ff = dir(strcat('*',ImageDetails.Scene,'*',ImageDetails.Channel,'*'));
 %         ff = dir(strcat(ImageDetails.Channel,'*'));
-        channelspacing = round(linspace(16,timeFrames,9));
+        channelspacing = round(linspace(1,timeFrames,9));
 %         channelspacing = [1 4 9 12 15 18 20 22 26];
         if length(channelspacing)>timeFrames
             channelspacing = 1:timeFrames;
@@ -1325,7 +1329,7 @@ himgax = get(himg,'Parent');
 himgax.CLim = [0 256];
 ttl = get(himgax,'Title');
 set(ttl,'String',strcat(ExpDate,'...',ImageDetails.Scene,'...frame ',num2str(t),' out of', num2str(timeFrames)));
-set(ttl,'FontSize',12);
+set(ttl,'FontSize',8);
 himgax.YTick = [];
 himgax.XTick = [];
 end

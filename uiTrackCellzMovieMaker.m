@@ -1,11 +1,12 @@
-function uiTrackCellz
-global DICimgstack dfoName cfoName trackingPath background_seg bfoName backgroundimgstack sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterate ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs adjuster cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes OGExpDate plottingON PlotAxes cmap TC A AA timeFrames frameToLoad ImageDetails MainAxes SceneList displaytracking imgsize ExpDate
+function uiTrackCellzMovieMaker
+global saveMovie timeCount DICimgstack dfoName cfoName trackingPath background_seg bfoName backgroundimgstack sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterate ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs adjuster cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes OGExpDate plottingON PlotAxes cmap TC A AA timeFrames frameToLoad ImageDetails MainAxes SceneList displaytracking imgsize ExpDate
 adjuster=0;
+saveMovie=0;
 plottingTotalOrMedian = 'median';
 tcontrast = 99;
 lcontrast = 1;
 % exportdir = 'C:\Users\Kibeom\Desktop\Tracking\Export\';
-ExportNameKey = 'final';
+ExportNameKey = 'forMovie';
 % ExportNameKey = 'tsichosen';
 if strcmp(ExportNameKey,'final')
 else
@@ -108,6 +109,7 @@ channelinputs =channelregexpmaker(channelstoinput);
 bkg = dosestructstruct.BACKGROUND;
 imgsize = dosestructstruct.dimensions;
 backgroundScenes = dosestructstruct.indicesChoice;
+timeCount = dosestructstruct.timeCount;
 
 BACKGROUND = bkg{1};
 for i = 1:length(BACKGROUND)
@@ -173,6 +175,10 @@ hNextFrame = uicontrol('Style','pushbutton',...
     'String','NextFrame [f]',...
     'Position',[xpositions(mmm)+40,ypositions(mmm),buttonwidth,buttonheight],...
     'Callback',@nextbutton_callback);
+hNextFrame = uicontrol('Style','pushbutton',...
+    'String','playMovie',...
+    'Position',[xpositions(mmm)+120,ypositions(mmm),buttonwidth,buttonheight],...
+    'Callback',@playMovie);
 hPreviousFrame = uicontrol('Style','pushbutton',...
     'String','Previous frame [a]',...
     'Position',[xpositions(mmm)-40,ypositions(mmm),buttonwidth,buttonheight],...
@@ -401,7 +407,7 @@ MainAxes = axes;
 MainAxes.Units = 'pixels';
 MainAxes.XTick=[];
 MainAxes.YTick = [];
-imgdim = 512.*1.8;
+imgdim = 512.*1.5;
 Position = [25 25 imgdim imgdim];
 % Position = [0.1 0.3 0.65 0.65];
 MainAxes.Position = Position;
@@ -424,8 +430,13 @@ ThirdPlotAxes = axes;
 Position = [0.6440    0.2605    0.1500    0.1500];
 ThirdPlotAxes.Position = Position;
 
-f.Position =[0.1,0.1,0.7,0.8];
+f.Position =[0.01,0.01,0.9,0.9];
 set(f,'KeyPressFcn',@keypress);
+
+MainAxes.Units = 'pixels';
+Position = [25 25 imgdim imgdim];
+MainAxes.Position = Position;
+% MainAxes.Units = 'normalized';
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3475,7 +3486,7 @@ end
 
 
 function displayImageFunct(If,channelimg)
-global displaycomments timeFrames lprcntlt prcntlt tcontrast lcontrast MainAxes displaytracking ImageDetails frameToLoad prcntlz lprcntlz prcntlk lprcntlk prcntl lprcntl D ExpDate cmap cmaplz adjuster
+global saveMovie displaycomments timeFrames lprcntlt prcntlt tcontrast lcontrast MainAxes displaytracking ImageDetails frameToLoad prcntlz lprcntlz prcntlk lprcntlk prcntl lprcntl D ExpDate cmap cmaplz adjuster
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   determine the frame to load
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -3599,6 +3610,11 @@ set(ttl,'FontSize',12);
             h = plot(mainX(idx,:)',mainY(idx,:)','LineWidth',3);
             
             cmaplz = colormap(colorcube(size(mainX,1).*2));
+            color1 = [1 0.6 0]./1.1; %cheese
+            color2 = [0 1 0]./1.5; %green
+            color3 = [1 0 1]./1.5; %purple
+            color4 = [0 0.5 1]./1.5; %blue
+            cmaplz = [color1;color2;color3;color4]; 
             cmapl = cmaplz(idx,:);
                 for i=1:length(h)
                     h(i).Color = cmapl(i,:);
@@ -3614,8 +3630,23 @@ himgax.YTick = [];
 himgax.XTick = [];
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
+
+
+
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    if saveMovie == 1
+    olddir = pwd;
+    specialdir = 'F:\Frick\movie';
+    cd(specialdir)
+    tstr = num2str(ImageDetails.Frame);
+    tstrz = 't00';
+    tstrz(end-length(tstr)+1:end) = tstr;
+    filename = strcat('img-',tstrz,'.tif');
+    saveas(gcf,filename,'tiff');
+    cd(olddir);
+    end
 % saveChannelFiveImages
 end
 
@@ -3629,6 +3660,18 @@ filename = char(inputdlg(prompt,dlg_title));
 save(strcat(filename,'_',ImageDetails.Scene,'_',ExportName,'.mat'),'Tracked')
 end
 
+
+function playMovie(~,~)
+global ImageDetails timeCount saveMovie
+
+saveMovie = 1;
+for i = 2:31
+   ImageDetails.Frame = i;
+   setSceneAndTime
+end
+saveMovie = 0;
+
+end
 function trackSaveIterate_callback(~,~)
 global runIterate SceneList ImageDetails TC A frameToLoad Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg
 

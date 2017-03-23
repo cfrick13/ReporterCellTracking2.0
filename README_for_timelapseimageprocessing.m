@@ -14,7 +14,10 @@
     cd(parentdir)
 
     % dateArray = {'2017_03_02 plate exp1'};
-    dateArray = {'2017_03_13 plate exp1'};
+%     dateArray = {'2017_03_13 plate exp5','2014_09_27 plate exp1','2017_09_30 plate exp1','2014_10_01 plate exp1'};
+%     dateArray = {'2014_09_27 plate exp1','2014_09_30 plate exp1','2014_10_01 plate exp1','2014_10_04 plate exp1','2014_11_21 plate exp1'};
+%     dateArray = {'2017_03_20 plate exp1'};
+    dateArray = {'2017_01_30 plate exp1','2017_01_30 plate exp2','2017_03_13 plate exp3'};
     for BB = dateArray
 
     %get directory name from date Array
@@ -27,6 +30,7 @@
 
     %extract images from .czi and save image stacks as .mat files
 %         ExtractMetadataAndImages(B);    
+
 
 
     %extract data in excel file

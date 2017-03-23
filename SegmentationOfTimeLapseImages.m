@@ -84,7 +84,6 @@ SceneList = SceneList(bkgscenelog);
             tic
             sceneStr = SceneList{i};
             sceneName = char(sceneStr);
-            disp(sceneName)
 
             cd(mstackPath)
             nucleusFileList = dir(strcat('*',sceneName,'*',nucleus_seg,'*.mat'));
@@ -96,7 +95,7 @@ SceneList = SceneList(bkgscenelog);
             nucleusFileName = char(nucleusFileList.name);
             fileObject = matfile(nucleusFileName);
             FinalImage = fileObject.flatstack;
-            
+            disp(sceneName)
             [~,~] = segmentationNucleus(FinalImage,segmentPath,nucleus_seg,nucleusFileName,pStruct);
                 
 
@@ -120,7 +119,7 @@ SceneList = SceneList(bkgscenelog);
             backgroundFileName = char(backgroundFileList.name);
             fileObject = matfile(backgroundFileName);
             FinalImage = fileObject.flatstack;
-%             disp(sceneName)
+            disp(sceneName)
 %             [~,~] = segmentationImageBackground(FinalImage,segmentPath,background_seg,backgroundFileName,pStruct);
             [~,~] = segmentationImageBackground(FinalImage,segmentPath,background_seg,backgroundFileName,pStruct);  
             toc
@@ -206,11 +205,7 @@ function [IfFinal,testOut] = segmentationNucleus(FinalImage,segmentPath,nucleus_
     % start segmentation
     parfor frames = 1:size(FinalImage,3)
         img = FinalImage(:,:,frames); 
-        if strcmp(nucleus_seg,'Hoechst')
-        [If,~] = segmentHoechstNuclei(img,nucleus_seg,pStruct,frames);  
-        else
         [If,~] = segmentNuclei(img,nucleus_seg,pStruct,frames);
-        end
         IfFinal(:,:,frames)=If;
     end
                 

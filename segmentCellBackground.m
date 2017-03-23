@@ -14,7 +14,7 @@ sigma = nucDiameter./sigmaScaledToParticle; %make the sigma about 1/5th of kerne
 % img = FinalImage(:,:,1); 
 imgW = wiener2(img,[1 20]);
 imgWW = wiener2(imgW,[20 1]);
-imgWWW = wiener2(imgWW,[20 20]);
+imgWWW = wiener2(imgWW,[5 5]);
 imgRawDenoised = imgWWW;
 denoiseVec = single(reshape(imgRawDenoised,size(imgRawDenoised,1)^2,1));
 highpoints = prctile(denoiseVec,95);
@@ -62,7 +62,6 @@ subzero = (subtracted<0);
 Ih = ~subzero;
 Ih = imclose(Ih,strel('disk',20));
 areaOfSegmentation = sum(sum(Ih));
-initialIh =Ih;
 %
 percentageOfImageSegmented = round(100*(areaOfSegmentation./(size(img,1)*size(img,2))));
 if percentageOfImageSegmented > 99
@@ -72,7 +71,7 @@ end
     
     imgW = wiener2(img,[1 20]);
     imgWW = wiener2(imgW,[20 1]);
-    imgWWW = wiener2(imgWW,[20 20]);
+    imgWWW = wiener2(imgWW,[5 5]);
     imgRawDenoised = imgWWW;
     denoiseVec = single(reshape(imgRawDenoised,size(imgRawDenoised,1)^2,1));
     highpoints = prctile(denoiseVec,percentageOfImageSegmented);
@@ -169,9 +168,9 @@ end
 %         testOut.Ihc = Ihc;
         testOut.Im = Im;
 %         testOut.Ihcd = Ihcd;
-        testOut.initialIh = initialIh;
+        testOut.L = zeros([512 512]);
 %         testOut.gradmag = gradmag;
-        testOut.imgWWW = imgWWW;
+        testOut.gradmag = zeros(size(img));
 %         testOut.gradmag2 =  gradmag2;
         testOut.gradmag2 = zeros(size(img));
 %         testOut.Ie = Ie;

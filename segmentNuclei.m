@@ -3,6 +3,12 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
     nucDiameter = pStruct.(nucleus_seg).nucDiameter;
     threshFactor = pStruct.(nucleus_seg).threshFactor;
     sigmaScaledToParticle = pStruct.(nucleus_seg).sigmaScaledToParticle;
+    fnames = fieldnames(pStruct.(nucleus_seg));
+    if sum(strcmp(fnames,'metthresh'))>0
+        metthresh = pStruct.(nucleus_seg).metthresh;
+    else
+        metthresh=0.1;
+    end
     wienerP=5;
     testOut = struct();
            
@@ -65,6 +71,7 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             Ihc = imclose(Ihed,strel('disk',2));
             Ihcf = imfill(Ihc,'holes');
             Im=Ihcf;
+%             Im=Ih;
 
             %%%% this is the ultimate addition for watershed segmentation!!!
             see = strel('disk',1);
@@ -78,8 +85,8 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             waterBoundary = imerode(Im,strel('disk',1));
 
             %BEGIN THE WATERSHET ALGORITHM
-            I = imgRawDenoised;
-            I = gaussianBlurz(rawMinusLPScaled,sigma./4,kernelgsize);
+%             I = imgRawDenoised;
+%             I = gaussianBlurz(rawMinusLPScaled,sigma./4,kernelgsize);
             I = rawMinusLPScaledContrasted;
 
             %gradmag
@@ -106,7 +113,7 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             D = bwdist(bw);
             DL = watershed(D,4);
             bgm = DL == 0;
-            gradmag2 = uint16(imimposemin(gradmag, bgm | fgm4));
+%             gradmag2 = uint16(imimposemin(gradmag, bgm | fgm4));
             gradmag2 = imimposemin(gradmag, bgm | fgm4);
 
             %L
@@ -123,7 +130,7 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             perimetervec = horzcat(stats.Perimeter);
             metric = 4.*pi.*areavec./(perimetervec.^2);
             %metric = 4*pi*area/perimeter^2.
-            metthresh = 0.3;
+%             metthresh = 0.1;
             metriclog = (metric>metthresh);
 
 
@@ -134,12 +141,30 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             obRad = (nucDiameter./2);
             objectArea = pi.*(obRad.^2);
 
-            pxlogS = pxl>(objectArea./8); %only keep if area is bigger than small limit
+            pxlogS = pxl>(objectArea./4); %only keep if area is bigger than small limit
             pxlogL = pxl<(objectArea.*8); %only keep if area is smaller than large limit
 
             %apply logicals that remove small, large, and non-round segmented objects
             PXX = PX(~(pxlogS & pxlogL & metriclog));
             If(vertcat(PXX{:})) = 0;
+            
+            
+
+            %%%%%%%%%remove segmentation if it overlaps with the border of theimage%%%%%%%%%%%%%%%%%%%
+            testImage = false(size(If));
+            dim = size(If);
+            bW = 1; %bW = borderWidth
+            testImage(1:(1+bW),1:dim(2)) =1; testImage((dim(1)-bW):dim(1),1:dim(2)) =1; testImage(1:dim(1),(1:1+bW)) =1; testImage(1:dim(1),(dim(2)-bW):dim(2)) =1;
+            borderpixels = find(testImage == 1);
+            for pidx = 1:length(PX)
+                px = PX{pidx};
+                testlog = ismember(px,borderpixels);
+                if sum(testlog)>(nucDiameter/2)
+                    If(px) = 0;
+                end
+
+            end
+
             
             if frames==1
                 testOut.img = img;
