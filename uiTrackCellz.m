@@ -164,7 +164,7 @@ xpositions = ones(1,length(ypositions)).*1600;
 
         mmm=1;
 htexttwo = uicontrol('Style','text','String','To choose channel push 1, 2, or 3',...
-          'Position',[xpositions(mmm),ypositions(mmm),buttonwidth,buttonheight]);
+          'Position',[xpositions(mmm)-buttonwidth,ypositions(mmm),buttonwidth+buttonwidth,buttonheight]);
         mmm=mmm+1;
         mmm=mmm+1;
         mmm=mmm+1;
@@ -198,7 +198,7 @@ hFirstFrame = uicontrol('Style','pushbutton',...
         mmm=mmm+1;
 
 htextone = uicontrol('Style','text','String','Choose Scene',...
-    'Position',[xpositions(mmm),ypositions(mmm)-buttonheight./2,buttonwidth,buttonheight]);
+    'Position',[xpositions(mmm)-buttonwidth,ypositions(mmm)-buttonheight./2,buttonwidth+buttonwidth,buttonheight]);
         mmm=mmm+1;
 hpopup = uicontrol('Style','popupmenu',...
     'String',SceneList',...
@@ -425,6 +425,7 @@ Position = [0.6440    0.2605    0.1500    0.1500];
 ThirdPlotAxes.Position = Position;
 
 f.Position =[0.1,0.1,0.7,0.8];
+f.Color = 'w';
 set(f,'KeyPressFcn',@keypress);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1505,14 +1506,20 @@ plottingON=1;
 end
 framesThatMustBeTracked = psettings.framesThatMustBeTracked;
 
-for jy = 1:length(framesThatMustBeTracked)
-PX = Tracked{framesThatMustBeTracked(jy)}.Cellz.PixelIdxList;
+% for jy = 1:length(framesThatMustBeTracked)
+% PX = Tracked{framesThatMustBeTracked(jy)}.Cellz.PixelIdxList;
+% %     makeIMG(jy,:) = ~logical(cellfun(@(x) length(x)==1,PX,'UniformOutput',1)); %choose only the cells without NAN
+%     makeIMG(jy,:) = ~logical(cellfun(@(x) length(x)<2,PX,'UniformOutput',1)); %choose only the cells without NAN
+% end
+% [comments,commentpos,cellidx,plotidx]=commentsforplot(Tracked);
+% makeIMG = makeIMG(1,:)& makeIMG(2,:); 
+
+for jy = 1
+PX = Tracked{framesThatMustBeTracked(1)}.Cellz.PixelIdxList;
 %     makeIMG(jy,:) = ~logical(cellfun(@(x) length(x)==1,PX,'UniformOutput',1)); %choose only the cells without NAN
     makeIMG(jy,:) = ~logical(cellfun(@(x) length(x)<2,PX,'UniformOutput',1)); %choose only the cells without NAN
 end
-
 [comments,commentpos,cellidx,plotidx]=commentsforplot(Tracked);
-makeIMG = makeIMG(1,:)& makeIMG(2,:); 
 makeIMGidx = find(makeIMG==1);
 if ~isempty(plotidx)
 iidd = find(~ismember(makeIMGidx,plotidx));
@@ -1553,14 +1560,14 @@ end
 
 xmin = 0;
 toplot = plotMatFC;
-            t = ImageDetails.Frame;
-            idx = ~isnan(toplot(:,t));
-            cmapl = cmaplz(idx,:);
+            idx = true(size(toplot,1),1);
+            cmapl = cmaplz;
+            idxa = find(idx==1);
 h = plot(SecondPlotAxes,toplot(idx,:)');
             
     if displaytracking ==1
         for i=1:length(h)
-            h(i).Color = cmapl(i,:);
+            h(i).Color = cmapl(idxa(i),:);
         end
     colormap(cmap);    
     end
@@ -1573,9 +1580,8 @@ SecondPlotAxes.YLim = ([0 6]);
 
 
 toplot = plotMat;
-            t = ImageDetails.Frame;
-            idx = ~isnan(toplot(:,t));
-            cmapl = cmaplz(idx,:);
+            idx = true(size(toplot,1),1);
+            cmapl = cmaplz;
 h = plot(PlotAxes,toplot(idx,:)');
     if displaytracking ==1
         for i=1:length(h)
@@ -1648,7 +1654,7 @@ else
 toplot = SmadFC;    
 end
 h = plot(ThirdPlotAxes,toplot','LineWidth',3);
-ThirdPlotAxes.XLim = ([0 40]);;
+ThirdPlotAxes.XLim = ([0 40]);
 ThirdPlotAxes.YLim = ([0 6]);
 
 end
@@ -2860,44 +2866,45 @@ PX = CC.PixelIdxList;
 % makeIMG = cellfun(@(x) length(x)==1,PX,'UniformOutput',1); %choose only the cells without NAN
 makeIMG = cellfun(@(x) length(x)<2,PX,'UniformOutput',1); %choose only the cells without NAN
 
-    for i = 1:t
-    CC = Tracked{i}.Cellz;
-    %%%%%%%%%%%%%%%%%%%%%
-    % S = regionprops(CC,'Centroid');
-    % xy{i} = vertcat(S(:).Centroid);
-    % lxy(i) = length(xy{i});
-      
-    PXX =  CC.PixelIdxList;
-    makeCentroids = find((~makeIMG)==1); %you don't want to do this calculation through all the NaN, so index for non NAN
-    PX = PXX(~makeIMG);
-    mx = nan(1,length(PXX));
-    my = nan(1,length(PXX));
-        for j = 1:length(PX)
-        px = PX{j};
-    %     [y,x] = ind2sub(CC.ImageSize,px); %x and y come out reverse of S.Centroid
-        y = rem(px-1,imgsize(1))+1; %these two lines replace ind2sub
-        x = (px-y)/imgsize(2) + 1;  %these two lines replace ind2sub
-%         mx(j) = sum(x)./numel(x);
-%         my(j) = sum(y)./numel(y);
-        
-        sx = sort(x);
-        sy = sort(y);
- 
-        pseudomean = round(length(sx)./2);
-            if pseudomean == 0
-            mx(makeCentroids(j)) = NaN; 
-            my(makeCentroids(j)) = NaN;
-            else    
-            mx(makeCentroids(j)) = sx(pseudomean);  %use the make Centroids index to keep the centroids the same color when plotting
-            my(makeCentroids(j)) = sy(pseudomean);  
-            end
-        end
+    for i = 1:t %determine centroids from 1:t for plotting a tracking tail 
+        CC = Tracked{i}.Cellz;
+        %%%%%%%%%%%%%%%%%%%%%
+        % S = regionprops(CC,'Centroid');
+        % xy{i} = vertcat(S(:).Centroid);
+        % lxy(i) = length(xy{i});
 
-    xy{i} = horzcat(mx',my');
-    lxy(i) = length(xy{i});
-    %%%%%%%%%%%%%%%%%%%%%
+        PXX =  CC.PixelIdxList;
+        makeCentroids = find((~makeIMG)==1); %you don't want to do this calculation through all the NaN, so index for non NAN
+        PX = PXX(~makeIMG);
+        mx = nan(1,length(PXX));
+        my = nan(1,length(PXX));
+            for j = 1:length(PX)
+            px = PX{j};
+        %     [y,x] = ind2sub(CC.ImageSize,px); %x and y come out reverse of S.Centroid
+            y = rem(px-1,imgsize(1))+1; %these two lines replace ind2sub
+            x = (px-y)/imgsize(2) + 1;  %these two lines replace ind2sub
+    %         mx(j) = sum(x)./numel(x);
+    %         my(j) = sum(y)./numel(y);
+
+            sx = sort(x);
+            sy = sort(y);
+
+            pseudomean = round(length(sx)./2);
+                if pseudomean == 0
+                mx(makeCentroids(j)) = NaN; 
+                my(makeCentroids(j)) = NaN;
+                else    
+                mx(makeCentroids(j)) = sx(pseudomean);  %use the make Centroids index to keep the centroids the same color when plotting
+                my(makeCentroids(j)) = sy(pseudomean);  
+                end
+            end
+
+        xy{i} = horzcat(mx',my');
+        lxy(i) = length(xy{i});
+        %%%%%%%%%%%%%%%%%%%%%
     end
-traject = nan(max(lxy),2,t);
+    
+    traject = nan(max(lxy),2,t);
 
     for i = 1:t
         traject(1:lxy(i),1:2,i) = xy{i};
@@ -3593,15 +3600,16 @@ set(ttl,'FontSize',12);
             % rgbhax.NextPlot = 'replace';
             mainX = squeeze(traject(:,1,:));
             mainY = squeeze(traject(:,2,:));
-            idx = ~isnan(mainY(:,t));
-
             
+            %only plot if the cell is currently tracked/segmented in this frame
+            idx = ~isnan(mainY(:,t));
             h = plot(mainX(idx,:)',mainY(idx,:)','LineWidth',3);
             
-            cmaplz = colormap(colorcube(size(mainX,1).*2));
-            cmapl = cmaplz(idx,:);
+            cmaplz = colormap(colorcube(size(mainX,1).*1.5));
+            cmapl = cmaplz;
+            idxa = find(idx==1);
                 for i=1:length(h)
-                    h(i).Color = cmapl(i,:);
+                    h(i).Color = cmapl(idxa(i),:);
                 end
             colormap(cmap);
             hax = h.Parent;
