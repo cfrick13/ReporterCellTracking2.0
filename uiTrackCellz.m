@@ -3209,7 +3209,7 @@ cd(mstackPath)
     end
 
     if isempty(ImageDetails.Channel)
-        ImageDetails.Channel = 'EGFP';
+        ImageDetails.Channel = nucleus_seg;
     end
     
 ChannelDirectory = dir(strcat('*',ImageDetails.Channel,'_*'));

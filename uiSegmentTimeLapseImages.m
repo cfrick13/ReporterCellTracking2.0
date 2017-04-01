@@ -1,6 +1,6 @@
 function  uiSegmentTimeLapseImages
 
-global mstackPath subaxestwo  pStruct subaxes   exportdir  channelinputs adjuster cmapper tcontrast lcontrast   OGExpDate   cmap  A AA timeFrames  ImageDetails  SceneList  imgsize ExpDate
+global mstackPath subaxestwo channelList  segInstructList segmentList pStruct subaxes   exportdir  seginputs channelinputs adjuster cmapper tcontrast lcontrast   OGExpDate   cmap  A AA timeFrames  ImageDetails  SceneList  imgsize ExpDate
 adjuster=0;
 tcontrast = 99;
 lcontrast = 1;
@@ -85,8 +85,20 @@ close all
     channelinputs =channelregexpmaker(channelstoinput);
     bkg = dosestructstruct.BACKGROUND;
     imgsize = dosestructstruct.dimensions;
-
-
+    
+    segInstruct = dosestructstruct.segInstruct;
+    fnames = fieldnames(segInstruct);
+    segmentList = cell(1,length(fnames));
+    segmentListDisp = cell(1,length(fnames));
+    segInstructList = cell(1,length(fnames));
+    for i = 1:length(segmentList)
+        str = fnames{i};
+        segmentListDisp{i} = [str '-' segInstruct.(str)];
+        segmentList{i} = segInstruct.(str);
+        segInstructList{i} = str;
+    end
+    seginputs = channelregexpmaker(fnames);
+    
 %set up regexp parameters
     BACKGROUND = bkg{1};
     bkarray = bkarraymaker(BACKGROUND); %'(s01|s02|s03)'
@@ -124,9 +136,9 @@ close all
 
 %determine the number of channels
 folderlist = dir(strcat('*','*'));
-channelinputsUnderscore =channelregexpmaker(channelstoinput);
+channelinputs =channelregexpmaker(channelstoinput);
 
-    [~,~,~,channelsListed] = regexp([folderlist.name],channelinputsUnderscore);
+    [~,~,~,channelsListed] = regexp([folderlist.name],channelinputs);
     channelList = unique(channelsListed);
             for i=1:length(channelList)
                 chan = channelsListed{i};
@@ -196,8 +208,13 @@ bW=bW*1.5;
 
     % htextone
     xP = xP-(sW)-bW;
-    uicontrol('Style','text','String','Choose Channel',...
+    uicontrol('Style','text','String','Channel View',...
         'Position',[xP,yP,bW,bH./2]);
+    
+    % choose segment channel
+    xP = xP-(sW)-bW-bW./2;
+    uicontrol('Style','text','String','Segmentation View',...
+        'Position',[xP,yP,bW+bW./2,bH./2]);
 
 %section4 (dropdown "popupmenus")
     % hpopupSceneList
@@ -214,6 +231,13 @@ bW=bW*1.5;
         'String',channelList',...
         'Position',[xP,yP,bW,bH./2],...
         'Callback',@popup_menu_Callback_channels);
+    
+    % hpopupChannelList
+    xP = xP-(sW)-bW-bW./2;
+    uicontrol('Style','popupmenu',...
+        'String',segmentListDisp',...
+        'Position',[xP,yP,bW+bW./2,bH./2],...
+        'Callback',@popup_menu_Callback_segment);
     
 %final Save button
     % hFirstFrame
@@ -334,16 +358,16 @@ end
 
 %define parameter structure and default parameter values
 pStruct = struct();
-parameterDefaults.EGFP = [100 1 15 0.5];
-parameterDefaults.CFP = [20 1 2 0.5];
-parameterDefaults.mKate = [40 1 2 0.5];
-parameterDefaults.Hoechst = [20 1 2 0.5];
-parameterDefaults.DIC = [20 1 2 0.5];
+parameterDefaults.background = [100 1 15 0.5];
+parameterDefaults.nucleus = [20 1 2 0.5];
+parameterDefaults.nucleus = [40 1 2 0.5];
+parameterDefaults.nucleus = [20 1 2 0.5];
+parameterDefaults.cell = [20 1 2 0.5];
 parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','metthresh'};
 for p = 1:length(parameterStrings)
     pString = char(parameterStrings{p});
-    for c = 1:length(channelList)
-        cstr = char(channelList{c});
+    for c = 1:length(segInstructList)
+        cstr = char(segInstructList{c});
         cString = alterChanName(cstr);
         pd = parameterDefaults.(cString);
         pStruct.(cString).(pString) = pd(p); 
@@ -405,11 +429,11 @@ sliderspace = 0.1;
 
 
 
-channel = ImageDetails.Channel;
+channel = ImageDetails.segInstruct;
 
 %nucDiameter
 fnames = fieldnames(pStruct.(channel));
-sliderspacing = linspace(0.8,0.7,4);
+sliderspacing = linspace(0.8,0.7,length(fnames));
     for cyc = 1:length(fnames)
         str = fnames{cyc};
         if strcmp(str,'nucDiameter')
@@ -423,13 +447,20 @@ sliderspacing = linspace(0.8,0.7,4);
         elseif strcmp(str,'sigmaScaledToParticle')
             minz = 1;
             maxz = 40;
-            ssa = 20;
+            ssa = 1;
         elseif strcmp(str,'metthresh')
             minz = 0;
             maxz = 1;
             ssa = 20;
         else
             disp('parameter NOT CURRENTLY DEFINED') 
+            if sum(strcmp(fnames,'metthresh'))<1
+                str = 'metthresh';
+                minz = 0;
+                maxz = 1;
+                ssa = 20;
+                pStruct.(channel).(str) = 0.1;
+            end
         end
         val.(str) = pStruct.(channel).(str);
         slidery = sliderspacing(cyc);
@@ -479,7 +510,7 @@ end
 
 function sliderOneAdjust(source,~)
     global pStruct  ImageDetails sliderOneTxt
-    channel = ImageDetails.Channel;
+    channel = ImageDetails.segInstruct;
     str = source.String;
 %     threshinput.(str) =source.Value;
 %     zerostrel = round(source.Value);
@@ -1009,6 +1040,24 @@ ImageDetails.Channel = channel;
 setSceneAndTime
 end
 
+function popup_menu_Callback_segment(source,~)
+global ImageDetails Tracked channelinputs seginputs
+
+Tracked=[];
+
+% Determine the selected data set.
+ str = source.String;
+ val = source.Value;
+ channel = char(str{val});
+
+ [~,~,~,d] = regexp(channel,channelinputs);
+ImageDetails.Segment = d{1};
+
+[~,~,~,d] = regexp(channel,seginputs);
+ImageDetails.segInstruct = d{1};
+setSceneAndTime
+end
+
 function popup_menu_Callback(source,~) 
 global ImageDetails Tracked 
 
@@ -1027,190 +1076,122 @@ end
 
 %% Image Display functions
 function setSceneAndTime
-global pStruct timeFrames mstackPath TC A  framesForDir ImageDetails  Tracked SceneList  SceneDirectoryPath imgfile imgsize
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+global pStruct timeFrames mstackPath segInstructList channelList segmentList TC A  framesForDir ImageDetails  Tracked SceneList  SceneDirectoryPath imgfile imgsize
+
 %   determine the channel directory
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-cd(mstackPath)
-
-    if isempty(ImageDetails.Scene)
-        ImageDetails.Scene = SceneList{1};
-    end
-
-SceneDirectoryPath = mstackPath;
-
-    if isempty(ImageDetails.Channel)
-        ImageDetails.Channel = 'EGFP';
-    end
-    
-ChannelDirectory = dir(strcat('*',ImageDetails.Channel,'*'));
-    if isempty(ChannelDirectory) && ~strcmp(ImageDetails.Channel,'overlay')
-        ImageDetails.Channel = 'mKate';
-        ChannelDirectory = dir(strcat('*',ImageDetails.Channel,'_*'));
-    elseif isempty(ChannelDirectory)
-        ChannelDirectory = dir(strcat('*','mKate','_*'));
-    end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   determine the frame to load
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    if isempty(ImageDetails.Frame)
-       ImageDetails.Frame = 1;
-    end
-t=1;
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% choose the channel images
-%options are overlay of background
-%overlay of fluorescent channels
-%normal image
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-imgfile = dir(strcat('*',ImageDetails.Frame,'*.tif'));
-    if strcmp(ImageDetails.Channel,'BKGbinary')                    %overlay background
-        bkgimg = false(imgsize(1),imgsize(2),1);
-        bkgimg = imread(char(imgfile.name));
-        bkgimg(bkgimg>0) = 1;
-        channelimg = ~logical(bkgimg);
-
-
-%         ChannelDirectory = dir(strcat('*','EGFP_','*'));
-%         cd(ChannelDirectory.name)
-        cd ..        
-        cd('tiffs')
-%         ff = dir(strcat('EGFP','*'));
-        ff = dir(strcat('*','EGFP','*'));
-            if isempty(ff)
-                ff = dir(strcat('*','mKate','*'));
-            end
-        channelimg = single(loadUpTiffStackFrame(char(ff.name),t));
-% 
-%         cimgfile = dir(strcat('*',ImageDetails.Frame,'*.tif'));
-%         cimg = imread(char(cimgfile.name));
-%         channelimg = double(cimg);
-        prim = imdilate(bwperim(~logical(bkgimg)),strel('square',2));
-        channelimg(prim) = max(max(channelimg));
-    elseif strcmp(ImageDetails.Channel,'overlay')
-           
-        
-         cd ..        
-        cd('tiffs')
-        ff = dir(strcat('EGFP','*'));
-            if isempty(ff)
-               channelimg = zeros(512,512);
-            else
-            channelimg = single(loadUpTiffStackFrame(char(ff.name),t));
-            end
-        imgone = channelimg;
-        cd ..
-        
-        cd('tiffs')
-        ff = dir(strcat('*','Hoechst','*'));
-            if isempty(ff)
-               channelimg = zeros(512,512);
-            else
-            channelimg = single(loadUpTiffStackFrame(char(ff.name),t));
-            end
-        imgtwo = channelimg;
-        cd .. 
-        
-        
-        cd('tiffs')
-        ff = dir(strcat('*','mKate_','*'));
-        channelimg = single(loadUpTiffStackFrame(char(ff.name),t));
-        imgthree = channelimg;
-    
-        ff = dir(strcat('*','DIC','*'));
-        channelimg = single(loadUpTiffStackFrame(char(ff.name),t));
-        imgfour = channelimg;
-        
-        
-        channelimg = zeros(size(imgone,1),size(imgone,2),3);
-%         imgone(imgone<imgfour) = imgfour(imgone<imgfour);
-%         imgtwo(imgtwo<imgfour) = imgfour(imgtwo<imgfour);
-%         imgthree(imgthree<imgfour) = imgfour(imgthree<imgfour);
-        channelimg(:,:,1) = imgone;
-        channelimg(:,:,2) = imgtwo;
-        channelimg(:,:,3) = imgthree;
-        channelimg(:,:,4) = imgfour;
-        
-%         
-%         channelimg = uint8(channelimg);
-%         %make uint8?
-        
-        
-
-    else
-        cd(mstackPath)
-        ff = dir(strcat('*',ImageDetails.Scene,'*',ImageDetails.Channel,'*'));
-%         ff = dir(strcat(ImageDetails.Channel,'*'));
-        channelspacing = round(linspace(1,timeFrames,9));
-%         channelspacing = [1 4 9 12 15 18 20 22 26];
-        if length(channelspacing)>timeFrames
-            channelspacing = 1:timeFrames;
+    cd(mstackPath)
+    SceneDirectoryPath = mstackPath;
+        if isempty(ImageDetails.Scene)
+            ImageDetails.Scene = SceneList{1};
+        end
+        if isempty(ImageDetails.Channel)
+            ImageDetails.Channel = channelList{1};
+        end
+        if isempty(ImageDetails.Segment)
+            ImageDetails.Segment = segmentList{1};
+        end
+        if isempty(ImageDetails.segInstruct)
+            ImageDetails.segInstruct = segInstructList{1};
         end
 
         
-        fname = char(ff.name);
-        fileObject = matfile(fname);
-        imgstack = single(fileObject.flatstack);
-        channelimgstack = imgstack(:,:,channelspacing);
-        img = imgstack(:,:,t);
-        channelimg = img;
-        
-%         channelimg = double(loadUpTiffStackFrame(char(ff.name),t));
-    %     channelimg = double(imread(char(imgfile.name)));    %load normal image
+% determine the frame to load
+    if isempty(ImageDetails.Frame)
+       ImageDetails.Frame = 1;
     end
+    t=1;
+
+
+
+
+% define channel spacing
+    channelspacing = round(linspace(1,timeFrames,9));
+    if length(channelspacing)>timeFrames
+        channelspacing = 1:timeFrames;
+    end
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%choose the channel images
+%[options are overlay of background // overlay of fluorescent channels // normal image]
+
+    imgfile = dir(strcat('*',ImageDetails.Frame,'*.tif'));
+        if strcmp(ImageDetails.Channel,'BKGbinary')%overlay background
+            cd ..        
+            cd('tiffs')
+            ff = dir(strcat('*','EGFP','*'));
+                if isempty(ff)
+                    ff = dir(strcat('*','mKate','*'));
+                end
+            channelimg = single(loadUpTiffStackFrame(char(ff.name),t));
+            prim = imdilate(bwperim(~logical(bkgimg)),strel('square',2));
+            channelimg(prim) = max(max(channelimg));
+        elseif strcmp(ImageDetails.Channel,'overlay')
+            %need to write script for overlay
+
+        else
+            %load up channel image to view (not to be segemented)
+            cd(mstackPath)
+            ff = dir(strcat('*',ImageDetails.Scene,'*',ImageDetails.Channel,'*'));
+            fname = char(ff.name);
+            fileObject = matfile(fname);
+            imgstack = single(fileObject.flatstack);
+            channelimgstack = imgstack(:,:,channelspacing);
+            img = imgstack(:,:,t);
+            channelimg = img;
+
+            %load up  channel image to segment
+            cd(mstackPath)
+            ff = dir(strcat('*',ImageDetails.Scene,'*',ImageDetails.Segment,'*'));
+            channelspacing = round(linspace(1,timeFrames,9));
+            if length(channelspacing)>timeFrames
+                channelspacing = 1:timeFrames;
+            end
+
+
+            fname = char(ff.name);
+            fileObject = matfile(fname);
+            imgstack = single(fileObject.flatstack);
+            segmentimgstack = imgstack(:,:,channelspacing);
+            img = imgstack(:,:,t);
+            segmentimg = img;
+
+    %         channelimg = double(loadUpTiffStackFrame(char(ff.name),t));
+        %     channelimg = double(imread(char(imgfile.name)));    %load normal image
+        end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
 If = zeros(size(channelimg),'single');
-
-%     subdirname = char(subdir);
-%         [sceneinfo,b] = regexp(subdirname,'s[0-9]+');
-%         scenename = subdirname(sceneinfo:b);
-%         cd(subdirname)
-
-FinalImage = channelimgstack;
+FinalImage = segmentimgstack;
 subdirname = SceneDirectoryPath;
 scenename = ImageDetails.Scene;
 filename = imgfile;
 filename = char(filename.name);
 channel = ImageDetails.Channel;
 
-nucleus_seg = ImageDetails.Channel;
-background_seg = ImageDetails.Channel;
+nucleus_seg = ImageDetails.segInstruct;
+background_seg = ImageDetails.segInstruct;
 nucleusFileName = filename;
 backgroundFileName = filename;
 segmentPath = mstackPath;
 
-if strcmp(ImageDetails.Channel,'EGFP')
+if strcmp(ImageDetails.segInstruct,'background')
 [IfStack,testOut] = segmentationImageBackground(FinalImage,segmentPath,background_seg,backgroundFileName,pStruct);  
-elseif strcmp(ImageDetails.Channel,'mKate')
+elseif strcmpi(ImageDetails.Segment,'Hoechst') && strcmp(ImageDetails.segInstruct,'nucleus')
+[IfStack,testOut] = segmentationNucleusHoechst(FinalImage,segmentPath,nucleus_seg,nucleusFileName,pStruct);
+elseif strcmp(ImageDetails.segInstruct,'nucleus')
 [IfStack,testOut] = segmentationNucleus(FinalImage,segmentPath,nucleus_seg,nucleusFileName,pStruct);
-elseif strcmp(ImageDetails.Channel,'Hoechst')
-[IfStack,testOut] = segmentationNucleus(FinalImage,segmentPath,nucleus_seg,nucleusFileName,pStruct);
-elseif strcmp(ImageDetails.Channel,'CFP')
-[IfStack,testOut] = segmentationNucleus(FinalImage,segmentPath,nucleus_seg,nucleusFileName,pStruct);
-elseif strcmp(ImageDetails.Channel,'DIC')
-[IfStack,testOut] = segmentationDIC(FinalImage,subdirname,scenename,filename,channel);
+elseif strcmp(ImageDetails.segInstruct,'cell')
+%need a segment cell script  
+else
+    error('no criteria met')
 end
 
 
 displayImageFunct(IfStack,channelimgstack,channelspacing);
 updateSliders
 
-plotTestOut(testOut,channel)
+plotTestOut(testOut,ImageDetails.segInstruct)
 
 
 
@@ -1356,6 +1337,8 @@ function ImageDetails = InitializeImageDetails
 ImageDetails.Scene=[];
 ImageDetails.Channel=[];
 ImageDetails.Frame=[];
+ImageDetails.Segment=[];
+ImageDetails.segInstruct = [];
 
 end
 

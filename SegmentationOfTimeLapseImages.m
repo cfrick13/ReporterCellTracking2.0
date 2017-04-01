@@ -39,23 +39,30 @@ background_seg = segInstruct.background;
     if isempty(dirlist)
         mkdir(strcat(segmentName));
     end
+    
+    
+    fnames = fieldnames(segInstruct);
+    segInstructList = cell(1,length(fnames));
+    for i = 1:length(segInstructList)
+        str = fnames{i};
+        segInstructList{i} = str;
+    end
 
 
 
 
 %define parameter structure and default parameter values
     pStruct = struct();
-    parameterDefaults.EGFP = [106 1 15 1];
-    parameterDefaults.CFP = [20 1 2 1];
-    parameterDefaults.mKate = [40 1 2 1];
-    parameterDefaults.Hoechst = [20 1 2 1];
-    parameterDefaults.DIC = [20 1 2 1];
-    parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','noparametercurrently'};
-    channelList = fieldnames(parameterDefaults);
+    parameterDefaults.background = [100 1 15 0.5];
+    parameterDefaults.nucleus = [20 1 2 0.5];
+    parameterDefaults.nucleus = [40 1 2 0.5];
+    parameterDefaults.nucleus = [20 1 2 0.5];
+    parameterDefaults.cell = [20 1 2 0.5];
+    parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','metthresh'};
     for p = 1:length(parameterStrings)
         pString = char(parameterStrings{p});
-        for c = 1:length(channelList)
-            cstr = char(channelList{c});
+        for c = 1:length(segInstructList)
+            cstr = char(segInstructList{c});
             cString = alterChanName(cstr);
             pd = parameterDefaults.(cString);
             pStruct.(cString).(pString) = pd(p); 
@@ -96,7 +103,7 @@ SceneList = SceneList(bkgscenelog);
             fileObject = matfile(nucleusFileName);
             FinalImage = fileObject.flatstack;
             disp(sceneName)
-            [~,~] = segmentationNucleus(FinalImage,segmentPath,nucleus_seg,nucleusFileName,pStruct);
+            [~,~] = segmentationNucleus(FinalImage,segmentPath,'nucleus',nucleusFileName,pStruct);
                 
 
             % %load image of segmented nuclei
@@ -121,7 +128,7 @@ SceneList = SceneList(bkgscenelog);
             FinalImage = fileObject.flatstack;
             disp(sceneName)
 %             [~,~] = segmentationImageBackground(FinalImage,segmentPath,background_seg,backgroundFileName,pStruct);
-            [~,~] = segmentationImageBackground(FinalImage,segmentPath,background_seg,backgroundFileName,pStruct);  
+            [~,~] = segmentationImageBackground(FinalImage,segmentPath,'background',backgroundFileName,pStruct);  
             toc
             
             cd ..
@@ -209,173 +216,11 @@ function [IfFinal,testOut] = segmentationNucleus(FinalImage,segmentPath,nucleus_
         IfFinal(:,:,frames)=If;
     end
                 
-    savethatimagestack(IfFinal,nucleusFileName,segmentPath)
+    nfilename = [nucleusFileName(1:end-4) '_' nucleus_seg '.mat'];
+    savethatimagestack(IfFinal,nfilename,segmentPath)
     stophere=1;
 end
 
-function If = segmentationCell(FinalImage,subdirname,scenename,filename,channel,pStruct)
-global nucleus_seg foldernameglobal
-fig=1;
-
-dirlist = dir(strcat(channel));
-if isempty(dirlist)
-mkdir(strcat(channel));
-end
-
-% parameters
-left = 0.004;
-slopedown = 0.003;
-
-dimdiff = 2048./size(FinalImage(:,:,1),1);
-
-zerostrel = 2;
-firststrel = round(30./dimdiff);
-sigmafirst = firststrel.*3;
-kernelgsizefirst = firststrel.*6;
-fracsmoothing = 0.5.*dimdiff;
-
-dirlist = dir(nucleus_seg);
-if isempty(dirlist)
-    dirlist = dir(foldernameglobal);
-    foldername = foldernameglobal;
-else
-    foldername = nucleus_seg;
-end
-
-
-tsn = determineTimeFrame(foldername);
-
-
-% start
-for frames = 1:size(FinalImage,3)
-img = FinalImage(:,:,frames); 
-imgorig = img;
-
-img = wiener2(img,[5 5]);
-se =strel('disk',zerostrel);
-Ie = imerode(imgorig,se);
-Iobr = imreconstruct(Ie,img);
-Iobrd = imdilate(Iobr,se);
-Iobrcbr = imreconstruct(imcomplement(Iobrd),imcomplement(Iobr));
-IobrcbrF = imcomplement(Iobrcbr);
-gaus = double(IobrcbrF);
-
-se =strel('disk',firststrel);
-Ie = imerode(gaus,se);
-Iobr = imreconstruct(Ie,gaus);
-Iobrd = imdilate(Iobr,se);
-Iobrcbr = imreconstruct(imcomplement(Iobrd),imcomplement(Iobr));
-Iobrcbr = imcomplement(Iobrcbr);
-gaus = double(Iobrcbr);
-
-
-sigma = sigmafirst;
-kernelgsize = kernelgsizefirst;
-gaustwo = gaussianBlurz(double(gaus),sigma,kernelgsize);
-
-sub = double(gaus) -double(gaustwo);%%%%%%% key step!
-b = find(sub == min(min(sub)),1,'first');
-rattio = gaustwo(b)./gaus(b);
-gaustwocorr = gaustwo./rattio;
-sub_scale_corr = double(gaus) - double(gaustwocorr);
-
-
-
-
-subtractionref = sub_scale_corr;
-vec = reshape(subtractionref,size(subtractionref,1)^2,1);
-[numbers,bincenters] = hist(double(vec),0:fracsmoothing:10000);
-
-
-
-numbers = medfilt1(numbers, 10); %smooths curve
-fraction = numbers./sum(numbers);
-
-mf = max(fraction);
-
-%%%%%%%%%%%%%%%%%%%%
-left=0.3*mf;
-slopedown=0.2*mf;
-%%%%%%%%%%%%%%%%%%%%%
-
-leftedge = find(fraction > left,1,'first');
-insideslopedown = find(fraction(leftedge:end) < slopedown,1,'first');
-insideslopeup = find(fraction(leftedge+insideslopedown:end) >0.0012,1,'first');
-trough = min(fraction(leftedge+insideslopedown:leftedge+insideslopedown+insideslopeup));
-troughindex = find(fraction(leftedge+insideslopedown:leftedge+insideslopedown+insideslopeup) == trough);
-troughindexrounded = round(median(troughindex));
-
-
-
-threshlocation = bincenters(leftedge+insideslopedown);
-% 
-% figure(22)
-%     bar(bincenters,fraction);hold on
-%     xlim([-500 1000])
-%     ylim([0 0.1])
-% stem ([threshlocation threshlocation],[0 1]);hold off
-% drawnow
-
-subtractionthreshold = threshlocation;
-
-if size(subtractionthreshold,1)==size(subtractionthreshold,2)
-else
-     subtractionthreshold = mean(threshlocation);
-end
-
-% subtractionthreshold = graythresh(subtractionref);
-
-subtracted = sub_scale_corr-subtractionthreshold;
-subzero = (subtracted<0);
-subtractedzero = subtracted.*(~subzero);
-
-
-Ie = subtractedzero;
-a = find(Ie>0);
-submax = zeros(size(Ie));
-Ie(a)=50;
-
-
-
-
-
-Ih = Ie>0;
-Igclose = imclose(Ih,strel('disk',round(30./dimdiff)));
-Igclosemax = imclose(Ih,strel('disk',round(80./dimdiff)));
-Igcopenmax = imopen(Igclosemax,strel('disk',round(10./dimdiff)));
-Igcopen = imopen(Igclose,strel('disk',2));
-Igcofill = imfill(Igcopen,'holes');
-Igcfopen = bwareaopen(Igcofill,round(5000./(dimdiff.^2)));
-Igcfopendil = imerode(Igcfopen,strel('disk',round(5)));
-
-% finalsigma=20;
-% finalkernelgsize=40;
-gaus = gaussianBlurz(IobrcbrF,round(sigmafirst./dimdiff),(kernelgsizefirst./dimdiff));
-
-% sigma=40;
-% kernelgsize=80;
-% gaus = gaussianBlurz(gaus,sigmafirst.*2,kernelgsizefirst.*2);
-
-imgt = -double(gaus);
-% imgt(~(Igcfopen>0)) = -Inf;
-imgt(~(Igcopenmax>0)) = -Inf;
-
-L=watershed(imgt);
-
-L(Igcfopendil<1) = 0;
-% imagesc(L)
-% colormap parula
-If = L>1;
-
-stophere=1;
-% time = settimecharacter(frames);
-time = tsn{frames};
-tim = time(2:end);
-savethatimagestack(scenename,time,If.*255,frames,filename,channel)
-end
-
-
-end
 
 function [IfFinal,testOut] = segmentationImageBackground(FinalImage,segmentPath,background_seg,backgroundFileName,pStruct)
     testOut = struct();                           
@@ -413,8 +258,8 @@ function [IfFinal,testOut] = segmentationImageBackground(FinalImage,segmentPath,
         [If,~] = segmentCellBackground(img,background_seg,pStruct,frames);
         IfFinal(:,:,frames)=If;
     end
-                
-savethatimagestack(IfFinal,backgroundFileName,segmentPath)
+bfilename = [backgroundFileName(1:end-4) '_' background_seg '.mat'];                
+savethatimagestack(IfFinal,bfilename,segmentPath)
 
 
 % parameters
