@@ -424,7 +424,10 @@ ThirdPlotAxes = axes;
 Position = [0.6440    0.2605    0.1500    0.1500];
 ThirdPlotAxes.Position = Position;
 
-f.Position =[0.1,0.1,0.7,0.8];
+% f.Position =[0.1,0.1,0.7,0.8];
+% f.Position = [0.1461 0.1370 0.4457 0.7315];
+f.Units = 'pixels';
+f.Position = [400 150 1150 800];
 f.Color = 'w';
 set(f,'KeyPressFcn',@keypress);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -467,7 +470,7 @@ switch key
         ImageDetails.Channel = 'DIC';
         setSceneAndTime
     case '4'
-        ImageDetails.Channel = 'DIC';
+        ImageDetails.Channel = 'EGFP';
         setSceneAndTime
     case '5'
         ImageDetails.Channel = 'BKGbinary';
@@ -1703,6 +1706,9 @@ cd(mstackPath)
                     % open background Logical img  %
             cd(segmentPath)         
             ff = dir(strcat('*',ImageDetails.Scene,'*',background_seg,'*'));
+            if length(ff)>1
+                ff = dir(strcat('*',ImageDetails.Scene,'*',background_seg,'*background*'));
+            end
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
             channelfileObject = matfile(filename);
@@ -1711,6 +1717,9 @@ cd(mstackPath)
                     % open nuclear Logical img  %
             cd(segmentPath)         
             ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*'));
+            if length(ff)>1
+                ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*nucleus*'));
+            end
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
             channelfileObject = matfile(filename);
@@ -1874,6 +1883,9 @@ cd(mstackPath)
                     % open background Logical img  %
             cd(segmentPath)         
             ff = dir(strcat('*',ImageDetails.Scene,'*',background_seg,'*'));
+            if length(ff)>1
+                ff = dir(strcat('*',ImageDetails.Scene,'*',background_seg,'*background*'));
+            end
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
             channelfileObject = matfile(filename);
@@ -1882,6 +1894,9 @@ cd(mstackPath)
                     % open nuclear Logical img  %
             cd(segmentPath)         
             ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*'));
+            if length(ff)>1
+                ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*nucleus*'));
+            end
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
             channelfileObject = matfile(filename);
@@ -3090,6 +3105,9 @@ Frame = struct();
        %load segmented image
         cd(segmentPath)
         ff = dir(strcat('*',pvalue,'*',nucleus_seg,'*'));
+        if length(ff)>1
+            ff = dir(strcat('*',pvalue,'*',nucleus_seg,'*nucleus*')); 
+        end
 %         ff = dir(strcat(ImageDetails.Channel,'*'));
         filename = char(ff.name);
         segmentfileObject = matfile(filename);
@@ -3340,7 +3358,11 @@ ChannelDirectory = dir(strcat('*',ImageDetails.Channel,'_*'));
         cd(segmentPath)
         ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*'));
 %         ff = dir(strcat(ImageDetails.Channel,'*'));
+        if length(ff)>1
+           ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*nucleus*'));
+        end
         filename = char(ff.name);
+        
         if ~isempty(sfoName) %if channelfileObject has been made, check to see if the scene has changed. 
             [a,~] = regexp(sfoName,ImageDetails.Scene);
             if isempty(a) %if the scene has changed load the new channelimgstack
@@ -3371,6 +3393,9 @@ ChannelDirectory = dir(strcat('*',ImageDetails.Channel,'_*'));
         cd(segmentPath)
         ff = dir(strcat('*',ImageDetails.Scene,'*',background_seg,'*'));
 %         ff = dir(strcat(ImageDetails.Channel,'*'));
+        if length(ff)>1
+            ff = dir(strcat('*',ImageDetails.Scene,'*',background_seg,'*background*'));
+        end
         filename = char(ff.name);
         if ~isempty(bfoName) %if channelfileObject has been made, check to see if the scene has changed. 
             [a,~] = regexp(bfoName,ImageDetails.Scene);
@@ -3450,6 +3475,8 @@ if strcmp(ImageDetails.Channel,nucleus_seg)
     channelimg = nucleusImg;
 elseif strcmp(ImageDetails.Channel,cell_seg)
     channelimg = cellImg;
+elseif strcmp(ImageDetails.Channel,'EGFP')
+    channelimg = cellImg;
 elseif strcmp(ImageDetails.Channel,'DIC')
     channelimg = DICImg;
 elseif strcmp(ImageDetails.Channel,'BKGbinary')
@@ -3480,6 +3507,116 @@ setSceneAndTime
 adjuster =0;
 end
 
+function contrast_CallbackNew(~,~)
+global tcontrast lcontrast adjuster
+prompt = {'High Contrast Limit','Low Contrast Limit'};
+dlg_title = 'Contrast limits from 0 to 100';
+num_lines = 1;
+defaultans = {num2str(tcontrast),num2str(lcontrast)};
+answer = inputdlg(prompt,dlg_title,num_lines,defaultans);
+tcontrast = str2double(answer{1});
+lcontrast = str2double(answer{2});
+
+adjuster =1;
+setSceneAndTime
+adjuster =0;
+end
+
+function displayImageFunctNew(If,channelimg)
+global displaycomments timeFrames lprcntlt prcntlt tcontrast lcontrast MainAxes displaytracking ImageDetails frameToLoad prcntlz lprcntlz prcntlk lprcntlk prcntl lprcntl D ExpDate cmap cmaplz adjuster
+
+
+%determine current time Frame
+    t = strcmp(frameToLoad,ImageDetails.Frame);
+    t = find(t==1);
+
+%delete old images to keep memory usage low
+    axes(MainAxes);
+    children = findobj(MainAxes,'Type','image');
+    delete(children);
+
+% important for updating the contrast
+    %update contrast if time =1
+    ifCHANGEofCHANNELorSCENE=0;
+    if t==1
+    D='new';
+    ifCHANGEofCHANNELorSCENE=1;
+    end
+
+    %update contrast if channel has changed
+    if ~strcmp(ImageDetails.Channel,D)
+    ifCHANGEofCHANNELorSCENE=1;
+    D = ImageDetails.Channel;
+    end
+
+    %update contrast if contrast values are updated
+    if adjuster ==1
+        ifCHANGEofCHANNELorSCENE = 1;
+        D = ImageDetails.Channel;
+    end
+
+%scripts for displaying contrasted image
+    if strcmp(ImageDetails.Channel,'overlay') %when overlay display is desired
+
+        %nothing for overlay
+
+    else  %under normal circumstances
+            if ifCHANGEofCHANNELorSCENE==1
+                dispimg = channelimg-lcontrast;
+                dispimg = dispimg./(tcontrast-lcontrast);
+                dispimg = dispimg.*255;
+                ifCHANGEofCHANNELorSCENE=0;
+            end
+
+        dispimg = channelimg-lcontrast;
+        dispimg = dispimg./(tcontrast-lcontrast);
+        dispimg = dispimg.*255;
+        dispimg(dispimg == 255) =254;
+        colormap(cmap);
+        If = bwperim(If) | bwperim(imdilate(If,strel('disk',1)));
+        dispimg(If>0)=255;
+    end
+
+
+himg = imagesc(dispimg);
+himgax = get(himg,'Parent');
+himgax.CLim = [0 256];
+ttl = get(himgax,'Title');
+t = ImageDetails.Frame;
+set(ttl,'String',[ExpDate ' ' ImageDetails.Scene ' frame ' num2str(t) ' out of ' num2str(timeFrames)]);
+set(ttl,'FontSize',12);
+
+
+    if ~(t==1)
+        if displaytracking==1
+            traject = trackingTrajectories(frameToLoad,ImageDetails);
+            
+            himgax.NextPlot = 'add';
+            mainX = squeeze(traject(:,1,:));
+            mainY = squeeze(traject(:,2,:));
+            
+            %only plot if the cell is currently tracked/segmented in this frame
+                idx = ~isnan(mainY(:,t));
+                h = plot(mainX(idx,:)',mainY(idx,:)','LineWidth',3);
+            
+            cmaplz = colormap(colorcube(size(mainX,1).*1.5));
+            cmapl = cmaplz;
+            idxa = find(idx==1);
+                for i=1:length(h)
+                    h(i).Color = cmapl(idxa(i),:);
+                end
+            colormap(cmap);
+            hax = h.Parent;
+            hax.Color = 'none';
+            himgax.CLim = [0 256];
+            himgax.NextPlot = 'replace';
+        end
+    end
+himgax.YTick = [];
+himgax.XTick = [];
+
+% saveChannelFiveImages
+end
 
 function displayImageFunct(If,channelimg)
 global displaycomments timeFrames lprcntlt prcntlt tcontrast lcontrast MainAxes displaytracking ImageDetails frameToLoad prcntlz lprcntlz prcntlk lprcntlk prcntl lprcntl D ExpDate cmap cmaplz adjuster
