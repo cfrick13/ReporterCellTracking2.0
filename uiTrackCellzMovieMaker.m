@@ -43,16 +43,31 @@ plottingON =0;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %choose directory of experiment to track
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-mdir = mfilename('fullpath');
-    [~,b ] = regexp(mdir,'/');
-        if isempty(b)
-            [~,b] = regexp(mdir,'\');
-        end
-parentdir = mdir(1:b(end));
-exportdir = strcat(parentdir,'Export/');
 
-cd(parentdir)
-cd ..
+
+%set directory to location of code being used (generally external harddrive
+%%%%
+%determine path to .m file being executed
+    mdir = mfilename('fullpath');
+        [~,b] = regexp(mdir,'Tracking\w*/');
+            if isempty(b)
+                [~,b] = regexp(mdir,'Tracking\w*\');
+            end
+    parentdir = mdir(1:b);
+    exportdir = strcat(parentdir,'Export/');
+
+%determine path to gparent folder
+    [~,b ] = regexp(parentdir,'/');
+        if isempty(b)
+            [~,b] = regexp(parentdir,'\');
+        end
+        gparentdir = parentdir(1:b(end-1));
+
+    cd(parentdir)
+    cd ..
+
+cd(gparentdir)
+
 A = uigetdir;
 AA = 'D:\Users\zeiss\Documents\MATLAB';
 cd(A)
@@ -1897,6 +1912,9 @@ cd(mstackPath)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
            
 
+
+            
+            
 %perform bkg subtraction
 Smadbkg = zeros(1,timeFrames,'single');
 Cfpbkg = zeros(1,timeFrames,'single');
@@ -1922,7 +1940,12 @@ for k=1:timeFrames
 %     nuc_imgstack(:,:,k) = nuc_imgstack(:,:,k)-cfpbkgimg;
 end
 
-
+cd('F:\Frick\2017_02_08 plate exp2\framebyframe\s15')
+            for i = 1:3:30
+                nuc_img = nuc_imgstack(:,:,i);
+               imwrite(nuc_img,['img ' num2str(i) '.tif'])
+            end
+            
 %extract pixel intensities
 cellQ_pxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
 nuc_pxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
@@ -2394,7 +2417,7 @@ exportStruct = struct();
 framesThatMustBeTracked = psettings.framesThatMustBeTracked;
 cd(trackingPath)
 cd ..
-    for scenenumber = 1:length(SceneList)
+    for scenenumber = 15
         cd(trackingPath)
         sceneN = SceneList{scenenumber};
         disp(sceneN)
@@ -2452,7 +2475,7 @@ stophere=1;
                 end
     end
         cd(exportdir)
-        filename = strcat(OGExpDate,'_tracking_export.mat'); 
+        filename = strcat(OGExpDate,'_tracking_movie_export.mat'); 
         save(filename,'exportStruct');
 end
 
@@ -2530,7 +2553,7 @@ stophere=1;
                 end
     end
         cd(exportdir)
-        filename = strcat(OGExpDate,'_tracking_export.mat'); 
+        filename = strcat(OGExpDate,'_tracking_movie_export.mat'); 
         save(filename,'exportStruct');
 end
 
@@ -3670,7 +3693,7 @@ for i = 2:31
    setSceneAndTime
 end
 saveMovie = 0;
-
+exportTrackedCells([],[])
 end
 function trackSaveIterate_callback(~,~)
 global runIterate SceneList ImageDetails TC A frameToLoad Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg

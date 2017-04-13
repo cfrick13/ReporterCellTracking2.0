@@ -5,8 +5,8 @@ plottingTotalOrMedian = 'median';
 tcontrast = 99;
 lcontrast = 1;
 % exportdir = 'C:\Users\Kibeom\Desktop\Tracking\Export\';
-ExportNameKey = 'final';
-% ExportNameKey = 'tsichosen';
+% ExportNameKey = 'final';
+ExportNameKey = 'tsichosen';
 if strcmp(ExportNameKey,'final')
 else
 disp(strcat('Export name key is "',ExportNameKey,'" not FINAL'))
@@ -1837,8 +1837,8 @@ plotStructUI.Cfpbkg = Cfpbkg;
 plotStructUI.mkatebkg = mkatebkg;
     
 end
-function plotStruct = plotthemfunctionToStructure(framesThatMustBeTracked,Tracked,A,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat)
-global plottingTotalOrMedian cell_seg nucleus_seg background_seg segmentPath
+function plotStruct = plotthemfunctionToStructure(Tracked,idScene,mstackPath,timeFrames,makeIMG,makeIMGidx,cell_seg,nucleus_seg,background_seg,segmentPath)
+
 plotStruct = struct();
 
 
@@ -1857,24 +1857,15 @@ cd(mstackPath)
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                      %  open smad img  %
             cd(mstackPath)         
-            ff = dir(strcat('*',ImageDetails.Scene,'*',cell_seg,'*'));
+            ff = dir(strcat('*',idScene,'*',cell_seg,'*'));
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
             channelfileObject = matfile(filename);
             cellQ_imgstack = channelfileObject.flatstack;
-            
-                     %  open mKate img  %
-            cd(mstackPath)         
-            ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*'));
-    %         ff = dir(strcat(ImageDetails.Channel,'*'));
-            filename = char(ff.name);
-            channelfileObject = matfile(filename);
-            mkateimgstack = channelfileObject.flatstack;
-
 
                    %    open cfp img  %
             cd(mstackPath)         
-            ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*'));
+            ff = dir(strcat('*',idScene,'*',nucleus_seg,'*'));
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
             channelfileObject = matfile(filename);
@@ -1882,9 +1873,9 @@ cd(mstackPath)
             
                     % open background Logical img  %
             cd(segmentPath)         
-            ff = dir(strcat('*',ImageDetails.Scene,'*',background_seg,'*'));
+            ff = dir(strcat('*',idScene,'*',background_seg,'*'));
             if length(ff)>1
-                ff = dir(strcat('*',ImageDetails.Scene,'*',background_seg,'*background*'));
+                ff = dir(strcat('*',idScene,'*',background_seg,'*background*'));
             end
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
@@ -1893,9 +1884,9 @@ cd(mstackPath)
             
                     % open nuclear Logical img  %
             cd(segmentPath)         
-            ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*'));
+            ff = dir(strcat('*',idScene,'*',nucleus_seg,'*'));
             if length(ff)>1
-                ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*nucleus*'));
+                ff = dir(strcat('*',idScene,'*',nucleus_seg,'*nucleus*'));
             end
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
@@ -1908,23 +1899,19 @@ cd(mstackPath)
            
 
 %perform bkg subtraction
-Smadbkg = zeros(1,timeFrames,'single');
-Cfpbkg = zeros(1,timeFrames,'single');
-mkatebkg = zeros(1,timeFrames,'single');
-bkgstd = zeros(1,timeFrames,'single');
+cellBKG = zeros(1,timeFrames,'single');
+nucBKG = zeros(1,timeFrames,'single');
 for k=1:timeFrames
     bkglog = ~bkglogimgstack(:,:,k);
     cellQ_img = single(cellQ_imgstack(:,:,k));
     nuc_img = single(nuc_imgstack(:,:,k));
-    mkateimg = single(mkateimgstack(:,:,k));
+    
     %background subtraction is just subtraction with a value
-    Smadbkg(k) = nanmedian(cellQ_img(bkglog));
-    Cfpbkg(k) = nanmedian(nuc_img(bkglog));
-    mkatebkg(k) = nanmedian(mkateimg(bkglog));
-    bkgstd(k) = nanstd(mkateimg(bkglog));
-    cellQ_imgstack(:,:,k) = cellQ_img-Smadbkg(k);
-    nuc_imgstack(:,:,k) = nuc_img-Cfpbkg(k);
-    mkateimgstack(:,:,k) = mkateimg - mkatebkg(k);
+    cellBKG(k) = nanmedian(cellQ_img(bkglog));
+    nucBKG(k) = nanmedian(nuc_img(bkglog));
+    cellQ_imgstack(:,:,k) = cellQ_img-cellBKG(k);
+    nuc_imgstack(:,:,k) = nuc_img-nucBKG(k);
+    
     %background subtraction is subtraction with an interpolated image
 %     smadbkgimg = regionfill(cellQ_img,~bkglog);
 %     cfpbkgimg = regionfill(nuc_img,~bkglog); %fill in the regions where bkglog is 0
@@ -1940,57 +1927,48 @@ nuc_pxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
 for i = 1:size(plotTracesCell,2)
     cellQ_img = single(squeeze(cellQ_imgstack(:,:,i)));
     nuc_img = single(squeeze(nuc_imgstack(:,:,i)));
-    mkateimg = single(squeeze(mkateimgstack(:,:,i)));
     for j=1:size(plotTracesCell,1)
     pxidx = plotTracesCell{j,i};
         if ~isnan(pxidx)
         cellQ_pxls(j,i) = {cellQ_img(pxidx)};
         nuc_pxls(j,i) = {nuc_img(pxidx)};
-        mkatepxls(j,i) = {mkateimg(pxidx)};
         else
         cellQ_pxls(j,i) = {single(13579)};
         nuc_pxls(j,i) = {single(13579)};
-        mkatepxls(j,i) = {single(13579)};
         end
     end
 end
 
 %determine median pxl intensities
-    Smad = cellfun(@nanmedian,cellQ_pxls,'UniformOutput',1);
-        Smad(Smad==single(13579)) = NaN;
-    Cfp = cellfun(@nanmedian,nuc_pxls,'UniformOutput',1);
-        Cfp(Cfp==single(13579)) = NaN;
-    mkate = cellfun(@nanmedian,mkatepxls,'UniformOutput',1);
-        mkate(mkate==single(13579)) = NaN;
+    cellQ = cellfun(@nanmedian,cellQ_pxls,'UniformOutput',1);
+        cellQ(cellQ==single(13579)) = NaN;
+    nucQ = cellfun(@nanmedian,nuc_pxls,'UniformOutput',1);
+        nucQ(nucQ==single(13579)) = NaN;
 for i = 1:size(cellQ_pxls,1)
-    plotStruct(i).medianNucEGFP = Smad(i,:);
-    plotStruct(i).medianNucRFP = Cfp(i,:);
+    plotStruct(i).medianNucEGFP = cellQ(i,:);
+    plotStruct(i).medianNucRFP = nucQ(i,:);
 end
 
 %determine total pxl intensities
-    Smad = cellfun(@nansum,cellQ_pxls,'UniformOutput',1);
-        Smad(Smad==single(13579)) = NaN;
-    Cfp = cellfun(@nansum,nuc_pxls,'UniformOutput',1);
-        Cfp(Cfp==single(13579)) = NaN;
-    mkate = cellfun(@nansum,mkatepxls,'UniformOutput',1);
-        mkate(mkate==single(13579)) = NaN;
+    cellQ = cellfun(@nansum,cellQ_pxls,'UniformOutput',1);
+        cellQ(cellQ==single(13579)) = NaN;
+    nucQ = cellfun(@nansum,nuc_pxls,'UniformOutput',1);
+        nucQ(nucQ==single(13579)) = NaN;
 for i = 1:size(cellQ_pxls,1)
-    plotStruct(i).totalNucEGFP = Smad(i,:);
-    plotStruct(i).totalNucRFP = Cfp(i,:);
+    plotStruct(i).totalNucEGFP = cellQ(i,:);
+    plotStruct(i).totalNucRFP = nucQ(i,:);
 end
 
 %determine mean pxl intensities
-    Smad = cellfun(@nanmean,cellQ_pxls,'UniformOutput',1);
-    Smad(Smad==single(13579)) = NaN;
-    Cfp = cellfun(@nanmean,nuc_pxls,'UniformOutput',1);
-    Cfp(Cfp==single(13579)) = NaN;
-    mkate = cellfun(@nanmean,mkatepxls,'UniformOutput',1);
-    mkate(mkate==single(13579)) = NaN;
+    cellQ = cellfun(@nanmean,cellQ_pxls,'UniformOutput',1);
+    cellQ(cellQ==single(13579)) = NaN;
+    nucQ = cellfun(@nanmean,nuc_pxls,'UniformOutput',1);
+    nucQ(nucQ==single(13579)) = NaN;
 for i = 1:size(cellQ_pxls,1)
-    plotStruct(i).meanNucEGFP = Smad(i,:);
-    plotStruct(i).meanNucRFP = Cfp(i,:);
-    plotStruct(i).medianCfpbkg = Cfpbkg;
-    plotStruct(i).medianSmadbkg = Smadbkg;
+    plotStruct(i).meanNucEGFP = cellQ(i,:);
+    plotStruct(i).meanNucRFP = nucQ(i,:);
+    plotStruct(i).medianCfpbkg = nucBKG;
+    plotStruct(i).medianSmadbkg = cellBKG;
 end
 
 
@@ -2393,77 +2371,104 @@ cd ..
 end
 
 function exportTrackedCells(~,~)
-global ExportNameKey ExportName exportdir mstackPath OGExpDate SceneList Tracked ImageDetails A trackingPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
+global cell_seg nucleus_seg background_seg segmentPath ExportNameKey ExportName exportdir mstackPath OGExpDate SceneList ImageDetails A trackingPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
 exportStruct = struct();
 
     if plottingON == 0
-    psettings = PlotSettings_callback([],[]);
-    plottingON=1;
+        psettings = PlotSettings_callback([],[]);
+        plottingON=1;
     end
     
-framesThatMustBeTracked = psettings.framesThatMustBeTracked;
-cd(trackingPath)
-cd ..
-    for scenenumber = 1:length(SceneList)
-        cd(trackingPath)
-        sceneN = SceneList{scenenumber};
-        disp(sceneN)
-        ImageDetails.Scene = sceneN;
-      
+%remove all global variables before parfor loop
+    framesThatMustBeTracked = psettings.framesThatMustBeTracked;
+    eNameKey = ExportNameKey;
+    eName = ExportName;
+    tPath = trackingPath;
+    mPath = mstackPath;
+    sList = SceneList;
+    tFrames = timeFrames;
+    cSeg = cell_seg;
+    nSeg = nucleus_seg;
+    bSeg = background_seg;
+    sPath = segmentPath;
+    cd(tPath)
+    cd ..
+    
+        plotStructArray = cell(1,length(sList));
+        parfor scenenumber = 1:length(sList)
+            cd(tPath)
+            sceneN = sList{scenenumber};
+            disp(sceneN)
+            idScene = sceneN;
 
-        trackfile = dir(strcat(ExportNameKey,'*',sceneN,'*',ExportName,'.mat'));
-%         trackfile = dir('finalfricktrack.mat');
-        trackfilename = char({trackfile.name});
-        
-            if ~isempty(trackfilename)
-                load(trackfilename)
-                PX = Tracked{framesThatMustBeTracked(1)}.Cellz.PixelIdxList;
-                makeIMG = false(length(framesThatMustBeTracked),length(PX));
-                   
-                    for jy = 1:length(framesThatMustBeTracked)
-                    PX = Tracked{framesThatMustBeTracked(jy)}.Cellz.PixelIdxList;
-%                     makeIMG(jy,:) = ~logical(cellfun(@(x) length(x)==1,PX,'UniformOutput',1)); %choose only the cells without NAN
-                    makeIMG(jy,:) = ~logical(cellfun(@(x) length(x)<2,PX,'UniformOutput',1)); %choose only the cells without NAN
-                    end
-                    
-                makeIMG = makeIMG(1,:)&makeIMG(2,:);
-                makeIMGidx = find(makeIMG==1);
-%                 makeIMG = true(size(makeIMG));
-                smooththat=0;
-%                 [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,A,ImageDetails,SceneDirPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
-                plotStruct = plotthemfunctionToStructure(framesThatMustBeTracked,Tracked,A,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
-                
-                fnames = fieldnames(plotStruct);
-                if isempty(fieldnames(exportStruct)) %if exportStruct is empty 
-                    idx = 0;
-                    for i = 1:length(plotStruct)
-                        for j = 1:length(fnames)
-                            exportStruct(idx+i).(fnames{j}) = plotStruct(i).(fnames{j});
-                            exportStruct(idx+i).scene = sceneN;
-                            exportStruct(idx+i).cellID = i;
+            trackfile = dir(strcat(eNameKey,'*',sceneN,'*',eName,'.mat'));
+            trackfilename = char({trackfile.name});
+
+                if ~isempty(trackfilename)
+                    trackedArray = loadTrackedArray(trackfilename); %trackedArray = Tracked
+                    PX = trackedArray{framesThatMustBeTracked(1)}.Cellz.PixelIdxList;
+                    makeIMG = false(length(framesThatMustBeTracked),length(PX));
+
+                        for jy = 1:length(framesThatMustBeTracked)
+                        PX = trackedArray{framesThatMustBeTracked(jy)}.Cellz.PixelIdxList;
+                        makeIMG(jy,:) = ~logical(cellfun(@(x) length(x)<2,PX,'UniformOutput',1)); %choose only the cells without NAN
                         end
-                    end
-                else    %if fields are defined, append the cell data to the next available index
-                    idx = length(exportStruct);
-                    for i = 1:length(plotStruct)
-                        for j = 1:length(fnames)
-                            exportStruct(idx+i).(fnames{j}) = plotStruct(i).(fnames{j});
-                            exportStruct(idx+i).scene = sceneN;
-                            exportStruct(idx+i).cellID = i;
-                        end
-                    end
+
+                    makeIMG = makeIMG(1,:)&makeIMG(2,:);
+                    makeIMGidx = find(makeIMG==1);
+
+                    plotStruct = plotthemfunctionToStructure(trackedArray,idScene,mPath,tFrames,makeIMG,makeIMGidx,cSeg,nSeg,bSeg,sPath)
+                    plotStructArray{scenenumber} = plotStruct;
                 end
-                
-                
-%                 exportStruct(:).scene = sceneN;
+        end
         
-stophere=1;
-%         xlswrite(filename,eggcell,sceneN);
-                end
-    end
-        cd(exportdir)
-        filename = strcat(OGExpDate,'_tracking_export.mat'); 
-        save(filename,'exportStruct');
+        for scenenumber = 1:length(sList)
+            sceneN = sList{scenenumber};
+            plotStruct = plotStructArray{scenenumber};
+            
+                    fnames = fieldnames(plotStruct);
+                    if isempty(fieldnames(exportStruct)) %if exportStruct is empty 
+
+                        idx = 0;
+                        for i = 1:length(plotStruct)
+                            for j = 1:length(fnames)
+                                exportStruct(idx+i).(fnames{j}) = plotStruct(i).(fnames{j});
+                                exportStruct(idx+i).scene = sceneN;
+                                exportStruct(idx+i).cellID = i;
+                            end
+                        end
+
+                    else    %if fields are defined, append the cell data to the next available index
+
+                        idx = length(exportStruct);
+                        for i = 1:length(plotStruct)
+                            for j = 1:length(fnames)
+                                exportStruct(idx+i).(fnames{j}) = plotStruct(i).(fnames{j});
+                                exportStruct(idx+i).scene = sceneN;
+                                exportStruct(idx+i).cellID = i;
+                            end
+                        end
+
+                    end
+
+        end
+        
+        %save the exportStruct
+            cd(exportdir)
+            filename = strcat(OGExpDate,'_tracking_export.mat'); 
+            save(filename,'exportStruct');
+end
+
+
+function trackedArray = loadTrackedArray(trackfilename)
+% tic
+load(trackfilename)
+trackedArray = Tracked;
+% toc
+% tic
+% tfileobject = matfile(trackfilename);
+% trackedArray = tfileobject.Tracked;
+% toc
 end
 
 function exportAllCells(~,~)
@@ -2509,7 +2514,7 @@ cd ..
                 makeIMGidx = find(makeIMG==1);
                 smooththat=0;
 %                 [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,A,ImageDetails,SceneDirPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
-                plotStruct = plotthemfunctionToStructure(framesThatMustBeTracked,Tracked,A,ImageDetails,SceneDirPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
+                plotStruct = plotthemfunctionToStructure(Tracked,idScene,mstackPath,timeFrames,makeIMG,makeIMGidx);
                 
                 fnames = fieldnames(plotStruct);
                 if isempty(fieldnames(exportStruct)) %if exportStruct is empty 
@@ -3258,11 +3263,13 @@ ChannelDirectory = dir(strcat('*',ImageDetails.Channel,'_*'));
 %overlay of fluorescent channels
 %normal image
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 %         imgfile = dir(strcat('*',ImageDetails.Frame,'*.tif'));
         cd(mstackPath)
         ff = dir(strcat('*',ImageDetails.Scene,'*',cell_seg,'*'));
 %         ff = dir(strcat(ImageDetails.Channel,'*'));
         filename = char(ff.name);
+
         if ~isempty(cfoName) %if channelfileObject has been made, check to see if the scene has changed. 
             [a,~] = regexp(cfoName,ImageDetails.Scene);
             if isempty(a) %if the scene has changed load the new channelimgstack
@@ -3276,6 +3283,7 @@ ChannelDirectory = dir(strcat('*',ImageDetails.Channel,'_*'));
                  cfoName = char(channelfileObject.Properties.Source);%update cfoName
 %                  disp('if -> elseif')
             else
+                stophe=1;
 %                 disp('if -> else')
                 %dont do anything
             end
@@ -3285,6 +3293,7 @@ ChannelDirectory = dir(strcat('*',ImageDetails.Channel,'_*'));
                  cfoName = char(channelfileObject.Properties.Source);%update cfoName
 %                  disp('else')
         end
+        
         
         cellImg = channelimgstack(:,:,t);
         
@@ -3488,13 +3497,15 @@ elseif strcmp(ImageDetails.Channel,'reporter_quantify')
     channelimg;
 end
 
+
 displayImageFunct(If,channelimg);
+
 end
 
 
 function contrast_Callback(~,~)
 global tcontrast lcontrast adjuster
-prompt = {'High Contrast Limit','Low Contrast Limit'};
+prompt = {'High Contrast Percent Limit','Low Contrast Percent Limit'};
 dlg_title = 'Contrast limits from 0 to 100';
 num_lines = 1;
 defaultans = {num2str(tcontrast),num2str(lcontrast)};
@@ -3507,7 +3518,7 @@ setSceneAndTime
 adjuster =0;
 end
 
-function contrast_CallbackNew(~,~)
+function contrast_Callbacknew(~,~)
 global tcontrast lcontrast adjuster
 prompt = {'High Contrast Limit','Low Contrast Limit'};
 dlg_title = 'Contrast limits from 0 to 100';
@@ -3522,13 +3533,12 @@ setSceneAndTime
 adjuster =0;
 end
 
-function displayImageFunctNew(If,channelimg)
+function displayImageFunct(If,channelimg)
 global displaycomments timeFrames lprcntlt prcntlt tcontrast lcontrast MainAxes displaytracking ImageDetails frameToLoad prcntlz lprcntlz prcntlk lprcntlk prcntl lprcntl D ExpDate cmap cmaplz adjuster
 
 
 %determine current time Frame
-    t = strcmp(frameToLoad,ImageDetails.Frame);
-    t = find(t==1);
+    t = frameToLoad;
 
 %delete old images to keep memory usage low
     axes(MainAxes);
@@ -3562,18 +3572,18 @@ global displaycomments timeFrames lprcntlt prcntlt tcontrast lcontrast MainAxes 
 
     else  %under normal circumstances
             if ifCHANGEofCHANNELorSCENE==1
-                dispimg = channelimg-lcontrast;
-                dispimg = dispimg./(tcontrast-lcontrast);
-                dispimg = dispimg.*255;
+                lprcntl = prctile(channelimg(:),lcontrast);
+                prcntl = prctile(channelimg(:),tcontrast);
+                scaleFactor = 255./(prcntl - lprcntl);
                 ifCHANGEofCHANNELorSCENE=0;
             end
-
-        dispimg = channelimg-lcontrast;
-        dispimg = dispimg./(tcontrast-lcontrast);
-        dispimg = dispimg.*255;
-        dispimg(dispimg == 255) =254;
+        scaleFactor = 255./(prcntl - lprcntl);
+        dispimg = channelimg.*scaleFactor;
+        dispimg = dispimg-(lprcntl.*scaleFactor);
+        dispimg(dispimg> 255) =254;
         colormap(cmap);
         If = bwperim(If) | bwperim(imdilate(If,strel('disk',1)));
+%         If = bwperim(If);
         dispimg(If>0)=255;
     end
 
@@ -3618,7 +3628,7 @@ himgax.XTick = [];
 % saveChannelFiveImages
 end
 
-function displayImageFunct(If,channelimg)
+function displayImageFunctold(If,channelimg)
 global displaycomments timeFrames lprcntlt prcntlt tcontrast lcontrast MainAxes displaytracking ImageDetails frameToLoad prcntlz lprcntlz prcntlk lprcntlk prcntl lprcntl D ExpDate cmap cmaplz adjuster
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   determine the frame to load
