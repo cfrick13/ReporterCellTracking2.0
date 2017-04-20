@@ -13,11 +13,12 @@
         exportdir = strcat(parentdir,'Export/');
     cd(parentdir)
 
-    % dateArray = {'2017_03_02 plate exp1'};
-%     dateArray = {'2017_03_13 plate exp5','2014_09_27 plate exp1','2017_09_30 plate exp1','2014_10_01 plate exp1'};
-%     dateArray = {'2014_09_27 plate exp1','2014_09_30 plate exp1','2014_10_01 plate exp1','2014_10_04 plate exp1','2014_11_21 plate exp1'};
-%     dateArray = {'2017_03_20 plate exp1'};
-    dateArray = {'2017_02_04 plate exp1'};
+
+%     dateArray = {'2017_02_08 plate exp1','2017_02_08 plate exp2'};
+%     dateArray = {'2017_02_08 plate exp1','2017_02_08 plate exp2','2017_04_12 plate exp1','2017_04_12 plate exp2','2017_04_12 plate exp3','2017_04_12 plate exp4','2017_04_12 plate exp5','2017_04_12 plate exp6','2017_04_12 plate exp7','2017_04_12 plate exp8','2017_04_14 plate exp2','2017_04_17 plate exp1','2017_04_17 plate exp2'};
+%         dateArray = {'2017_04_17 plate exp1','2017_04_17 plate exp2'};
+%         dateArray = {'2017_02_04 plate exp1','2017_02_06 plate exp1','2017_02_06 plate exp2'};
+        dateArray = {'2017_04_17 plate exp3'};
     for BB = dateArray
 
     %get directory name from date Array
@@ -29,13 +30,12 @@
         supertic = tic; 
 
     %extract images from .czi and save image stacks as .mat files
-%         ExtractMetadataAndImages(B);    
-
-
+%         ExtractMetadataAndImages(B);  
 
     %extract data in excel file
+        cd(parentdir)
         exName = strcat(B,'-metaData.mat');
-%         makeDoseStructFromXLS(exName);
+        makeDoseStructFromXLS(exName);
 
 
     %load excel-extracted data
@@ -58,7 +58,7 @@
     
 
     %run Flatflield correction
-%         BackgroundAndFlatfieldCorrectionOfTimeLapseImages(A,B,channelstoinput,BACKGROUND);
+        BackgroundAndFlatfieldCorrectionOfTimeLapseImages(A,B,channelstoinput,BACKGROUND);
 
     %display time
         totalTime = toc(supertic); %report the timing
@@ -68,6 +68,9 @@
 
 
         SegmentationOfTimeLapseImages(A,B,dontsegment,segInstruct);
+
+        AutoTrackCellz(B)
+        AutoExportNuclei(B)
     end
 
 

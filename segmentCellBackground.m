@@ -66,6 +66,8 @@ areaOfSegmentation = sum(sum(Ih));
 percentageOfImageSegmented = round(100*(areaOfSegmentation./(size(img,1)*size(img,2))));
 if percentageOfImageSegmented > 99
     percentageOfImageSegmented = 99;
+elseif percentageOfImageSegmented == 0
+    percentageOfImageSegmented = 1;
 end
 
     
@@ -124,6 +126,9 @@ end
 
 
     subtractionThresholdScaled = (10.^subtractionThreshold).*threshFactor;
+    if ~(length(subtractionThresholdScaled)==1)
+        stophere=1;
+    end
     subtracted = single(rawMinusLPScaledContrasted)-subtractionThresholdScaled;
     subzero = (subtracted<0);
     Ih = ~subzero;

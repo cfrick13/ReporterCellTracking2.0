@@ -1,4 +1,4 @@
-function uiTrackCellz
+function uiTrackCellzPTRACK
 global DICimgstack dfoName cfoName trackingPath background_seg bfoName backgroundimgstack sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterate ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs adjuster cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes OGExpDate plottingON PlotAxes cmap TC A AA timeFrames frameToLoad ImageDetails MainAxes SceneList displaytracking imgsize ExpDate
 adjuster=0;
 plottingTotalOrMedian = 'median';
@@ -2814,7 +2814,7 @@ end
 
 end
 function trackbutton_Callback(~,~)
-global  Tracked ImageDetails TC segmentPath nucleus_seg
+global  Tracked ImageDetails TC segmentPath nucleus_seg mstackPath background_seg
 pvalue = ImageDetails.Scene;
 
     trackfilelist = {'yes','no'};
@@ -2824,7 +2824,7 @@ pvalue = ImageDetails.Scene;
                 'ListString',trackfilelist);
             
             if S==1
-Tracked = FrickTrackCellsYeah(segmentPath,pvalue,nucleus_seg);
+Tracked = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,background_seg);
             else
             end
 
@@ -3038,6 +3038,9 @@ didxo = diff(idxo,[],2);
     end
     
         if ~(sum([isempty(fi) isempty(fni)])>0) %if a track has one cell then none then another cell (track with gap)
+            if length(fni)>1
+                stophere=1;
+            end
         idxtest = fi>fni; 
         fiToRemove = fi(idxtest)+1; %the extra cell begins at (fi+1)
             %move the post-gap cells to the end
@@ -3096,126 +3099,263 @@ strt = sum(trt(index,:),2);
 stophere=1;
 end
 
+function [distProb] = probSpitter(input,inputPrev,knnnum)
+%make a matrix that tells you the probability a value in one vector is the same as another
+    if size(input,1)<size(input,2)
+        input=input';
+        inputPrev=inputPrev';
+    end
+    [idx,eps] = knnsearch(input,inputPrev,'K',knnnum); 
+    distvec = eps;
+    distvec_norm = (distvec - min(distvec(:)))./(max(distvec(:)) - min(distvec(:))); %set to be from 0 to 1
+    distProbValues = 1 - distvec_norm;
+    
+    distProb = zeros(size(inputPrev,1),size(input,1));
+    for di = 1:size(idx,1)
+       didx = idx(di,:);
+       distProb(di,didx) = distProbValues(di,:);
+    end
+    
+end
+
+function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,background_seg)
 %function for tracking cells
-function [ Tracked ] = FrickTrackCellsYeah(segmentPath,pvalue,nucleus_seg)
-%UNTITLED Summary of this function goes here
 %   Detailed explanation goes here
-% cd('D:\Users\zeiss\Documents\MATLAB')
-minimum_nucleus_area=20;
-% minimum_nucleus_area=35;
-Tracked = [];
+
+
+
+
 Frame = struct();
 
 
-       %load segmented image
-        cd(segmentPath)
-        ff = dir(strcat('*',pvalue,'*',nucleus_seg,'*'));
-        if length(ff)>1
-            ff = dir(strcat('*',pvalue,'*',nucleus_seg,'*nucleus*')); 
-        end
-%         ff = dir(strcat(ImageDetails.Channel,'*'));
-        filename = char(ff.name);
-        segmentfileObject = matfile(filename);
-        segmentimgstack = segmentfileObject.IfFinal;
-        
-        
+%load nucleus segmentation binary as segmentimgstack
+    cd(segmentPath)
+    ff = dir(strcat('*',pvalue,'*',nucleus_seg,'*'));
+    if length(ff)>1
+        ff = dir(strcat('*',pvalue,'*',nucleus_seg,'*nucleus*')); 
+    end
+    %         ff = dir(strcat(ImageDetails.Channel,'*'));
+    filename = char(ff.name);
+    nucleusFileObject = matfile(filename);
+    segmentimgstack = nucleusFileObject.IfFinal;
+    
+%load background segmentation binary as segmentimgstack
+    cd(segmentPath)
+    ff = dir(strcat('*',pvalue,'*',background_seg,'*'));
+    if length(ff)>1
+        ff = dir(strcat('*',pvalue,'*',background_seg,'*background*')); 
+    end
+    %         ff = dir(strcat(ImageDetails.Channel,'*'));
+    filename = char(ff.name);
+    backgroundFileObject = matfile(filename);
+    backgroundimgstack = backgroundFileObject.IfFinal;
+
+%load nucleus images as nosub_nucleusimgstack
+    cd(mstackPath)
+    ff = dir(strcat('*',pvalue,'*',nucleus_seg,'*'));
+    if length(ff)>1
+        ff = dir(strcat('*',pvalue,'*',nucleus_seg,'*nucleus*')); 
+    end
+    %         ff = dir(strcat(ImageDetails.Channel,'*'));
+    filename = char(ff.name);
+    nucleusFileObject = matfile(filename);
+    nosub_nucleusimgstack = nucleusFileObject.flatstack;    
+    
+
+%background subtract nucleusimgstack
+    nucleusimgstack = zeros(size(nosub_nucleusimgstack));
+    for i=1:size(nosub_nucleusimgstack,3)
+        nucI = nosub_nucleusimgstack(:,:,i);
+        bkgI = backgroundimgstack(:,:,i);
+        nucleusimgstack(:,:,i) = nucI-nanmedian(nucI(bkgI));
+    end
+    
         
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %This section involves calculating the nearest neighbor to the centroid
 %and organizing PixelLists and Centroid lists to match nearest neighbor
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-i=1;
-for i = 1:size(segmentimgstack,3)
-    img = segmentimgstack(:,:,i);
-    
-%     %%%incorporate mKate signal into the segmentation
-%     cd .. 
-%     cd('mKatebinary_flat')
-%         imgmkate = imread(char(cfilemkate{i}));
-%     If = uint8(logical(img) | logical(imgmkate));
-%     img = If;
-    
-CC = bwconncomp(img);
-PX = CC.PixelIdxList;
-%choose segmented nuclei above a certain size only
-segment_Area = cellfun(@length,PX);
-true_cells = segment_Area > minimum_nucleus_area;
-PX = PX(true_cells);
-CC.PixelIdxList = PX;
-CC.NumObjects = numel(PX);
 
-PXarray{i} = PX;
-
-if i==1
-S = regionprops(CC,'Centroid');
-Smat = vertcat(S.Centroid);
-
-B{i}=Smat;
-Frame.filename = filename;
-Frame.Cellz = CC;
-Tracked{i} = Frame;
-else
-S = regionprops(CC,'Centroid');
-Smat = vertcat(S.Centroid); 
-
-if ~isempty(Smat)
-[Idx,Eps] = knnsearch(Smat,B{i-1},'K',1); %B{i-1} = Smat(Idx)
-SameCellPX = PX(Idx);
-else
-SameCellPX = Tracked{i-1}.Cellz.PixelIdxList;
-end
-
-
-num_cells_set = 1:size(Smat,1);
-[n, bin] = histc(Idx, num_cells_set);
-multiple = find(n>1); %the same cell is called closest to two previous cells
-missers = find(n<1); %these are likely new cells
-    if ~isempty(multiple)
-        for loop = multiple'
-            index    = find(ismember(bin, loop));
-            winnerofrepeatidx =  find(Eps == min(Eps(index)));
-            loserz = setdiff(index,winnerofrepeatidx);
-%             if length(loserz)>100
-%                 stophere=1;
-%             end
-%             for lsrz = loserz'
-%             SameCellPX(end+1) = SameCellPX(lsrz);
-%             end
+%determine parameters of nuclei (%area,centroid,fluorescence,elllipticity,velocities?) 
+    segment_Area_array = cell(1,size(segmentimgstack,3));
+    segment_nucFluor_array = cell(1,size(segmentimgstack,3));
+    segment_Stdev_array = cell(1,size(segmentimgstack,3));
+    segment_Centroid_array = cell(1,size(segmentimgstack,3));
+    segment_Ellipt_array = cell(1,size(segmentimgstack,3));
+    segmentsequence = fliplr(1:size(segmentimgstack,3)); %track from last frame to first frame
+        for i = segmentsequence
+            segI = segmentimgstack(:,:,i);
+            nucI = nucleusimgstack(:,:,i);
+            CC = bwconncomp(segI);
+            PX = CC.PixelIdxList;
+            S = regionprops(CC,'Centroid','Area','Perimeter');
+            areavec = horzcat(S.Area);
+            perimetervec = horzcat(S.Perimeter);
+            elliptvec = 4.*pi.*areavec./(perimetervec.^2);
             
-            SameCellPX(loserz) = {NaN}; %remove multiple links to same cell from previous frame so that cell is only linked to one previous
+            segment_Area_array{i} = areavec;
+            segment_Ellipt_array{i} = elliptvec;
+            segment_nucFluor_array{i} = cellfun(@(x) nanmedian(nucI(x)),PX,'UniformOutput',1);
+            segment_Stdev_array{i} = cellfun(@(x) nanstd(nucI(x)),PX,'UniformOutput',1);
+            segment_Centroid_array{i} = vertcat(S.Centroid);
+            segment_Pixels_array{i} = PX;
+        end
+%track based on assigning probabilities determined by minimizing changes to measured parameters
+    Tracked = cell(1,size(segmentimgstack,3));
+                segI = segmentimgstack(:,:,length(Tracked));
+                CC = bwconncomp(segI);
+                Frame.filename = filename;
+                Frame.Cellz = CC;
+                Tracked{end} = Frame;
+    segmentsequence = fliplr(1:size(segmentimgstack,3)-1); %track from last frame to first frame
+    samecellstruct = struct();
+        for i = segmentsequence
+            centroids = segment_Centroid_array{i};
+            centroidsPrev = segment_Centroid_array{i+1};
+            area = segment_Area_array{i};
+            areaPrev = segment_Area_array{i+1};
+            fluor = segment_nucFluor_array{i};
+            fluorPrev = segment_nucFluor_array{i+1};
+            pixels = segment_Pixels_array{i};
+            pixelsPrev = segment_Pixels_array{i+1};
+            ellipt = segment_Ellipt_array{i};
+            elliptPrev = segment_Ellipt_array{i+1};
+            
+            prbs = struct();
+            knnnum = 3;
+            if ~isempty(centroids)
+               %centroid distance
+               [distProb] = probSpitter(centroids,centroidsPrev,knnnum);
+               [areaProb] = probSpitter(area,areaPrev,knnnum);
+               [fluorProb] = probSpitter(fluor,fluorPrev,knnnum);
+               [elliptProb] = probSpitter(ellipt,elliptPrev,knnnum);
+               
+               %you should assign weights to the probilities as well
+
+               %centroids [37x2] centroidPrev[34x2] idx[34x3] distProb[34x37];
+               %idx(1,:) = [1 5 9] means that centroids(1,:)  centroids(5,:)and centroids(9.:) are closest to centroidPrev(1,:)
+               %now you need to build a probability matrix that has rows
+               % for all cells in centroidsPrev (size(CentroidsPrev,1) and columns for all cells in centroids (size(centroids,1))
+
+               
+               
+               cellProbVox = cat(3,distProb*4,areaProb*0,fluorProb*0,elliptProb*0);
+               cellProb = nanmean(cellProbVox,3);
+               [maxvals,idx] = max(cellProb,[],2); %idx is index of input that matches to inputPrev such that input(idx) = inputPrev;
+               
+                %now some cells are assigned twice. Correct this based on highest probabilities
+                num_cells_set = 1:size(cellProb,2); %size(cellProb,2) = length(input)
+                [n, bin] = histc(idx, num_cells_set);
+                multiple = find(n>1); %the same cell is called closest to two previous cells
+                missers = find(n<1); %these are likely new cells
+                loserz = [];
+                    if ~isempty(multiple)
+                        for loop = multiple'
+                            index    = find(ismember(bin, loop));
+                            winnerofrepeatidx =  find(maxvals == max(maxvals(index)));
+                            losern = setdiff(index,winnerofrepeatidx);
+                            loserz = [loserz losern'];
+                        end
+                    end 
+                    
+                SameCellPX = pixels(idx);
+                SameCellPX(loserz) = {NaN}; %remove multiple links to same cell from previous frame so that cell is only linked to one previous               
+                
+
+
+                   
+                AllCellsPX = horzcat(SameCellPX,pixels(missers));
+                CC.PixelIdxList = AllCellsPX;
+                CC.NumObjects = numel(AllCellsPX);
+                stats = regionprops(CC,'Centroid');
+                Smat = vertcat(stats.Centroid);
+                CC.Centroid = Smat;
+                Frame.filename = filename;
+                Frame.Cellz = CC;
+                Tracked{i} = Frame;
+                
+            centroidsnew = centroids(idx,:);
+            centroidsnew = vertcat(centroidsnew,centroids(missers,:));
+            segment_Centroid_array{i} = centroidsnew;
+
+            areanew = area(idx);
+            areanew = horzcat(areanew,area(missers));
+            segment_Area_array{i} = areanew;
+
+            fluornew = fluor(idx);
+            fluornew = horzcat(fluornew,fluor(missers));
+            segment_nucFluor_array{i} = fluornew;   
+%             
+            elliptnew = ellipt(idx);
+            elliptnew = horzcat(elliptnew,ellipt(missers));
+            segment_Ellipt_array{i} = elliptnew;   
+
+            segment_Pixels_array{i} = AllCellsPX;
+               
+            else
+                %need to decide what should be done if there are no cells on a frame
+            end
+            
             
         end
-    end
 
 
-AllCellsPX = horzcat(SameCellPX,PX(missers));
-CC.PixelIdxList = AllCellsPX;
-CC.NumObjects = numel(AllCellsPX);
-S = regionprops(CC,'Centroid');
-Smat = vertcat(S.Centroid);
-CC.Centroid = Smat;
-B{i}=Smat;
+%             if i==1
+%                 S = regionprops(CC,'Centroid');
+%                 Smat = vertcat(S.Centroid);
+% 
+%                 B{i}=Smat;
+%                 Frame.filename = filename;
+%                 Frame.Cellz = CC;
+%                 Tracked{i} = Frame;
+%             else
+%                 S = regionprops(CC,'Centroid');
+%                 Smat = vertcat(S.Centroid); 
+% 
+%                 if ~isempty(Smat)
+%                     [Idx,Eps] = knnsearch(Smat,B{i-1},'K',1); %B{i-1} = Smat(Idx)
+%                     SameCellPX = PX(Idx);
+%                 else
+%                     SameCellPX = Tracked{i-1}.Cellz.PixelIdxList;
+%                 end
+% 
+% 
+%                 num_cells_set = 1:size(Smat,1);
+%                 [n, bin] = histc(Idx, num_cells_set);
+%                 multiple = find(n>1); %the same cell is called closest to two previous cells
+%                 missers = find(n<1); %these are likely new cells
+%                     if ~isempty(multiple)
+%                         for loop = multiple'
+%                             index    = find(ismember(bin, loop));
+%                             winnerofrepeatidx =  find(Eps == min(Eps(index)));
+%                             loserz = setdiff(index,winnerofrepeatidx);
+%                 %             if length(loserz)>100
+%                 %                 stophere=1;
+%                 %             end
+%                 %             for lsrz = loserz'
+%                 %             SameCellPX(end+1) = SameCellPX(lsrz);
+%                 %             end
+% 
+%                             SameCellPX(loserz) = {NaN}; %remove multiple links to same cell from previous frame so that cell is only linked to one previous
+% 
+%                         end
+%                     end
+% 
+% 
+%                 AllCellsPX = horzcat(SameCellPX,PX(missers));
+%                 CC.PixelIdxList = AllCellsPX;
+%                 CC.NumObjects = numel(AllCellsPX);
+%                 S = regionprops(CC,'Centroid');
+%                 Smat = vertcat(S.Centroid);
+%                 CC.Centroid = Smat;
+%                 B{i}=Smat;
+% 
+%                 Frame.filename = filename;
+%                 Frame.Cellz = CC;
+%                 Tracked{i} = Frame;
+%             end
+%         end
 
-Frame.filename = filename;
-Frame.Cellz = CC;
-Tracked{i} = Frame;
-end
-end
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%This section involves calculating the nearest neighbor to the centroid
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-stophere=1;
-
-
-
-% for i = 1:length(B)
-% xy = B{i};
-% c = colormap(lines(length(xy)));
-% scatter(xy(:,1),xy(:,2),[],c);hold on
-% end
-
-stophere=1;
 end
 
 %% Image Display functions
@@ -3824,7 +3964,7 @@ end
 
 
 function trackSaveIterateChosen_callback(~,~)
-global plottingON psettings runIterate SceneList ImageDetails TC A frameToLoad Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg
+global psettings runIterate SceneList ImageDetails TC A frameToLoad Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg
 
 runIterate =1;
     for i=1:length(SceneList)
@@ -3848,11 +3988,7 @@ runIterate =1;
             TC =1;
             setSceneAndTime;
             
-    if plottingON == 0
-        psettings = PlotSettings_callback([],[]);
-        plottingON=1;
-    end
-    
+            
         %run chosen at two specific frames
         framesThatMustBeTracked = psettings.framesThatMustBeTracked;
         framesThatMustBeTracked(2) =  framesThatMustBeTracked(2)+10;

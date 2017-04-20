@@ -1,4 +1,4 @@
-function uiTrackCellz
+function AutoExportNuclei(B)
 global DICimgstack dfoName cfoName trackingPath background_seg bfoName backgroundimgstack sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterate ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs adjuster cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes OGExpDate plottingON PlotAxes cmap TC A AA timeFrames frameToLoad ImageDetails MainAxes SceneList displaytracking imgsize ExpDate
 adjuster=0;
 plottingTotalOrMedian = 'median';
@@ -50,9 +50,23 @@ mdir = mfilename('fullpath');
 parentdir = mdir(1:b(end));
 exportdir = strcat(parentdir,'Export/');
 
+
+
+[~,b ] = regexp(parentdir,'/');
+    if isempty(b)
+        [~,b] = regexp(parentdir,'\');
+    end
+    gparentdir = parentdir(1:b(end-1));
+
+cd(gparentdir)
+expdir = strcat(gparentdir,'/',B);
+cd(expdir)
+PathName = pwd;
+
+
 cd(parentdir)
 cd ..
-A = uigetdir;
+A = PathName;
 AA = 'D:\Users\zeiss\Documents\MATLAB';
 cd(A)
 mstackName = 'flat mstack';
@@ -433,6 +447,13 @@ set(f,'KeyPressFcn',@keypress);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+% trackSaveIterateChosen_callback([],[])
+% exportTrackedCells([],[])
+close(f)
+exportNuclei([],[])
+
 end
 
 
@@ -452,6 +473,174 @@ function PMthreshslider(source,callbackdata)
 updatePMseg
 updateImage
 end
+
+function exportNuclei(~,~)
+global cell_seg nucleus_seg background_seg segmentPath   exportdir mstackPath OGExpDate SceneList  trackingPath timeFrames
+
+
+    exportNucleiStruct=struct();
+    %remove all global variables before parfor loop
+        tPath = trackingPath;
+        mPath = mstackPath;
+        sList = SceneList;
+        tFrames = timeFrames;
+        cSeg = cell_seg;
+        nSeg = nucleus_seg;
+        bSeg = background_seg;
+        sPath = segmentPath;
+        cd(tPath)
+        cd ..
+    
+        nucleiStructArray = cell(1,length(sList));
+        parfor scenenumber = 1:length(sList)
+            cd(tPath)
+            sceneN = sList{scenenumber};
+            disp(sceneN)
+            idScene = sceneN;
+
+                    exportNucleiz = nucleiToStructure(idScene,mPath,tFrames,cSeg,nSeg,bSeg,sPath);
+                    nucleiStructArray{scenenumber} = exportNucleiz;
+        end
+        
+        
+        for scenenumber = 1:length(sList)
+            sceneN = sList{scenenumber};
+            exportNuclei = nucleiStructArray{scenenumber};
+%             exportNucleiStruct.(sceneN) = exportNuclei;
+                
+            fnames = fieldnames(exportNuclei);
+            if isempty(fieldnames(exportNucleiStruct)) %if exportStruct is empty 
+                idx = 0;
+                for i = 1
+                    for j = 1:length(fnames)
+                        exportNucleiStruct(idx+i).(fnames{j}) = {exportNuclei.(fnames{j})};
+                        exportNucleiStruct(idx+i).scene = sceneN;
+                        exportNucleiStruct(idx+i).cellID = i;
+                    end
+                end
+            else    %if fields are defined, append the cell data to the next available index
+                idx = length(exportNucleiStruct);
+                for i = 1
+                    for j = 1:length(fnames)
+                        exportNucleiStruct(idx+i).(fnames{j}) = {exportNuclei.(fnames{j})};
+                        exportNucleiStruct(idx+i).scene = sceneN;
+                        exportNucleiStruct(idx+i).cellID = i;
+                    end
+                end
+            end
+        end
+        
+        %save the exportStruct
+            cd(exportdir)
+            filename = strcat(OGExpDate,'_nuclei_export.mat'); 
+            save(filename,'exportNucleiStruct');
+            
+
+
+end
+
+
+function exportNucleiStruct = nucleiToStructure(idScene,mstackPath,timeFrames,cell_seg,nucleus_seg,background_seg,segmentPath)
+cd(mstackPath)
+%no bleach correction option yet
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+        %%%%%%%%   open the image files   %%%%%%%
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+                 %  open smad img  %
+        cd(mstackPath)         
+        ff = dir(strcat('*',idScene,'*',cell_seg,'*'));
+%         ff = dir(strcat(ImageDetails.Channel,'*'));
+        filename = char(ff.name);
+        channelfileObject = matfile(filename);
+        cellQ_imgstack = channelfileObject.flatstack;
+
+               %    open cfp img  %
+        cd(mstackPath)         
+        ff = dir(strcat('*',idScene,'*',nucleus_seg,'*'));
+%         ff = dir(strcat(ImageDetails.Channel,'*'));
+        filename = char(ff.name);
+        channelfileObject = matfile(filename);
+        nuc_imgstack = channelfileObject.flatstack;
+
+                % open background Logical img  %
+        cd(segmentPath)         
+        ff = dir(strcat('*',idScene,'*',background_seg,'*'));
+        if length(ff)>1
+            ff = dir(strcat('*',idScene,'*',background_seg,'*background*'));
+        end
+%         ff = dir(strcat(ImageDetails.Channel,'*'));
+        filename = char(ff.name);
+        channelfileObject = matfile(filename);
+        bkglogimgstack = channelfileObject.IfFinal;
+
+                % open nuclear Logical img  %
+        cd(segmentPath)         
+        ff = dir(strcat('*',idScene,'*',nucleus_seg,'*'));
+        if length(ff)>1
+            ff = dir(strcat('*',idScene,'*',nucleus_seg,'*nucleus*'));
+        end
+%         ff = dir(strcat(ImageDetails.Channel,'*'));
+        filename = char(ff.name);
+        channelfileObject = matfile(filename);
+        nuclogimgstack = channelfileObject.IfFinal;
+        bkglogimgstack(nuclogimgstack) = true;  %make sure that nuclei are not counted in background image
+        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+           
+
+%perform bkg subtraction
+cellBKG = zeros(1,timeFrames,'single');
+nucBKG = zeros(1,timeFrames,'single');
+for k=1:timeFrames
+    bkglog = ~bkglogimgstack(:,:,k);
+    cellQ_img = single(cellQ_imgstack(:,:,k));
+    nuc_img = single(nuc_imgstack(:,:,k));
+    
+    %background subtraction is just subtraction with a value
+    cellBKG(k) = nanmedian(cellQ_img(bkglog));
+    nucBKG(k) = nanmedian(nuc_img(bkglog));
+    cellQ_imgstack(:,:,k) = cellQ_img-cellBKG(k);
+    nuc_imgstack(:,:,k) = nuc_img-nucBKG(k);
+    
+    %background subtraction is subtraction with an interpolated image
+%     smadbkgimg = regionfill(cellQ_img,~bkglog);
+%     cfpbkgimg = regionfill(nuc_img,~bkglog); %fill in the regions where bkglog is 0
+%     cellQ_imgstack(:,:,k) = cellQ_imgstack(:,:,k)-smadbkgimg;
+%     nuc_imgstack(:,:,k) = nuc_imgstack(:,:,k)-cfpbkgimg;
+end
+
+
+%extract pixel intensities
+exportNucleiStruct = struct();
+exportNucleiStruct(size(cellQ_imgstack,3)).medianReporter = [];
+    for i = 1:size(cellQ_imgstack,3)
+        cellQ_img = single(squeeze(cellQ_imgstack(:,:,i)));
+        nuc_img = single(squeeze(nuc_imgstack(:,:,i)));
+        nuclog = squeeze(nuclogimgstack(:,:,i));
+        CC = bwconncomp(nuclog);
+        PX = CC.PixelIdxList;
+
+        nucIntensities = cell(1,length(PX));
+        cellIntensities = nucIntensities;
+        for j=1:length(PX)
+            pxidx = PX{j};
+            nucIntensities{j} = nuc_img(pxidx);
+            cellIntensities{j} = cellQ_img(pxidx);
+        end
+
+        exportNucleiStruct(i).medianReporter = cellfun(@nanmedian, nucIntensities,'UniformOutput',1);
+        exportNucleiStruct(i).medianSmad = cellfun(@nanmedian, cellIntensities,'UniformOutput',1);
+        exportNucleiStruct(i).meanReporter = cellfun(@nanmean, nucIntensities,'UniformOutput',1);
+        exportNucleiStruct(i).meanSmad = cellfun(@nanmean, cellIntensities,'UniformOutput',1);
+        exportNucleiStruct(i).totalReporter = cellfun(@nansum, nucIntensities,'UniformOutput',1);
+        exportNucleiStruct(i).totalSmad = cellfun(@nansum, cellIntensities,'UniformOutput',1);
+        exportNucleiStruct(i).areaReporter = cellfun(@length, nucIntensities,'UniformOutput',1);
+        exportNucleiStruct(i).areaSmad = cellfun(@length, cellIntensities,'UniformOutput',1);
+         
+    end
+end
+
+
 
 
 
@@ -2395,7 +2584,7 @@ exportStruct = struct();
     cd ..
     
         plotStructArray = cell(1,length(sList));
-        parfor scenenumber = 1:length(sList)
+        for scenenumber = 1:length(sList)
             cd(tPath)
             sceneN = sList{scenenumber};
             disp(sceneN)
@@ -2417,7 +2606,7 @@ exportStruct = struct();
                     makeIMG = makeIMG(1,:)&makeIMG(2,:);
                     makeIMGidx = find(makeIMG==1);
 
-                    plotStruct = plotthemfunctionToStructure(trackedArray,idScene,mPath,tFrames,makeIMG,makeIMGidx,cSeg,nSeg,bSeg,sPath)
+                    plotStruct = plotthemfunctionToStructure(trackedArray,idScene,mPath,tFrames,makeIMG,makeIMGidx,cSeg,nSeg,bSeg,sPath);
                     plotStructArray{scenenumber} = plotStruct;
                 end
         end
@@ -3855,7 +4044,10 @@ runIterate =1;
     
         %run chosen at two specific frames
         framesThatMustBeTracked = psettings.framesThatMustBeTracked;
-        framesThatMustBeTracked(2) =  framesThatMustBeTracked(2)+10;
+        if framesThatMustBeTracked(2)+10>timeFrames
+        else
+            framesThatMustBeTracked(2) =  framesThatMustBeTracked(2)+10;
+        end
         for ftmbt = framesThatMustBeTracked
             ImageDetails.Frame =ftmbt;
             chosenOnesAllOnFrame_Callback

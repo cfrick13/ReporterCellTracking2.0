@@ -1105,16 +1105,15 @@ global pStruct timeFrames mstackPath segInstructList channelList segmentList TC 
 
 
 % define channel spacing
+
     channelspacing = round(linspace(1,timeFrames,9));
     if length(channelspacing)>timeFrames
         channelspacing = 1:timeFrames;
     end
-
+%     channelspacing = 1:timeFrames;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %choose the channel images
 %[options are overlay of background // overlay of fluorescent channels // normal image]
-
-    imgfile = dir(strcat('*',ImageDetails.Frame,'*.tif'));
         if strcmp(ImageDetails.Channel,'BKGbinary')%overlay background
             cd ..        
             cd('tiffs')
@@ -1142,21 +1141,13 @@ global pStruct timeFrames mstackPath segInstructList channelList segmentList TC 
             %load up  channel image to segment
             cd(mstackPath)
             ff = dir(strcat('*',ImageDetails.Scene,'*',ImageDetails.Segment,'*'));
-            channelspacing = round(linspace(1,timeFrames,9));
-            if length(channelspacing)>timeFrames
-                channelspacing = 1:timeFrames;
-            end
 
 
             fname = char(ff.name);
             fileObject = matfile(fname);
             imgstack = single(fileObject.flatstack);
             segmentimgstack = imgstack(:,:,channelspacing);
-            img = imgstack(:,:,t);
-            segmentimg = img;
-
-    %         channelimg = double(loadUpTiffStackFrame(char(ff.name),t));
-        %     channelimg = double(imread(char(imgfile.name)));    %load normal image
+           
         end
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
@@ -1165,8 +1156,7 @@ If = zeros(size(channelimg),'single');
 FinalImage = segmentimgstack;
 subdirname = SceneDirectoryPath;
 scenename = ImageDetails.Scene;
-filename = imgfile;
-filename = char(filename.name);
+filename = fname;
 channel = ImageDetails.Channel;
 
 nucleus_seg = ImageDetails.segInstruct;

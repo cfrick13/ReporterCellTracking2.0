@@ -10,16 +10,16 @@ exportdirz = strcat(parentdir,'Export/');
 cd(exportdirz);
 
 
-
+FileName = savename;
 % FileName = uigetfile('*metaData.mat');%choose file to load
 load(savename)
 % load(FileName)
-FileName = savename;
+% FileName = savename;
 [~,b] = regexp(FileName,'exp[0-9]');
 queryname = strcat(FileName(1:b),'*experimentInfo.xlsx');
 filelist = dir(queryname);
 if length({filelist.name}) ==1
-    [num,txt] = xlsread(char(filelist.name));
+    [num,txt,raw] = xlsread(char(filelist.name));
 else
     error('you need to make a spreadsheet with the following information')
     
@@ -45,22 +45,59 @@ end
 
 
 % % % % % % % % % % % % %input the number of doses
-numberOfDoses = num(1,1);
+numberOfDoses = num(1,7);
 
 % % % % % % % %input the Tgfbeta concentrations of each dose
-doses = num(1:numberOfDoses,2);
-
+doses = raw(2:numberOfDoses+1,8);
 
 %input numbers for the scene numbers corresponding to each dose
-doseToScenez = txt(2:numberOfDoses+1,3);
+doseToScenez = raw(2:numberOfDoses+1,9);
 doseToScene = cellfun(@str2num,doseToScenez,'UniformOutput',0);
 %output is a 1,n cell array of matrices corresponding to the scenes for the
 
 
+% % % % % % % %input the number of wells imaged
+numberOfWells = num(1,1);
+wells = raw(2:numberOfWells+1,2);
+
+%input numbers for the scene numbers corresponding to each well
+wellsToScenez = raw(2:numberOfWells+1,3);
+wellsToScene = cellfun(@str2num,wellsToScenez,'UniformOutput',0);
+%output is a 1,n cell array of matrices corresponding to the scenes for the
+
+% % % % % % % %input the number of wells imaged
+numberOfConditions = num(1,4);
+conditions = raw(2:numberOfConditions+1,5);
+
+%input numbers for the scene numbers corresponding to each well
+conditionsToScenez = raw(2:numberOfConditions+1,6);
+conditionsToScene = cellfun(@str2num,conditionsToScenez,'UniformOutput',0);
+%output is a 1,n cell array of matrices corresponding to the scenes for the
+
+
+%%%%%%%%%%%%%%%%%%%%%%  number of Tgfbeta additions %%%%%%%%%%%%%%%%%%
+tgfadditions = num(1,10);
+
+%input numbers for the frame(s) after which tgfbeta was added
+tgfFrames = num(1:tgfadditions,11);
+
+%input numbers for the scenes for each tgfbeta addition
+tgfScenez = raw(2:tgfadditions+1,12);
+tgfToScene = cellfun(@str2num,tgfScenez,'UniformOutput',0);
+%output is a 1,n cell array of matrices corresponding to the scenes for the
+%n doses
+
 %input dose information into the structure
 coloringChoice = 'scene'; %choose which field based upon which each cell trace will get colored
-coloringArray = vertcat({dosestruct.(coloringChoice)});
+sceneList = vertcat({dosestruct.(coloringChoice)});
 
+%input dose information into the structure
+coloringChoice = 'scene'; %choose which field based upon which each cell trace will get colored
+sceneList = vertcat({dosestruct.(coloringChoice)});
+
+
+
+%deal doses
 for j=1:length(doseToScene)
     doseToScenemat = doseToScene{j};
     doseToSceneArray=cell(1,length(doseToScenemat));
@@ -76,58 +113,46 @@ for j=1:length(doseToScene)
     
 
 indicesChoice =channelregexpmaker(doseToSceneArray);
-[~,~,~,d] =  regexp(coloringArray,indicesChoice);
+[~,~,~,d] =  regexp(sceneList,indicesChoice);
 dmat = cellfun(@isempty,d);
 indices = ~dmat;
-[dosestruct(indices).dose] = deal(doses(j));
-[dosestruct(indices).dosestr] = deal(num2str(doses(j)));
+
+if iscellstr(doses(j))
+   [dosestruct(indices).dose] = deal(doses{j});
+   [dosestruct(indices).dosestr] = deal(doses{j});
+elseif iscell(doses(j))
+   [dosestruct(indices).dose] = deal(doses{j});
+   [dosestruct(indices).dosestr] = deal(num2str(doses{j}));
+else
+    [dosestruct(indices).dose] = deal(doses(j));
+    [dosestruct(indices).dosestr] = deal(num2str(doses(j)));
+end
+
 end
 
 
+%deal Tgf
+var = tgfFrames;
+varToScene = tgfToScene;
+str = 'tgfFrame';
+dosestruct = dealData(var,varToScene,dosestruct,str,sceneList);
 
-%%%%%%%%%%%%%%%%%%%%%%  number of Tgfbeta additions %%%%%%%%%%%%%%%%%%
-tgfadditions = num(1,4);
+%deal Wells
+var = wells;
+varToScene = wellsToScene;
+str = 'wells';
+dosestruct = dealData(var,varToScene,dosestruct,str,sceneList);
 
-%input numbers for the frame(s) after which tgfbeta was added
-tgfFrames = num(1:tgfadditions,5);
-
-%input numbers for the scenes for each tgfbeta addition
-tgfScenez = txt(2:tgfadditions+1,6);
-tgfScenes = cellfun(@str2num,tgfScenez,'UniformOutput',0);
-%output is a 1,n cell array of matrices corresponding to the scenes for the
-%n doses
-
-%input dose information into the structure
-coloringChoice = 'scene'; %choose which field based upon which each cell trace will get colored
-coloringArray = vertcat({dosestruct.(coloringChoice)});
-
-for j=1:length(tgfScenes)
-    tgfToScenemat = tgfScenes{j};
-    tgfToSceneArray=cell(1,length(tgfToScenemat));
-    for i = 1:length(tgfToScenemat)
-        dosestr = num2str(tgfToScenemat(i)); 
-        if length(dosestr)>1
-            tgfToSceneArray{i} = strcat('s',dosestr);
-        else
-            tgfToSceneArray{i} = strcat('s0',dosestr); 
-        end
-    end
-    
-    
-
-indicesChoice =channelregexpmaker(tgfToSceneArray);
-[~,~,~,d] =  regexp(coloringArray,indicesChoice);
-dmat = cellfun(@isempty,d);
-indices = ~dmat;
-[dosestruct(indices).tgfFrame] = deal(tgfFrames(j));
-[dosestruct(indices).tgfFramestr] = deal(num2str(tgfFrames(j)));
-end
-
+%deal Conditions
+var = conditions;
+varToScene = conditionsToScene;
+str = 'conditions';
+dosestruct = dealData(var,varToScene,dosestruct,str,sceneList);
 
 
 %%%%%%%%%%%%%%%%%%%%%%  reference frames %%%%%%%%%%%%%%%%%%
 % BACKGROUND = cellfun(@str2num,inputdlgOutput,'UniformOutput',0);
-BACKGROUNDz = txt(2,7);
+BACKGROUNDz = raw(2,13);
 BACKGROUND = cellfun(@str2num,BACKGROUNDz,'UniformOutput',0);
 
 for j=1:length(BACKGROUND)
@@ -145,7 +170,7 @@ for j=1:length(BACKGROUND)
     
 
 indicesChoice =channelregexpmaker(tgfToSceneArray);
-[~,~,~,d] =  regexp(coloringArray,indicesChoice);
+[~,~,~,d] =  regexp(sceneList,indicesChoice);
 dmat = cellfun(@isempty,d);
 indices = ~dmat;
 [dosestruct(indices).flatfield] = deal('BACKGROUND');
@@ -153,10 +178,10 @@ indices = ~dmat;
 end
 
 
-if size(txt,2)>8
-segInstruct.nucleus = txt{2,8};
-segInstruct.cell = txt{2,9};
-segInstruct.background = txt{2,10};
+if size(txt,2)>13
+segInstruct.nucleus = txt{2,14};
+segInstruct.cell = txt{2,15};
+segInstruct.background = txt{2,16};
 end
 
 exportdir = exportdirz;
@@ -173,7 +198,30 @@ end
 
 
 
+function dosestruct = dealData(var,varToScene,dosestruct,str,sceneList)
+    for j=1:length(varToScene)
+        varToScenemat = varToScene{j};
+        varToSceneArray=cell(1,length(varToScenemat));
+        for i = 1:length(varToScenemat)
+            dosestr = num2str(varToScenemat(i)); 
+            if length(dosestr)>1
+                varToSceneArray{i} = strcat('s',dosestr);
+            else
+                varToSceneArray{i} = strcat('s0',dosestr); 
+            end
+        end
 
+
+    indicesChoice =channelregexpmaker(varToSceneArray);
+    [~,~,~,d] =  regexp(sceneList,indicesChoice);
+    dmat = cellfun(@isempty,d);
+    indices = ~dmat;
+    [dosestruct(indices).(str)] = deal(var(j));
+        if isnumeric(var(j))
+            [dosestruct(indices).([str 'str'])] = deal(num2str(var(j)));
+        end
+    end
+end
 
 function channelinputs =channelregexpmaker(channelstoinput)
     channelinputs = '(';
