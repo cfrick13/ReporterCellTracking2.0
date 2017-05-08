@@ -1,148 +1,162 @@
 function uiTrackCellz
-global DICimgstack dfoName cfoName trackingPath background_seg bfoName backgroundimgstack sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterate ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs adjuster cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes OGExpDate plottingON PlotAxes cmap TC A AA timeFrames frameToLoad ImageDetails MainAxes SceneList displaytracking imgsize ExpDate
-adjuster=0;
-plottingTotalOrMedian = 'median';
-tcontrast = 99;
-lcontrast = 1;
-% exportdir = 'C:\Users\Kibeom\Desktop\Tracking\Export\';
-% ExportNameKey = 'final';
-ExportNameKey = 'tsichosen';
-if strcmp(ExportNameKey,'final')
-else
-disp(strcat('Export name key is "',ExportNameKey,'" not FINAL'))
-end
-ExportName = 'fricktrack';
-cfoName = [];
-channelimgstack =[];
-segmentimgstack =[];
-sfoName =[];
-bfoName = [];
+global DICimgstack dfoName cfoName trackingPath background_seg bfoName nfoName sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterate ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs adjuster cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes OGExpDate plottingON PlotAxes cmap TC expDirPath  timeFrames frameToLoad ImageDetails MainAxes SceneList displaytracking imgsize ExpDate
 
-DICimgstack=[];
-dfoName=[];
+%determine matfile directory
+    mdir = mfilename('fullpath');
+        [~,b ] = regexp(mdir,'/');
+            if isempty(b)
+                [~,b] = regexp(mdir,'\');
+            end
+    parentdir = mdir(1:b(end)); %folder in which matfile exists
+    exportdir = strcat(parentdir,'Export/');
 
-
-runIterate =0;
-TC = 1;
-ImageDetails = InitializeImageDetails;
-displaytracking = 0;
-
-%%% set colormap for the images %%%
-cmap = colormap(gray(255));
-% cmap = colormap(magma(255));
-% cmap = colormap(inferno(255));
-% cmap = colormap(plasma(255));
-cmap(255,:)=[1 0 0];
-cmapper = cmap;
-close all
-
-
-plottingON =0;
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%choose directory of experiment to track
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-mdir = mfilename('fullpath');
-    [~,b ] = regexp(mdir,'/');
+    [~,b ] = regexp(parentdir,'/');
         if isempty(b)
-            [~,b] = regexp(mdir,'\');
+            [~,b] = regexp(parentdir,'\');
         end
-parentdir = mdir(1:b(end));
-exportdir = strcat(parentdir,'Export/');
+    gparentdir = parentdir(1:b(end-1)); %folder in which matfile parentdir exists
+    
+    
+%specify important directory names
+    mstackName = 'flat mstack';
+    trackName = 'tracking files';
+    segmentName = 'segment mstack';
+    
 
-cd(parentdir)
-cd ..
-A = uigetdir;
-AA = 'D:\Users\zeiss\Documents\MATLAB';
-cd(A)
-mstackName = 'flat mstack';
-experimentdir = A;
-mstackPath = strcat(experimentdir,'/',mstackName);
-segmentName = 'segment mstack';
-segmentPath = strcat(experimentdir,'/',segmentName);
-trackName = 'tracking files';
-trackingPath = strcat(experimentdir,'/',trackName);
+%set contrast and plotting details
+    adjuster=0;
+    plottingTotalOrMedian = 'median';
+    tcontrast = 99;
+    lcontrast = 1;
+    runIterate =0;
+    TC = 1;
+    ImageDetails = InitializeImageDetails;
+    displaytracking = 0;
+    plottingON =0;
+    
+    
+%determine export details
+    ExportNameKey = 'final';
+    if strcmp(ExportNameKey,'final')
+    else
+    disp(strcat('Export name key is "',ExportNameKey,'" not FINAL'))
+    end
+    ExportName = 'fricktrack';
+   
+    
+%initialize global variables    
+    cfoName = [];
+    channelimgstack =[];
+    segmentimgstack =[];
+    sfoName =[];
+    bfoName = [];
+    nfoName = [];
+    DICimgstack=[];
+    dfoName=[];
 
-cd(experimentdir)
-dirlist = dir(trackName);
-if isempty(dirlist)
-    mkdir(trackName);
-end
+
+
+%set colormap
+    cd(parentdir)
+    addpath('Colormaps')
+        cmap = colormap(gray(255));
+%         cmap = colormap(viridis(255));
+        % cmap = colormap(magma(255));
+        % cmap = colormap(inferno(255));
+        % cmap = colormap(plasma(255));
+        cmap(255,:)=[1 0 0];
+        cmapper = cmap;
+        close all
+
+        
+% user selects experiment directory to be analyzed
+    cd(gparentdir)
+    expDirPath = uigetdir;
+
+    cd(expDirPath)
+    experimentdir = expDirPath;
+    mstackPath = strcat(experimentdir,'/',mstackName);
+    segmentPath = strcat(experimentdir,'/',segmentName);
+    trackingPath = strcat(experimentdir,'/',trackName);
+
+%make tracking file folder if it does not exist
+    cd(experimentdir)
+    dirlist = dir(trackName);
+    if isempty(dirlist)
+        mkdir(trackName);
+    end
 
 %determine date of experiment
-[a,b] = regexp(A,'201[0-9]');
-[c,d] = regexp(A,'exp[0-9]');
-ExpDate = A(a:b+6);OGExpDate = A(a:d); [a,~] = regexp(ExpDate,'_');ExpDate(a) = '-';
+    [a,b] = regexp(expDirPath,'201[0-9]');
+    [~,d] = regexp(expDirPath,'exp[0-9]');
+    ExpDate = expDirPath(a:b+6);OGExpDate = expDirPath(a:d); [a,~] = regexp(ExpDate,'_');ExpDate(a) = '-';
 
 
 %subdirectories should include
 %> [ flat mstack ]
-    %> [ mstack images ]
-cd(mstackPath)
+%> [ mstack images ]
+%> [ segment mstack ]
+%> [ tracking files ]
 
 
-cd(exportdir)
-FileName = OGExpDate;
-datequery = strcat(FileName,'*DoseAndScene*');
-cd(exportdir)
-filelist = dir(datequery);
-    if isempty(filelist)
-        error(strcat('need to run ExtractMetadata for-',FileName));
-%        dosestruct = makeDoseStruct; %run function to make doseStruct 
-    else
-        dosestructstruct = load(char(filelist.name));
-        dosestruct = dosestructstruct.dosestruct;
+%load helpful metadata
+    cd(exportdir)
+    FileName = OGExpDate;
+    datequery = strcat(FileName,'*DoseAndScene*');
+    cd(exportdir)
+    filelist = dir(datequery);
+        if isempty(filelist)
+            error(strcat('need to run ExtractMetadata for-',FileName));
+    %        dosestruct = makeDoseStruct; %run function to make doseStruct 
+        else
+            dosestructstruct = load(char(filelist.name));
+            dosestruct = dosestructstruct.dosestruct;
+        end
+        segInstruct = dosestructstruct.segInstruct;
+
+    nucleus_seg = segInstruct.nucleus;
+    cell_seg = segInstruct.cell;
+    background_seg = segInstruct.background;
+    channelstoinput = dosestructstruct.channelNames;
+    channelinputs =channelregexpmaker(channelstoinput);
+    bkg = dosestructstruct.BACKGROUND;
+    imgsize = dosestructstruct.dimensions;
+
+    BACKGROUND = bkg{1};
+    bkarray = cell(1,length(BACKGROUND));
+    for i = 1:length(BACKGROUND)
+        bkstr = num2str(BACKGROUND(i)); 
+        if length(bkstr)>1
+            bkarray{i} = strcat('s',bkstr);
+        else
+            bkarray{i} = strcat('s0',bkstr); 
+        end
     end
-    segInstruct = dosestructstruct.segInstruct;
-    
-nucleus_seg = segInstruct.nucleus;
-cell_seg = segInstruct.cell;
-background_seg = segInstruct.background;
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% renamemCherrytoMkate(A,B)
-% renamemWRONGtoRIGHT(A,B)
-% cd('D:\Users\zeiss\Documents\MATLAB')
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-channelstoinput = dosestructstruct.channelNames;
-channelinputs =channelregexpmaker(channelstoinput);
-bkg = dosestructstruct.BACKGROUND;
-imgsize = dosestructstruct.dimensions;
-backgroundScenes = dosestructstruct.indicesChoice;
-
-BACKGROUND = bkg{1};
-for i = 1:length(BACKGROUND)
-    bkstr = num2str(BACKGROUND(i)); 
-    if length(bkstr)>1
-        bkarray{i} = strcat('s',bkstr);
-    else
-        bkarray{i} = strcat('s0',bkstr); 
-    end
-end
-bkinputs =channelregexpmaker(bkarray);
+    bkinputs =channelregexpmaker(bkarray);
 
 
 %determine how many scenes are present
-dirlist = dir(mstackPath);
-[~,~,~,d] = regexp({dirlist.name},'s[0-9]+');
-dlog = ~cellfun(@isempty,d,'UniformOutput',1); 
-dcell = d(dlog);
-SceneList = unique(cellfun(@(x) x{1},dcell,'UniformOutput',0));
+    dirlist = dir(mstackPath);
+    [~,~,~,d] = regexp({dirlist.name},'s[0-9]+');
+    dlog = ~cellfun(@isempty,d,'UniformOutput',1); 
+    dcell = d(dlog);
+    SceneList = unique(cellfun(@(x) x{1},dcell,'UniformOutput',0));
     
 %remove scenes that are background images
-[~,~,~,d] = regexp(SceneList,bkinputs);
-bkgscenelog = cellfun(@isempty,d,'UniformOutput',1);
-SceneList = SceneList(bkgscenelog);
+    [~,~,~,d] = regexp(SceneList,bkinputs);
+    bkgscenelog = cellfun(@isempty,d,'UniformOutput',1);
+    SceneList = SceneList(bkgscenelog);
 
 
 %determine the number of frames per scene
-cd(mstackPath)
-dirlist = dir('*.mat');
-filearray = {dirlist.name};
-filename = filearray{1};
-fileObject = matfile(filename);
-dim = size(fileObject,'flatstack');
-timeFrames = dim(3);
-frameToLoad = 1;
+    cd(mstackPath)
+    dirlist = dir('*.mat');
+    filearray = {dirlist.name};
+    filename = filearray{1};
+    fileObject = matfile(filename);
+    dim = size(fileObject,'flatstack');
+    timeFrames = dim(3);
+    frameToLoad = 1;
 
 
 
@@ -151,245 +165,224 @@ frameToLoad = 1;
 %%%Set up  user interface
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 f = figure;
-% f.Visible ='off';
 f.Units = 'pixels';
-f.Position =[10,10,1800,1200];
+fpos = [1 1 1800 900];
+f.Position =[1 1 1800 900];
+fW = fpos(3);
+fH = fpos(4);
 
 
-buttonwidth = 80;
-buttonheight = 50;
+bW = 90;
+bH = 25;
+yP = sort(100:bH:(fH-fH./9),'descend');
+xP = ones(1,length(yP)).*(fW-fW./9);
+fontSize = 10;
+%instruct user how they can change to view different channels
+    mmm=1;
+    chooseChannelText = uicontrol('Style','text','String','To choose channel push 1, 2, or 3',...
+              'Position',[xP(mmm),yP(mmm)+bH./1.5,bW,bH*2]);
 
-ypositions = sort([100:20:1000],'descend');
-xpositions = ones(1,length(ypositions)).*1600;
+%move forward frame or previuos frame
+    mmm=2;
+    hNextFrame = uicontrol('Style','pushbutton',...
+        'String','NextFrame [f]',...
+        'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
+        'Callback',@nextbutton_callback);
+    hPreviousFrame = uicontrol('Style','pushbutton',...
+        'String','PreviousFrame [a]',...
+        'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
+        'Callback',@prevbutton_callback);
+    hGoToFrame = uicontrol('Style','pushbutton',...
+        'String','GoToFrame',...
+        'Position',[xP(mmm)-(bW./2)-bW,yP(mmm),bW,bH],...
+        'Callback',@gotobutton_callback);
 
-        mmm=1;
-htexttwo = uicontrol('Style','text','String','To choose channel push 1, 2, or 3',...
-          'Position',[xpositions(mmm)-buttonwidth,ypositions(mmm),buttonwidth+buttonwidth,buttonheight]);
-        mmm=mmm+1;
-        mmm=mmm+1;
-        mmm=mmm+1;
+%next row is final Frame and first Frame commands   
+    mmm=3;
+    hFinalFrame = uicontrol('Style','pushbutton',...
+        'String','FinalFrame [g]',...
+        'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
+        'Callback',@finalbutton_callback);
+    hFirstFrame = uicontrol('Style','pushbutton',...
+        'String','FirstFrame [z]',...
+        'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
+        'Callback',@firstbutton_callback);
 
-hNextFrame = uicontrol('Style','pushbutton',...
-    'String','NextFrame [f]',...
-    'Position',[xpositions(mmm)+40,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@nextbutton_callback);
-hPreviousFrame = uicontrol('Style','pushbutton',...
-    'String','Previous frame [a]',...
-    'Position',[xpositions(mmm)-40,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@prevbutton_callback);
-        mmm=mmm+1;
-        mmm=mmm+1;
+%choose scene text and popup menu    
+    mmm=5;
+    chooseSceneText = uicontrol('Style','text','String','Choose Scene',...
+            'Position',[xP(mmm),yP(mmm),bW,bH]);
+
+    hpopup = uicontrol('Style','popupmenu',...
+        'String',SceneList',...
+        'Position',[xP(mmm),yP(mmm)-bH./2,bW,bH./1.5],...
+        'Callback',@popup_menu_Callback);
+
+%add area and remove area
+    mmm=7;
+    hAddArea = uicontrol('Style','pushbutton','String','AddArea [v]',...
+        'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
+        'Callback',@addareabutton_Callback);
+    hRemoveArea = uicontrol('Style', 'pushbutton', 'String', 'Remove area',...
+        'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
+        'Callback',@removeArea_Callback);
+       
+%delete commands
+    mmm=8; 
+    hDelete = uicontrol('Style','pushbutton','String','Delete [d]',...
+        'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
+        'Callback',@deletebutton_Callback);
+    hDeleteAllOnFrame = uicontrol('Style','pushbutton','String','DeleteAllOnFrame',...
+        'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
+        'Callback',@deleteAllonFrame_Callback);
+
+
+%destroy commands    
+    mmm=9;
+    hDestroy = uicontrol('Style','pushbutton','String','Destroy',...
+        'Position',[xP(mmm),yP(mmm),bW,bH],...
+        'Callback',@destroybutton_Callback);
+    hDestroy = uicontrol('Style','pushbutton','String','DestroyPrevious',...
+        'Position',[xP(mmm)-bW,yP(mmm),bW,bH],...
+        'Callback',@destroybuttonAllPrevious_Callback);
+        hDestroy.FontSize=fontSize-2;
+    hDestroy = uicontrol('Style','pushbutton','String','DestroySubsequent',...
+        'Position',[xP(mmm)+bW,yP(mmm),bW,bH],...
+        'Callback',@destroybuttonAllSubsequent_Callback);
+        hDestroy.FontSize=fontSize-2;
         
-hGoToFrame = uicontrol('Style','pushbutton',...
-    'String','Go to Frame',...
-    'Position',[xpositions(mmm)-120,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@gotobutton_callback);
+%destroy commands    
+    mmm=10;
 
-        
-hFinalFrame = uicontrol('Style','pushbutton',...
-    'String','FinalFrame [g]',...
-    'Position',[xpositions(mmm)+40,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@finalbutton_callback);
-hFirstFrame = uicontrol('Style','pushbutton',...
-    'String','First frame [z]',...
-    'Position',[xpositions(mmm)-40,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@firstbutton_callback);
-        mmm=mmm+1;
-        mmm=mmm+1;
+    hDestroy = uicontrol('Style','pushbutton','String','DestroyAllFramePrevious',...
+        'Position',[xP(mmm)-bW,yP(mmm),bW+bW./2,bH],...
+        'Callback',@destroyAllFramePrevious_Callback);
+        hDestroy.FontSize=fontSize-2;
+    hDestroy = uicontrol('Style','pushbutton','String','DestroyAllFrameSubsequent',...
+        'Position',[xP(mmm)+bW./2,yP(mmm),bW+bW./2,bH],...
+        'Callback',@destroyAllFrameSubsequent_Callback);
+        hDestroy.FontSize=fontSize-2;
 
-htextone = uicontrol('Style','text','String','Choose Scene',...
-    'Position',[xpositions(mmm)-buttonwidth,ypositions(mmm)-buttonheight./2,buttonwidth+buttonwidth,buttonheight]);
-        mmm=mmm+1;
-hpopup = uicontrol('Style','popupmenu',...
-    'String',SceneList',...
-    'Position',[xpositions(mmm)-buttonwidth./2,ypositions(mmm),buttonwidth.*1.5,buttonheight./2],...
-    'Callback',@popup_menu_Callback);
-        mmm=mmm+1;
-        mmm=mmm+1;
-        mmm=mmm+1;
-hAddArea = uicontrol('Style','pushbutton','String','AddArea [v]',...
-    'Position',[xpositions(mmm)-40,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@addareabutton_Callback);
+
+%chosen ones commands    
+    mmm=11;
+    hchosenOnes = uicontrol('Style','pushbutton','String','Chosen Ones',...
+        'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
+        'Callback',@chosenOnes_Callback);
+    hchosenOnes = uicontrol('Style','pushbutton','String','Chosen OnesAllOnFrame',...
+        'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
+        'Callback',@chosenOnesAllOnFrame_Callback);
+
+
+
+  
+
+
+
+%erode or dilate nuclei       
+    mmm=12;
+    hErode = uicontrol('Style','pushbutton','String','Erode Selected Nuclei',...
+        'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
+        'Callback',@erodeOnes_Callback);
+    hDilate = uicontrol('Style','pushbutton','String','Dilate Selected Nuclei',...
+        'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
+        'Callback',@dilateOnes_Callback);
+
+
+%tracking commands
+mmm=14;
 hLinkCells = uicontrol('Style','pushbutton','String','LinkCells [r]',...
-    'Position',[xpositions(mmm)+40,ypositions(mmm),buttonwidth,buttonheight],...
+    'Position',[xP(mmm),yP(mmm),bW,bH],...
     'Callback',@linkCells_Callback);
-        mmm=mmm+1;
-        mmm=mmm+1;
-hDelete = uicontrol('Style','pushbutton','String','Delete [d]',...
-    'Position',[xpositions(mmm)-40,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@deletebutton_Callback);
-hDelete = uicontrol('Style','pushbutton','String','DeleteAllOnFrame',...
-    'Position',[xpositions(mmm)-120,ypositions(mmm)+10,buttonwidth,buttonheight],...
-    'Callback',@deleteAllonFrame_Callback);
-
-
-hEliminate = uicontrol('Style','pushbutton','String','Eliminate [e]',...
-    'Position',[xpositions(mmm)+40,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@eliminatebutton_Callback);
-        mmm=mmm+1;
-        mmm=mmm+1;
-        
-        
-hDestroy = uicontrol('Style','pushbutton','String','Destroy',...
-    'Position',[xpositions(mmm)-40,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@destroybutton_Callback);
-hDestroy = uicontrol('Style','pushbutton','String','DestroyPrevious',...
-    'Position',[xpositions(mmm)-120,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@destroybuttonAllPrevious_Callback);
-hDestroy = uicontrol('Style','pushbutton','String','DestroySubsequent',...
-    'Position',[xpositions(mmm)-120,ypositions(mmm+2),buttonwidth,buttonheight],...
-    'Callback',@destroybuttonAllSubsequent_Callback);
-hchosenOnes = uicontrol('Style','pushbutton','String','Chosen Ones',...
-    'Position',[xpositions(mmm)+40,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@chosenOnes_Callback);
-hchosenOnes = uicontrol('Style','pushbutton','String','Chosen OnesAllOnFrame',...
-    'Position',[xpositions(mmm)+120,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@chosenOnesAllOnFrame_Callback);
-       mmm=mmm+1;
-       mmm=mmm+1;
-       
-       
-hRemoveArea = uicontrol('Style', 'pushbutton', 'String', 'Remove area',...
-    'Position',[xpositions(mmm),ypositions(mmm),buttonwidth,buttonheight/1.5],...
-    'Callback',@removeArea_Callback);
-        mmm= mmm+1;
-hchosenOnesEnd = uicontrol('Style','pushbutton','String','Chosen Ones EndOnly',...
-    'Position',[xpositions(mmm)-40,ypositions(mmm),buttonwidth.*2,buttonheight./2],...
-    'Callback',@chosenOnesEnd_Callback);
-       mmm=mmm+1;
-
-        
-hErode = uicontrol('Style','pushbutton','String','Erode Chosen Only',...
-    'Position',[xpositions(mmm)-40,ypositions(mmm),buttonwidth.*2,buttonheight./2],...
-    'Callback',@erodeOnes_Callback);
-       mmm=mmm+1;
-
-
-hDilate = uicontrol('Style','pushbutton','String','Dilate Chosen Only',...
-    'Position',[xpositions(mmm)-40,ypositions(mmm),buttonwidth.*2,buttonheight./2],...
-    'Callback',@dilateOnes_Callback);
-       mmm=mmm+1;
-        mmm=mmm+1;
-        mmm=mmm+1;
-
-        
-        
-hDisplayTracking = uicontrol('Style','pushbutton',...
-    'String','DisplayTracking [m]',...
-    'Position',[xpositions(mmm)-(buttonwidth./2),ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@displayTrackingButton_Callback);
+mmm=15;
 hTrack = uicontrol('Style','pushbutton',...
     'String','Run Tracking [t]',...
-    'Position',[xpositions(mmm)+(buttonwidth./2),ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@trackbutton_Callback);
-        mmm=mmm+1;
-        mmm=mmm+1;
-%         mmm=mmm+1;
-        mmm=mmm+1;
- hContrast = uicontrol('Style','pushbutton',...
-    'String','contrast user',...
-    'Position',[xpositions(mmm),ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@contrast_Callback);       
-        
-        mmm=mmm+1;
-        mmm=mmm+1;      
-        
-        
-        %%%%
-        %%%%
-hSaveTrackingAs = uicontrol('Style','pushbutton',...
-    'String','SaveTrackingAs',...
-    'Position',[xpositions(mmm)-buttonwidth./2,ypositions(mmm)-buttonheight,buttonwidth.*2,buttonheight.*2],...
-    'Callback',@saveTrackingFileAs_callback);
-hTrackSaveIterate = uicontrol('Style','pushbutton',...
-    'String','trackSaveIterate',...
-    'Position',[xpositions(mmm)-buttonwidth./2 - 100,ypositions(mmm-1)-buttonheight,buttonwidth,buttonheight],...
-    'Callback',@trackSaveIterate_callback);
-hTrackSaveIterate = uicontrol('Style','pushbutton',...
-    'String','TSIchosen',...
-    'Position',[xpositions(mmm)-buttonwidth./2 - 100,ypositions(mmm+2)-buttonheight,buttonwidth,buttonheight],...
-    'Callback',@trackSaveIterateChosen_callback);
-        mmm=mmm+1;
-        mmm=mmm+1;
-        mmm=mmm+1;
-        mmm=mmm+1;
-        mmm=mmm+1;
+    'Position',[xP(mmm)-bW./2,yP(mmm),bW*2,bH],...
+    'Callback',@trackbutton_Callback);    
+mmm=16;
 hLoadTracking = uicontrol('Style','pushbutton',...
     'String','LoadTracking',...
-    'Position',[xpositions(mmm),ypositions(mmm),buttonwidth,buttonheight],...
+    'Position',[xP(mmm),yP(mmm),bW,bH],...
     'Callback',@loadTrackingFile_callback);
-        mmm=mmm+1;
-        mmm=mmm+1;
-        mmm=mmm+1;
-        
-hPlot = uicontrol('Style','pushbutton',...
-    'String','PLOT!',...
-    'Position',[xpositions(mmm)-0,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@Plot_callback);
-
-hPlotCFPnorm = uicontrol('Style','pushbutton',...
-    'String','plotCFPnorm?',...
-    'Position',[xpositions(mmm)-90,ypositions(mmm)+20,buttonwidth,buttonheight./2],...
-    'Callback',@PlotCFPnorm_callback);
-
-hPlotCFPnotnorm = uicontrol('Style','pushbutton',...
-    'String','plotCFPnotnorm?',...
-    'Position',[xpositions(mmm)-90,ypositions(mmm),buttonwidth,buttonheight./2],...
-    'Callback',@PlotCFPnotnorm_callback);
 
 
-hPlotSpecificCell = uicontrol('Style','pushbutton',...
-    'String','Plot Specific Cell!',...
-    'Position',[xpositions(mmm)+80,ypositions(mmm)+buttonheight./2,buttonwidth,buttonheight./2],...
-    'Callback',@Plot_SpecificCell_callback);
-hPlotSettings = uicontrol('Style','pushbutton',...
-    'String','Plot Settings!',...
-    'Position',[xpositions(mmm)+80,ypositions(mmm),buttonwidth,buttonheight./2],...
-    'Callback',@PlotSettings_callback);
-      mmm=mmm+1;                      
-      mmm=mmm+1;  
-      
-hExportCells = uicontrol('Style','pushbutton',...
-    'String','ExportTrackedCells',...
-    'Position',[xpositions(mmm)-40,ypositions(mmm),buttonwidth.*1.5,buttonheight./2],...
-    'Callback',@exportTrackedCells);
-hExportCells = uicontrol('Style','pushbutton',...
-    'String','ExportAllCells',...
-    'Position',[xpositions(mmm)+80,ypositions(mmm),buttonwidth.*1.2,buttonheight./2],...
-    'Callback',@exportAllCells);
-        mmm=mmm+1; 
-        mmm=mmm+1; 
         
-hLabelCells = uicontrol('Style','pushbutton',...
-    'String','Label Cells',...
-    'Position',[xpositions(mmm)-40,ypositions(mmm),buttonwidth.*1.5,buttonheight./2],...
-    'Callback',@labelCells);
-        mmm=mmm+1; 
-%         mmm=mmm+1; 
+
+%display commands
+    mmm=18;
+    hContrast = uicontrol('Style','pushbutton',...
+        'String','contrast user',...
+        'Position',[xP(mmm),yP(mmm),bW,bH],...
+        'Callback',@contrast_Callback);
+    hDisplayTracking = uicontrol('Style','pushbutton',...
+        'String','DisplayTracking [m]',...
+        'Position',[xP(mmm),yP(mmm)-bH./2,bW,bH./1.5],...
+        'Callback',@displayTrackingButton_Callback);
         
+
+%save commands
+    mmm=20;
+    hSaveTrackingAs = uicontrol('Style','pushbutton',...
+        'String','SaveTrackingAs',...
+        'Position',[xP(mmm)-bW./2,yP(mmm),bW+bW,bH],...
+        'Callback',@saveTrackingFileAs_callback);
+    
+
+%autotrack commands
+    mmm=21;
+    hTrackSaveIterate = uicontrol('Style','pushbutton',...
+            'String','trackSaveIterate',...
+            'Position',[xP(mmm)+bW./2,yP(mmm),bW+bW./2,bH./1.5],...
+            'Callback',@trackSaveIterate_callback);
+    hTrackSaveIterate = uicontrol('Style','pushbutton',...
+        'String','TSIchosen',...
+        'Position',[xP(mmm)-bW,yP(mmm),bW+bW./2,bH./1.5],...
+        'Callback',@trackSaveIterateChosen_callback);
+
+
+%plot and plot settings commands
+    mmm=23;  
+    hPlot = uicontrol('Style','pushbutton',...
+        'String','PLOT!',...
+        'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
+        'Callback',@Plot_callback);
+    hPlotSpecificCell = uicontrol('Style','pushbutton',...
+        'String','Plot Specific Cell!',...
+        'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
+        'Callback',@Plot_SpecificCell_callback);
+    mmm=24;
+    hPlotSettings = uicontrol('Style','pushbutton',...
+        'String','Plot Settings!',...
+        'Position',[xP(mmm)-bW./2,yP(mmm),bW+bW./2,bH./1.5],...
+        'Callback',@PlotSettings_callback);
+
+%export commands  
+    mmm=26;
+    hExportCells = uicontrol('Style','pushbutton',...
+        'String','ExportTrackedCells',...
+        'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH./1.5],...
+        'Callback',@exportTrackedCells);
+    hExportCells = uicontrol('Style','pushbutton',...
+        'String','ExportAllCells',...
+        'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH./1.5],...
+        'Callback',@exportAllCells);
+
+%label and comment commands
+    mmm=28;
+    hLabelCells = uicontrol('Style','pushbutton',...
+        'String','Label Cells',...
+        'Position',[xP(mmm)-bW,yP(mmm),bW,bH./1.5],...
+        'Callback',@labelCells); 
+    hcomment = uicontrol('Style','pushbutton','String','Comments',...
+        'Position',[xP(mmm),yP(mmm),bW,bH./1.5],...
+        'Callback',@comment_Callback);
+    hExportLabelsCells = uicontrol('Style','pushbutton',...
+        'String','ExportLabels',...
+        'Position',[xP(mmm)+bW,yP(mmm),bW,bH./1.5],...
+        'Callback',@ exportLabels);
+
         
-hcomment = uicontrol('Style','pushbutton','String','Comments',...
-    'Position',[xpositions(mmm)-40,ypositions(mmm),buttonwidth.*2,buttonheight./2],...
-    'Callback',@comment_Callback);
-       mmm=mmm+1;
-        mmm=mmm+1;
-        mmm=mmm+1;
-        
-hExportLabelsCells = uicontrol('Style','pushbutton',...
-    'String','ExportLabels',...
-    'Position',[xpositions(mmm)-40,ypositions(mmm),buttonwidth,buttonheight],...
-    'Callback',@ exportLabels);
-%     'Callback',@ exportFrames);
-        mmm=mmm+1; 
-        
-       
-sldc1 = uicontrol('Style', 'slider',...
-        'String','channel1',...
-        'Min',0,'Max',255,'Value',200,...
-        'Position', [xpositions(mmm)-40,ypositions(mmm),buttonwidth,buttonheight./2],...
-        'Callback', @PMthreshslider); mmm=mmm+2;
-        
-       
+
 f.Visible = 'on'   ;
 f.Units = 'normalized';
 for i = 1:length(f.Children)
@@ -401,7 +394,7 @@ MainAxes = axes;
 MainAxes.Units = 'pixels';
 MainAxes.XTick=[];
 MainAxes.YTick = [];
-imgdim = 512.*1.8;
+imgdim = 512.*1.5;
 Position = [25 25 imgdim imgdim];
 % Position = [0.1 0.3 0.65 0.65];
 MainAxes.Position = Position;
@@ -427,7 +420,7 @@ ThirdPlotAxes.Position = Position;
 % f.Position =[0.1,0.1,0.7,0.8];
 % f.Position = [0.1461 0.1370 0.4457 0.7315];
 f.Units = 'pixels';
-f.Position = [400 150 1150 800];
+f.Position = fpos;
 f.Color = 'w';
 set(f,'KeyPressFcn',@keypress);
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -606,7 +599,7 @@ end
 
 %choose scenes
 function nextscenebutton_Callback(~,~) 
-global   ImageDetails SceneList A trackPath
+global   ImageDetails SceneList expDirPath trackPath
 
 
 
@@ -628,7 +621,7 @@ loadTrackingFile_callback([],[])
 setSceneAndTime
 end
 function prevscenebutton_Callback(~,~) 
-global   ImageDetails SceneList A trackPath
+global   ImageDetails SceneList expDirPath trackPath
 
 if isempty(ImageDetails.Scene)
     ImageDetails.Scene = SceneList{1};
@@ -847,7 +840,35 @@ end
 end
 end
 
+function destroyAllFramePrevious_Callback(~,~)
+%delete a cell from all frames
+global ImageDetails Tracked imgsize
 
+%   determine the frame to load
+    t = ImageDetails.Frame;
+    CC = Tracked{t}.Cellz;
+    PX = CC.PixelIdxList;   
+
+    idxs = false(size(PX));   %choose all cells on frame
+    Trackedz = crushThem(Tracked,idxs,[],t); %delete from t=t backwar
+    Tracked = Trackedz;
+       setSceneAndTime
+
+end
+function destroyAllFrameSubsequent_Callback(~,~)
+%delete a cell from all frames
+global ImageDetails Tracked imgsize
+
+%   determine the frame to load
+    t = ImageDetails.Frame;
+    CC = Tracked{t}.Cellz;
+    PX = CC.PixelIdxList;   
+
+    idxs = false(size(PX));   %choose all cells on frame
+    Trackedz = crushThem(Tracked,idxs,t,[]); %delete from t=t onward
+    Tracked = Trackedz;
+       setSceneAndTime
+end
 function destroybuttonAllPrevious_Callback(~,~)
 %delete a cell from all frames
 global ImageDetails frameToLoad Tracked imgsize
@@ -1501,7 +1522,7 @@ Plot_callback([],[]);
 end
 
 function Plot_callback(~,~)
-global toggleCFPnorm SecondPlotAxes Tracked ImageDetails A trackingPath timeFrames mstackPath frameToLoad PlotAxes imgsize plottingON psettings cmaplz displaytracking cmap
+global trunccmaplz toggleCFPnorm SecondPlotAxes Tracked ImageDetails expDirPath trackingPath timeFrames mstackPath frameToLoad PlotAxes imgsize plottingON psettings cmaplz displaytracking cmap
 
 if plottingON == 0
 psettings = PlotSettings_callback([],[]);
@@ -1509,17 +1530,9 @@ plottingON=1;
 end
 framesThatMustBeTracked = psettings.framesThatMustBeTracked;
 
-% for jy = 1:length(framesThatMustBeTracked)
-% PX = Tracked{framesThatMustBeTracked(jy)}.Cellz.PixelIdxList;
-% %     makeIMG(jy,:) = ~logical(cellfun(@(x) length(x)==1,PX,'UniformOutput',1)); %choose only the cells without NAN
-%     makeIMG(jy,:) = ~logical(cellfun(@(x) length(x)<2,PX,'UniformOutput',1)); %choose only the cells without NAN
-% end
-% [comments,commentpos,cellidx,plotidx]=commentsforplot(Tracked);
-% makeIMG = makeIMG(1,:)& makeIMG(2,:); 
 
 for jy = 1
 PX = Tracked{framesThatMustBeTracked(1)}.Cellz.PixelIdxList;
-%     makeIMG(jy,:) = ~logical(cellfun(@(x) length(x)==1,PX,'UniformOutput',1)); %choose only the cells without NAN
     makeIMG(jy,:) = ~logical(cellfun(@(x) length(x)<2,PX,'UniformOutput',1)); %choose only the cells without NAN
 end
 [comments,commentpos,cellidx,plotidx]=commentsforplot(Tracked);
@@ -1534,8 +1547,8 @@ end
 
 
 smooththat=0;
-[plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,A,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
-% plotStruct = plotthemfunctionToStructure(framesThatMustBeTracked,Tracked,A,ImageDetails,trackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
+[plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
+% plotStruct = plotthemfunctionToStructure(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,trackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
 smooththat=toggleCFPnorm;
 
 
@@ -1565,6 +1578,7 @@ xmin = 0;
 toplot = plotMatFC;
             idx = true(size(toplot,1),1);
             cmapl = cmaplz;
+            cmapl = trunccmaplz;
             idxa = find(idx==1);
 h = plot(SecondPlotAxes,toplot(idx,:)');
             
@@ -1578,13 +1592,12 @@ h = plot(SecondPlotAxes,toplot(idx,:)');
         h(po).LineStyle = ':';
         end
 
-SecondPlotAxes.XLim = ([xmin 40]);
+SecondPlotAxes.XLim = ([xmin 50]);
 SecondPlotAxes.YLim = ([0 6]);
 
 
 toplot = plotMat;
             idx = true(size(toplot,1),1);
-            cmapl = cmaplz;
 h = plot(PlotAxes,toplot(idx,:)');
     if displaytracking ==1
         for i=1:length(h)
@@ -1598,9 +1611,9 @@ h = plot(PlotAxes,toplot(idx,:)');
         
 
 PlotAxes.XLim = ([xmin size(toplot,2)]);
-PlotAxes.XLim = ([xmin 40]);
-PlotAxes.YLim = ([0 prctile(toplot(:),98)]);
-PlotAxes.YLim = ([prctile(toplot(:),1)./1.2 prctile(toplot(:),98)]);
+PlotAxes.XLim = ([xmin 50]);
+% PlotAxes.YLim = ([0 prctile(toplot(:),99)]);
+PlotAxes.YLim = ([prctile(toplot(:),0.5)./1.2 prctile(toplot(:),99.5).*1.2]);
 % PlotAxes.YLim = ([0 1.4e06]);
 % PlotAxes.YScale = 'log';
 
@@ -1609,7 +1622,7 @@ end
 
 
 function Plot_SpecificCell_callback(~,~)
-global plottingTotalOrMedian ThirdPlotAxes toggleCFPnorm Tracked ImageDetails A mstackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
+global plottingTotalOrMedian ThirdPlotAxes toggleCFPnorm Tracked ImageDetails expDirPath mstackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
 
 if plottingON == 0
 psettings = PlotSettings_callback([],[]);
@@ -1647,7 +1660,7 @@ makeIMGidx = find(makeIMG==1);
 
 
 smooththat=0;
-[plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,A,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
+[plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
 smooththat=toggleCFPnorm;
 SmadFC = plotStructUI.SmadFC;
 if smooththat==1
@@ -1657,12 +1670,12 @@ else
 toplot = SmadFC;    
 end
 h = plot(ThirdPlotAxes,toplot','LineWidth',3);
-ThirdPlotAxes.XLim = ([0 40]);
+ThirdPlotAxes.XLim = ([0 50]);
 ThirdPlotAxes.YLim = ([0 6]);
 
 end
 
-function [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,A,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat)
+function [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat)
 global plottingTotalOrMedian cell_seg nucleus_seg background_seg segmentPath
 
 
@@ -2323,7 +2336,7 @@ end
 end
 
 function comment_CallbackJ(~,~)
-global ExportNameKey ExportName OGExpDate displaycomments SceneList Tracked ImageDetails A trackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
+global ExportNameKey ExportName OGExpDate displaycomments SceneList Tracked ImageDetails expDirPath trackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
 
     if plottingON == 0
     psettings = PlotSettings_callback([],[]);
@@ -2371,7 +2384,7 @@ cd ..
 end
 
 function exportTrackedCells(~,~)
-global cell_seg nucleus_seg background_seg segmentPath ExportNameKey ExportName exportdir mstackPath OGExpDate SceneList ImageDetails A trackingPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
+global cell_seg nucleus_seg background_seg segmentPath ExportNameKey ExportName exportdir mstackPath OGExpDate SceneList ImageDetails expDirPath trackingPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
 exportStruct = struct();
 
     if plottingON == 0
@@ -2422,7 +2435,10 @@ exportStruct = struct();
                 end
         end
         
-        for scenenumber = 1:length(sList)
+        idx = ~cellfun(@isempty,plotStructArray,'UniformOutput',1);
+        idxa = find(idx==1);
+        
+        for scenenumber = idxa
             sceneN = sList{scenenumber};
             plotStruct = plotStructArray{scenenumber};
             
@@ -2472,7 +2488,7 @@ trackedArray = Tracked;
 end
 
 function exportAllCells(~,~)
-global ExportNameKey ExportName exportdir OGExpDate SceneList Tracked ImageDetails A trackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
+global ExportNameKey ExportName exportdir OGExpDate SceneList Tracked ImageDetails expDirPath trackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
 exportStruct = struct();
 
     if plottingON == 0
@@ -2513,7 +2529,7 @@ cd ..
                 makeIMG = true(size(makeIMG));
                 makeIMGidx = find(makeIMG==1);
                 smooththat=0;
-%                 [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,A,ImageDetails,SceneDirPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
+%                 [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,SceneDirPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
                 plotStruct = plotthemfunctionToStructure(Tracked,idScene,mstackPath,timeFrames,makeIMG,makeIMGidx);
                 
                 fnames = fieldnames(plotStruct);
@@ -2552,7 +2568,7 @@ end
 function xy = labelCells(~,~)
 
 
-global ExportNameKey ExportName displaycomments  SceneList Tracked ImageDetails A trackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
+global ExportNameKey ExportName displaycomments  SceneList Tracked ImageDetails expDirPath trackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
 
     if plottingON == 0
     psettings = PlotSettings_callback([],[]);
@@ -2647,7 +2663,7 @@ end
 end
 
 function exportFrames(~,~)
-global ExportNameKey ExportName  imgsize displaytracking SceneList Tracked ImageDetails A trackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
+global ExportNameKey ExportName  imgsize displaytracking SceneList Tracked ImageDetails expDirPath trackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
 
     if plottingON == 0
     psettings = PlotSettings_callback([],[]);
@@ -2722,7 +2738,7 @@ CENTROID = struct();
  
 end
 function exportLabels(~,~)
-global ExportNameKey ExportName  imgsize displaytracking SceneList Tracked ImageDetails A trackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings adjuster
+global ExportNameKey ExportName  imgsize displaytracking SceneList Tracked ImageDetails expDirPath trackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings adjuster
 
     if plottingON == 0
     psettings = PlotSettings_callback([],[]);
@@ -2873,18 +2889,21 @@ TC =1;
 end
 
 %make trajectories for overlay of tracking
-function traject = trackingTrajectories(frameToLoad,ImageDetails)
-global Tracked imgsize
+function traject = trackingTrajectories(frameToLoad,ImageDetails,timeFrames)
+global Tracked imgsize psettings
+
 
 %   determine the frame to load
-t = ImageDetails.Frame;
+    t = timeFrames;
+    framesThatMustBeTracked = psettings.framesThatMustBeTracked;
 
-xy = cell(1,t);
-lxy = zeros(1,t);
-CC = Tracked{t}.Cellz;
-PX = CC.PixelIdxList;
-% makeIMG = cellfun(@(x) length(x)==1,PX,'UniformOutput',1); %choose only the cells without NAN
-makeIMG = cellfun(@(x) length(x)<2,PX,'UniformOutput',1); %choose only the cells without NAN
+    xy = cell(1,t);
+    lxy = zeros(1,t);
+    CC = Tracked{framesThatMustBeTracked(1)}.Cellz;
+    PX = CC.PixelIdxList;
+    % makeIMG = cellfun(@(x) length(x)==1,PX,'UniformOutput',1); %choose only the cells without NAN
+    makeIMG = cellfun(@(x) length(x)<2,PX,'UniformOutput',1); %choose only the cells without NAN
+    
 
     for i = 1:t %determine centroids from 1:t for plotting a tracking tail 
         CC = Tracked{i}.Cellz;
@@ -3221,77 +3240,45 @@ end
 %% Image Display functions
 function setSceneAndTime
 global TC DICimgstack dfoName  nucleus_seg backgroundimgstack bfoName nfoName background_seg cell_seg nucleusimgstack sfoName segmentimgstack  channelimgstack cfoName segmentPath frameToLoad ImageDetails  Tracked SceneList  trackPath imgfile mstackPath
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   determine the channel directory
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-cd(mstackPath)
-
+%check for empty variables
+    cd(mstackPath)
     if isempty(ImageDetails.Scene)
         ImageDetails.Scene = SceneList{1};
     end
-
     if isempty(ImageDetails.Channel)
         ImageDetails.Channel = nucleus_seg;
     end
     
-ChannelDirectory = dir(strcat('*',ImageDetails.Channel,'_*'));
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   determine the frame to load
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%determine the frame to load
     if isempty(ImageDetails.Frame)
        ImageDetails.Frame = frameToLoad;
        t = ImageDetails.Frame;
     else
        t = ImageDetails.Frame;
     end
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 
-
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   choose the channel image
-%options are overlay of background
-%overlay of fluorescent channels
-%normal image
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-%         imgfile = dir(strcat('*',ImageDetails.Frame,'*.tif'));
+%choose the channel image
         cd(mstackPath)
         ff = dir(strcat('*',ImageDetails.Scene,'*',cell_seg,'*'));
-%         ff = dir(strcat(ImageDetails.Channel,'*'));
         filename = char(ff.name);
-
         if ~isempty(cfoName) %if channelfileObject has been made, check to see if the scene has changed. 
             [a,~] = regexp(cfoName,ImageDetails.Scene);
             if isempty(a) %if the scene has changed load the new channelimgstack
                  channelfileObject = matfile(filename);
                  channelimgstack = channelfileObject.flatstack;
                  cfoName = char(channelfileObject.Properties.Source);%update cfoName
-                 
             elseif ~isempty(a) && isempty(channelimgstack)  %if the scene is same but unloaded
                  channelfileObject = matfile(filename);
                  channelimgstack = channelfileObject.flatstack;
                  cfoName = char(channelfileObject.Properties.Source);%update cfoName
-%                  disp('if -> elseif')
             else
-                stophe=1;
-%                 disp('if -> else')
-                %dont do anything
             end
         else %if no cfoName, then 
                  channelfileObject = matfile(filename);
                  channelimgstack = channelfileObject.flatstack;
                  cfoName = char(channelfileObject.Properties.Source);%update cfoName
-%                  disp('else')
         end
         
         
@@ -3497,8 +3484,10 @@ elseif strcmp(ImageDetails.Channel,'reporter_quantify')
     channelimg;
 end
 
-
-displayImageFunct(If,channelimg);
+backgroundimg(segmentimg) = true; 
+bkgpixels = channelimg(backgroundimg);
+bkgmedian = nanmedian(bkgpixels);
+displayImageFunct(If,channelimg,bkgmedian);
 
 end
 
@@ -3533,8 +3522,8 @@ setSceneAndTime
 adjuster =0;
 end
 
-function displayImageFunct(If,channelimg)
-global displaycomments timeFrames lprcntlt prcntlt tcontrast lcontrast MainAxes displaytracking ImageDetails frameToLoad prcntlz lprcntlz prcntlk lprcntlk prcntl lprcntl D ExpDate cmap cmaplz adjuster
+function displayImageFunct(If,channelimg,bkgmedian)
+global displaycomments psettings plottingON trunccmaplz timeFrames lprcntlt prcntlt tcontrast lcontrast MainAxes displaytracking ImageDetails frameToLoad prcntlz lprcntlz prcntlk lprcntlk prcntl lprcntl D ExpDate cmap cmaplz adjuster
 
 
 %determine current time Frame
@@ -3553,13 +3542,13 @@ global displaycomments timeFrames lprcntlt prcntlt tcontrast lcontrast MainAxes 
     ifCHANGEofCHANNELorSCENE=1;
     end
 
-    %update contrast if channel has changed
+%update contrast if channel has changed
     if ~strcmp(ImageDetails.Channel,D)
     ifCHANGEofCHANNELorSCENE=1;
     D = ImageDetails.Channel;
     end
 
-    %update contrast if contrast values are updated
+%update contrast if contrast values are updated
     if adjuster ==1
         ifCHANGEofCHANNELorSCENE = 1;
         D = ImageDetails.Channel;
@@ -3567,9 +3556,7 @@ global displaycomments timeFrames lprcntlt prcntlt tcontrast lcontrast MainAxes 
 
 %scripts for displaying contrasted image
     if strcmp(ImageDetails.Channel,'overlay') %when overlay display is desired
-
         %nothing for overlay
-
     else  %under normal circumstances
             if ifCHANGEofCHANNELorSCENE==1
                 lprcntl = prctile(channelimg(:),lcontrast);
@@ -3577,55 +3564,66 @@ global displaycomments timeFrames lprcntlt prcntlt tcontrast lcontrast MainAxes 
                 scaleFactor = 255./(prcntl - lprcntl);
                 ifCHANGEofCHANNELorSCENE=0;
             end
+            lprcntl = bkgmedian.*0.90;
         scaleFactor = 255./(prcntl - lprcntl);
         dispimg = channelimg.*scaleFactor;
         dispimg = dispimg-(lprcntl.*scaleFactor);
         dispimg(dispimg> 255) =254;
         colormap(cmap);
         If = bwperim(If) | bwperim(imdilate(If,strel('disk',1)));
-%         If = bwperim(If);
         dispimg(If>0)=255;
     end
 
-
-himg = imagesc(dispimg);
-himgax = get(himg,'Parent');
-himgax.CLim = [0 256];
-ttl = get(himgax,'Title');
-t = ImageDetails.Frame;
-set(ttl,'String',[ExpDate ' ' ImageDetails.Scene ' frame ' num2str(t) ' out of ' num2str(timeFrames)]);
-set(ttl,'FontSize',12);
-
+%title the displayed image
+    himg = imagesc(dispimg);
+    himgax = get(himg,'Parent');
+    himgax.CLim = [0 256];
+    ttl = get(himgax,'Title');
+    t = ImageDetails.Frame;
+    set(ttl,'String',[ExpDate ' ' ImageDetails.Scene ' frame ' num2str(t) ' out of ' num2str(timeFrames)]);
+    set(ttl,'FontSize',12);
+    
+    if plottingON == 0
+        psettings = PlotSettings_callback([],[]);
+        plottingON=1;
+    end
+    framesThatMustBeTracked = psettings.framesThatMustBeTracked;
 
     if ~(t==1)
         if displaytracking==1
-            traject = trackingTrajectories(frameToLoad,ImageDetails);
-            
-            himgax.NextPlot = 'add';
-            mainX = squeeze(traject(:,1,:));
-            mainY = squeeze(traject(:,2,:));
-            
+            trajectForCmap = trackingTrajectories(framesThatMustBeTracked(1),ImageDetails,timeFrames);
+            trajectForPlot = trackingTrajectories(frameToLoad,ImageDetails,timeFrames);
+                himgax.NextPlot = 'add';
+                mainplotX = squeeze(trajectForPlot(:,1,:)); %28x22 means 28 cells on frame 22;
+                mainplotY = squeeze(trajectForPlot(:,2,:));
+                maincmapX = squeeze(trajectForCmap(:,1,:)); %28x22 means 28 cells on frame 22;
+                maincmapY = squeeze(trajectForCmap(:,2,:));
             %only plot if the cell is currently tracked/segmented in this frame
-                idx = ~isnan(mainY(:,t));
-                h = plot(mainX(idx,:)',mainY(idx,:)','LineWidth',3);
-            
-            cmaplz = colormap(colorcube(size(mainX,1).*1.5));
-            cmapl = cmaplz;
-            idxa = find(idx==1);
-                for i=1:length(h)
-                    h(i).Color = cmapl(idxa(i),:);
-                end
-            colormap(cmap);
-            hax = h.Parent;
-            hax.Color = 'none';
-            himgax.CLim = [0 256];
-            himgax.NextPlot = 'replace';
+                idx = ~isnan(mainplotY(:,t));
+%                 idxtrunc = ~isnan(mainY(:,framesThatMustBeTracked(1)));
+                idxtrunc = ~isnan(maincmapY(:,framesThatMustBeTracked(1)));
+%                 idxtrunc = true(1,size(maincmapY,1));
+                h = plot(mainplotX(idx,1:t)',mainplotY(idx,1:t)','LineWidth',3);
+            %generate colormap based on number of cells tracked
+%                 cmaplz = colormap(hsv(size(mainX,1)));
+                cmaplz = colormap(colorcube(size(maincmapX,1)./0.80));
+                cmapl = cmaplz;
+                idxa = find(idx==1);
+                idxtrunca = find(idxtrunc==1);
+%                 trunccmaplz = cmapl;
+                    for i=1:length(h)
+                        h(i).Color = cmapl(idxa(i),:);
+                        trunccmaplz(i,:) = cmapl(idxtrunca(i),:);
+                    end
+                colormap(cmap);%return colormap so images display properly
+                    hax = h.Parent;
+                    hax.Color = 'none';
+                    himgax.CLim = [0 256];
+                    himgax.NextPlot = 'replace';
         end
     end
-himgax.YTick = [];
-himgax.XTick = [];
-
-% saveChannelFiveImages
+    himgax.YTick = [];
+    himgax.XTick = [];
 end
 
 function displayImageFunctold(If,channelimg)
@@ -3785,7 +3783,7 @@ save(strcat(filename,'_',ImageDetails.Scene,'_',ExportName,'.mat'),'Tracked')
 end
 
 function trackSaveIterate_callback(~,~)
-global runIterate SceneList ImageDetails TC A frameToLoad Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg
+global runIterate SceneList ImageDetails TC expDirPath frameToLoad Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg
 
 runIterate =1;
     for i=1:length(SceneList)
@@ -3805,7 +3803,7 @@ runIterate =1;
             pvalue = ImageDetails.Scene;
             
             Tracked = FrickTrackCellsYeah(segmentPath,pvalue,nucleus_seg);
-%             Tracked = FrickTrackCellsYeah(A,frameToLoad,pvalue,[]);
+%             Tracked = FrickTrackCellsYeah(expDirPath,frameToLoad,pvalue,[]);
             TC =1;
             setSceneAndTime;
 
@@ -3824,7 +3822,7 @@ end
 
 
 function trackSaveIterateChosen_callback(~,~)
-global plottingON psettings runIterate SceneList ImageDetails TC A frameToLoad Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg
+global plottingON psettings runIterate SceneList ImageDetails TC expDirPath frameToLoad Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg
 
 runIterate =1;
     for i=1:length(SceneList)
@@ -3844,7 +3842,7 @@ runIterate =1;
             pvalue = ImageDetails.Scene;
             
             Tracked = FrickTrackCellsYeah(segmentPath,pvalue,nucleus_seg);
-%             Tracked = FrickTrackCellsYeah(A,frameToLoad,pvalue,[]);
+%             Tracked = FrickTrackCellsYeah(expDirPath,frameToLoad,pvalue,[]);
             TC =1;
             setSceneAndTime;
             

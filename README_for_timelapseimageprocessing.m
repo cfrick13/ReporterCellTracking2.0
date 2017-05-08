@@ -18,7 +18,8 @@
 %     dateArray = {'2017_02_08 plate exp1','2017_02_08 plate exp2','2017_04_12 plate exp1','2017_04_12 plate exp2','2017_04_12 plate exp3','2017_04_12 plate exp4','2017_04_12 plate exp5','2017_04_12 plate exp6','2017_04_12 plate exp7','2017_04_12 plate exp8','2017_04_14 plate exp2','2017_04_17 plate exp1','2017_04_17 plate exp2'};
 %         dateArray = {'2017_04_17 plate exp1','2017_04_17 plate exp2'};
 %         dateArray = {'2017_02_04 plate exp1','2017_02_06 plate exp1','2017_02_06 plate exp2'};
-        dateArray = {'2017_04_17 plate exp3'};
+fullT = tic;
+        dateArray = {'2017_05_03 plate exp1','2017_05_03 plate exp2'};
     for BB = dateArray
 
     %get directory name from date Array
@@ -30,13 +31,12 @@
         supertic = tic; 
 
     %extract images from .czi and save image stacks as .mat files
-%         ExtractMetadataAndImages(B);  
+        ExtractMetadataAndImages(B);  
 
     %extract data in excel file
         cd(parentdir)
         exName = strcat(B,'-metaData.mat');
         makeDoseStructFromXLS(exName);
-
 
     %load excel-extracted data
         datequery = strcat(FileName,'*DoseAndScene*');
@@ -56,7 +56,6 @@
         BACKGROUND = bkg{1};
         dontsegment = BACKGROUND;
     
-
     %run Flatflield correction
         BackgroundAndFlatfieldCorrectionOfTimeLapseImages(A,B,channelstoinput,BACKGROUND);
 
@@ -64,14 +63,16 @@
         totalTime = toc(supertic); %report the timing
         disp(strcat('total time from extract to flat is=', num2str(totalTime./60),' minutes'));
 
-
-
-
+    %run segmentation
+%         uiSegmentTimeLapseImages
         SegmentationOfTimeLapseImages(A,B,dontsegment,segInstruct);
 
+    %run autotracking algorithms
         AutoTrackCellz(B)
         AutoExportNuclei(B)
     end
+fullTime = toc(fullT);
+disp(['total time for all is = ', num2str(fullTime./3600),' hours']);
 
 
 
