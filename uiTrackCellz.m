@@ -1,5 +1,6 @@
 function uiTrackCellz
-global DICimgstack dfoName cfoName trackingPath background_seg bfoName nfoName sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterate ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs adjuster cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes OGExpDate plottingON PlotAxes cmap TC expDirPath  timeFrames frameToLoad ImageDetails MainAxes SceneList displaytracking imgsize ExpDate
+global xAxisLimits DICimgstack dfoName cfoName trackingPath background_seg bfoName nfoName sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterate ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs adjuster cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes OGExpDate plottingON PlotAxes cmap TC expDirPath  timeFrames frameToLoad ImageDetails MainAxes SceneList displaytracking imgsize ExpDate
+
 
 %determine matfile directory
     mdir = mfilename('fullpath');
@@ -33,6 +34,7 @@ global DICimgstack dfoName cfoName trackingPath background_seg bfoName nfoName s
     ImageDetails = InitializeImageDetails;
     displaytracking = 0;
     plottingON =0;
+    xAxisLimits = [0 50];
     
     
 %determine export details
@@ -134,6 +136,9 @@ global DICimgstack dfoName cfoName trackingPath background_seg bfoName nfoName s
     end
     bkinputs =channelregexpmaker(bkarray);
 
+timeVec = dosestructstruct.timeVec;
+% timeMatrix(i,:) = timeVec(idxtwo,1:finalFrame)-timeVec(1,stimulationFrame+1); %subtract by time closest to Tgfbeta addition 
+
 
 %determine how many scenes are present
     dirlist = dir(mstackPath);
@@ -182,6 +187,14 @@ fontSize = 10;
     chooseChannelText = uicontrol('Style','text','String','To choose channel push 1, 2, or 3',...
               'Position',[xP(mmm),yP(mmm)+bH./1.5,bW,bH*2]);
 
+
+%set axis limits button
+
+    hplotAxisLimits = uicontrol('Style','pushbutton',...
+        'String','plotAxisLimits [x]',...
+        'Position',[fW-(bW*6),yP(mmm),bW,bH],...
+        'Callback',@plotAxis_callback);
+
 %move forward frame or previuos frame
     mmm=2;
     hNextFrame = uicontrol('Style','pushbutton',...
@@ -229,7 +242,7 @@ fontSize = 10;
        
 %delete commands
     mmm=8; 
-    hDelete = uicontrol('Style','pushbutton','String','Delete [d]',...
+    hDelete = uicontrol('Style','pushbutton','String','Delete',...
         'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
         'Callback',@deletebutton_Callback);
     hDeleteAllOnFrame = uicontrol('Style','pushbutton','String','DeleteAllOnFrame',...
@@ -239,7 +252,7 @@ fontSize = 10;
 
 %destroy commands    
     mmm=9;
-    hDestroy = uicontrol('Style','pushbutton','String','Destroy',...
+    hDestroy = uicontrol('Style','pushbutton','String','Destroy [d]',...
         'Position',[xP(mmm),yP(mmm),bW,bH],...
         'Callback',@destroybutton_Callback);
     hDestroy = uicontrol('Style','pushbutton','String','DestroyPrevious',...
@@ -480,7 +493,7 @@ switch key
     case 'f'
         nextbutton_callback([],[])
     case 'd'
-        deletebutton_Callback([],[]);
+        destroybutton_Callback([],[]);
     case 't'
         trackbutton_Callback([],[]);
     case 'e'
@@ -520,6 +533,8 @@ switch key
         PlotCFPnorm_callback([],[])
     case 'b'
         PlotCFPnotnorm_callback([],[])
+    case 'x'
+        plotAxis_callback([],[])
     case '0'
         displaycomments=1;
     xy = getxy([],[]);
@@ -529,6 +544,19 @@ switch key
 end
 
 end
+
+function plotAxis_callback(~,~)
+global xAxisLimits 
+
+
+prompt = {'xmin','xmax'};
+dlg_title = 'set x axis limits...';
+inputdlgOutput = inputdlg(prompt,dlg_title);
+xAxisLimits = cellfun(@str2num,inputdlgOutput,'UniformOutput',1);
+Plot_callback([],[])
+end
+
+
 
 %choose frames
 function nextbutton_callback(~,~)
@@ -1522,107 +1550,110 @@ Plot_callback([],[]);
 end
 
 function Plot_callback(~,~)
-global trunccmaplz toggleCFPnorm SecondPlotAxes Tracked ImageDetails expDirPath trackingPath timeFrames mstackPath frameToLoad PlotAxes imgsize plottingON psettings cmaplz displaytracking cmap
+global cell_seg nucleus_seg xAxisLimits trunccmaplz toggleCFPnorm SecondPlotAxes Tracked ImageDetails expDirPath trackingPath timeFrames mstackPath frameToLoad PlotAxes imgsize plottingON psettings cmaplz displaytracking cmap
 
-if plottingON == 0
-psettings = PlotSettings_callback([],[]);
-plottingON=1;
-end
-framesThatMustBeTracked = psettings.framesThatMustBeTracked;
-
-
-for jy = 1
-PX = Tracked{framesThatMustBeTracked(1)}.Cellz.PixelIdxList;
-    makeIMG(jy,:) = ~logical(cellfun(@(x) length(x)<2,PX,'UniformOutput',1)); %choose only the cells without NAN
-end
-[comments,commentpos,cellidx,plotidx]=commentsforplot(Tracked);
-makeIMGidx = find(makeIMG==1);
-if ~isempty(plotidx)
-iidd = find(~ismember(makeIMGidx,plotidx));
-else
-    iidd=[];
-end
-% makeIMG(makeIMGidx(iidd))=0;
-% makeIMGidx = find(makeIMG==1);
+    if plottingON == 0
+        psettings = PlotSettings_callback([],[]);
+        plottingON=1;
+    end
+    framesThatMustBeTracked = psettings.framesThatMustBeTracked;
 
 
-smooththat=0;
-[plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
-% plotStruct = plotthemfunctionToStructure(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,trackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
-smooththat=toggleCFPnorm;
-
-
-% plotStructUI.EGFP = Smad;
-% plotStructUI.mKate = mkate;
-% plotStructUI.Cfp = Cfp;
-% plotStructUI.CfpFC = CfpFC;
-% plotStructUI.SmadFC = SmadFC;
-% plotStructUI.mkateFC = mkateFC;
-% plotStructUI.Smadbkg = Smadbkg;
-% plotStructUI.Cfpbkg = Cfpbkg;
-% plotStructUI.mkatebkg = mkatebkg;
-
-if strcmp(ImageDetails.Channel,'EGFP')
-    plotMat = plotStructUI.Smad;
-    plotMatFC = plotStructUI.SmadFC;
-elseif strcmp(ImageDetails.Channel,'mKate')
-    plotMat = plotStructUI.mkate;
-    plotMatFC = plotStructUI.mkateFC;
-else
-    plotMat = plotStructUI.Smad;
-    plotMatFC = plotStructUI.SmadFC;
-end
+    for jy = 1
+        PX = Tracked{framesThatMustBeTracked(1)}.Cellz.PixelIdxList;
+        makeIMG(jy,:) = ~logical(cellfun(@(x) length(x)<2,PX,'UniformOutput',1)); %choose only the cells without NAN
+    end
+    [comments,commentpos,cellidx,plotidx]=commentsforplot(Tracked);
+    makeIMGidx = find(makeIMG==1);
     
+    if ~isempty(plotidx)
+        iidd = find(~ismember(makeIMGidx,plotidx));
+    else
+        iidd=[];
+    end
 
-xmin = 0;
-toplot = plotMatFC;
-            idx = true(size(toplot,1),1);
-            cmapl = cmaplz;
-            cmapl = trunccmaplz;
-            idxa = find(idx==1);
-h = plot(SecondPlotAxes,toplot(idx,:)');
+
+    smooththat=0;
+    [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
+
+    % plotStructUI.EGFP = Smad;
+    % plotStructUI.mKate = mkate;
+    % plotStructUI.Cfp = Cfp;
+    % plotStructUI.CfpFC = CfpFC;
+    % plotStructUI.SmadFC = SmadFC;
+    % plotStructUI.mkateFC = mkateFC;
+    % plotStructUI.Smadbkg = Smadbkg;
+    % plotStructUI.Cfpbkg = Cfpbkg;
+    % plotStructUI.mkatebkg = mkatebkg;
+
+    if strcmp(ImageDetails.Channel,cell_seg)
+        plotMat = plotStructUI.Smad;
+        plotMatFC = plotStructUI.SmadFC;
+        ylimit =[0 6];
+    elseif strcmp(ImageDetails.Channel,nucleus_seg)
+        plotMat = plotStructUI.mkatetotal;
+        plotMatFC = plotStructUI.mkateFCtotal;
+        ylimit =[0 3];
+    else
+        plotMat = plotStructUI.Smad;
+        plotMatFC = plotStructUI.SmadFC;
+    end
+    
+    xmin = 0;
+    toplot = plotMatFC;
+    idx = true(size(toplot,1),1);
+    cmapl = trunccmaplz;
+    idxa = find(idx==1);
+    h = plot(SecondPlotAxes,toplot(idx,:)','LineWidth',2);
             
     if displaytracking ==1
         for i=1:length(h)
             h(i).Color = cmapl(idxa(i),:);
         end
-    colormap(cmap);    
+        colormap(cmap);    
     end
-        for po = iidd  %fade out the commented cells
+    
+    for po = iidd  %fade out the commented cells
         h(po).LineStyle = ':';
-        end
+    end
 
-SecondPlotAxes.XLim = ([xmin 50]);
-SecondPlotAxes.YLim = ([0 6]);
+    SecondPlotAxes.XLim = ([xAxisLimits(1) xAxisLimits(2)]);
+    SecondPlotAxes.YLim = (ylimit);
+    SecondPlotAxes.YLabel.String = 'fold change';
+    SecondPlotAxes.XLabel.String = 'frames';
+    SecondPlotAxes.XGrid = 'on';
+    SecondPlotAxes.YGrid = 'on';
+    SecondPlotAxes.Color = [0.95 0.95 0.95];
 
 
-toplot = plotMat;
-            idx = true(size(toplot,1),1);
-h = plot(PlotAxes,toplot(idx,:)');
+    toplot = plotMat;
+    h = plot(PlotAxes,toplot(idx,:)','LineWidth',2);
+    
     if displaytracking ==1
         for i=1:length(h)
             h(i).Color = cmapl(i,:);
         end
-    colormap(cmap);    
+        colormap(cmap);    
     end
-        for po = iidd  %fade out the commented cells
+    
+    for po = iidd  %fade out the commented cells
         h(po).LineStyle = ':';
-        end
+    end
         
 
-PlotAxes.XLim = ([xmin size(toplot,2)]);
-PlotAxes.XLim = ([xmin 50]);
-% PlotAxes.YLim = ([0 prctile(toplot(:),99)]);
-PlotAxes.YLim = ([prctile(toplot(:),0.5)./1.2 prctile(toplot(:),99.5).*1.2]);
-% PlotAxes.YLim = ([0 1.4e06]);
-% PlotAxes.YScale = 'log';
-
+    PlotAxes.XLim = ([xAxisLimits(1) xAxisLimits(2)]);
+    PlotAxes.YLim = ([prctile(toplot(:),0.5)./1.2 prctile(toplot(:),99.5).*1.2]);
+    PlotAxes.YLabel.String = 'abundance';
+    PlotAxes.XLabel.String = 'frames';
+    PlotAxes.XGrid = 'on';
+    PlotAxes.YGrid = 'on';
+    PlotAxes.Color = [0.95 0.95 0.95];
 
 end
 
 
 function Plot_SpecificCell_callback(~,~)
-global plottingTotalOrMedian ThirdPlotAxes toggleCFPnorm Tracked ImageDetails expDirPath mstackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
+global displaytracking trunccmaplz xAxisLimits plottingTotalOrMedian ThirdPlotAxes toggleCFPnorm Tracked ImageDetails expDirPath mstackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
 
 if plottingON == 0
 psettings = PlotSettings_callback([],[]);
@@ -1663,26 +1694,49 @@ smooththat=0;
 [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
 smooththat=toggleCFPnorm;
 SmadFC = plotStructUI.SmadFC;
-if smooththat==1
-% toplot = SmadFC./CfpFC;
-toplot = SmadFC;
-else
-toplot = SmadFC;    
-end
+    
+    if strcmp(ImageDetails.Channel,'EGFP')
+        plotMat = plotStructUI.Smad;
+        plotMatFC = plotStructUI.SmadFC;
+        ylimit =[0 6];
+    elseif strcmp(ImageDetails.Channel,'mKate')
+        plotMat = plotStructUI.mkatetotal;
+        plotMatFC = plotStructUI.mkateFCtotal;
+        ylimit =[0 3];
+    else
+        plotMat = plotStructUI.Smad;
+        plotMatFC = plotStructUI.SmadFC;
+    end
+    
+toplot = plotMatFC(makeIMGidx,:);
 h = plot(ThirdPlotAxes,toplot','LineWidth',3);
-ThirdPlotAxes.XLim = ([0 50]);
-ThirdPlotAxes.YLim = ([0 6]);
+ThirdPlotAxes.XLim = ([xAxisLimits(1) xAxisLimits(2)]);
+ThirdPlotAxes.YLim = (ylimit);
+ThirdPlotAxes.YLabel.String = 'fold change';
+ThirdPlotAxes.XLabel.String = 'frames';
+ThirdPlotAxes.XGrid = 'on';
+ThirdPlotAxes.YGrid = 'on';
+ThirdPlotAxes.Color = [0.95 0.95 0.95];
+
+
+    cmapl = trunccmaplz;
+            
+    if displaytracking ==1
+        for i=1:length(h)
+            h(i).Color = cmapl(makeIMGidx(i),:);
+        end 
+    end
 
 end
 
 function [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat)
 global plottingTotalOrMedian cell_seg nucleus_seg background_seg segmentPath
 
-
-plotTracesCell = cell(length(makeIMGidx),length(Tracked));
+PXX = Tracked{1}.Cellz.PixelIdxList;
+plotTracesCell = cell(length(PXX),length(Tracked));
     for i = 1:length(Tracked)
         PXX = Tracked{i}.Cellz.PixelIdxList;
-        plotTracesCell(:,i) = PXX(makeIMG);
+        plotTracesCell(:,i) = PXX;
     end
     
 
@@ -1791,15 +1845,15 @@ for i = 1:size(plotTracesCell,2)
     end
 end
 
-if strcmpi(plottingTotalOrMedian,'total')
-    Smad = cellfun(@nansum,cellQ_pxls,'UniformOutput',1);
+
+    Smadtotal = cellfun(@nansum,cellQ_pxls,'UniformOutput',1);
     % Smad = cellfun(@nanmean,cellQ_pxls,'UniformOutput',1);
-    Smad(Smad==single(13579)) = NaN;
-    Cfp = cellfun(@nansum,nuc_pxls,'UniformOutput',1);
-    Cfp(Cfp==single(13579)) = NaN;
-    mkate = cellfun(@nansum,mkatepxls,'UniformOutput',1);
-    mkate(mkate==single(13579)) = NaN;
-elseif strcmpi(plottingTotalOrMedian,'median')
+    Smadtotal(Smadtotal==single(13579)) = NaN;
+    Cfptotal = cellfun(@nansum,nuc_pxls,'UniformOutput',1);
+    Cfptotal(Cfptotal==single(13579)) = NaN;
+    mkatetotal = cellfun(@nansum,mkatepxls,'UniformOutput',1);
+    mkatetotal(mkatetotal==single(13579)) = NaN;
+
     Smad = cellfun(@nanmedian,cellQ_pxls,'UniformOutput',1);
     % Smad = cellfun(@nanmean,cellQ_pxls,'UniformOutput',1);
     Smad(Smad==single(13579)) = NaN;
@@ -1807,7 +1861,7 @@ elseif strcmpi(plottingTotalOrMedian,'median')
     Cfp(Cfp==single(13579)) = NaN;
     mkate = cellfun(@nanmedian,mkatepxls,'UniformOutput',1);
     mkate(mkate==single(13579)) = NaN;
-end
+
 
 basalSUB = framesThatMustBeTracked(1)-7;
 if basalSUB<1
@@ -1831,20 +1885,27 @@ SmadFC = zeros(size(Smad),'single');
        SmadFC(:,i) = Smad(:,i)./basalsmad; 
     end
     
-    basalmkate = nanmean(mkate(:,framesThatMustBeTracked(1)-basalSUB:framesThatMustBeTracked(1)),2);
+basalmkate = nanmean(mkate(:,framesThatMustBeTracked(1)-basalSUB:framesThatMustBeTracked(1)),2);
 mkateFC = zeros(size(mkate),'single');
     for i = 1:size(mkate,2)
        mkateFC(:,i) = mkate(:,i)./basalmkate; 
     end
     
+basalmkatetotal = nanmean(mkatetotal(:,framesThatMustBeTracked(1)-basalSUB:framesThatMustBeTracked(1)),2);
+mkateFCtotal = zeros(size(mkatetotal),'single');
+    for i = 1:size(mkatetotal,2)
+       mkateFCtotal(:,i) = mkatetotal(:,i)./basalmkatetotal; 
+    end
     
 %     Smad,Cfp,mkate,CfpFC,SmadFC,mkateFC,Smadbkg,Cfpbkg,mkatebkg
 plotStructUI.Smad = Smad;
 plotStructUI.mkate = mkate;
+plotStructUI.mkatetotal = mkatetotal;
 plotStructUI.Cfp = Cfp;
 plotStructUI.CfpFC = CfpFC;
 plotStructUI.SmadFC = SmadFC;
 plotStructUI.mkateFC = mkateFC;
+plotStructUI.mkateFCtotal = mkateFCtotal;
 plotStructUI.Smadbkg = Smadbkg;
 plotStructUI.Cfpbkg = Cfpbkg;
 plotStructUI.mkatebkg = mkatebkg;
@@ -1857,7 +1918,12 @@ plotStruct = struct();
 
 
 plotTracesCell = cell(length(makeIMGidx),length(Tracked));
+centroidarray = cell(length(makeIMGidx),length(Tracked));
     for i = 1:length(Tracked)
+        CC = Tracked{i}.Cellz;
+        stats = regionprops(CC,'Centroid');
+        centroids = {stats.Centroid};
+        centroidarray(:,i) = centroids(makeIMG);
         PXX = Tracked{i}.Cellz.PixelIdxList;
         plotTracesCell(:,i) = PXX(makeIMG);
     end
@@ -1983,6 +2049,25 @@ for i = 1:size(cellQ_pxls,1)
     plotStruct(i).medianCfpbkg = nucBKG;
     plotStruct(i).medianSmadbkg = cellBKG;
 end
+
+
+%determine mean pxl intensities
+    cellQ = cellfun(@nanmean,cellQ_pxls,'UniformOutput',1);
+    cellQ(cellQ==single(13579)) = NaN;
+    nucQ = cellfun(@nanmean,nuc_pxls,'UniformOutput',1);
+    nucQ(nucQ==single(13579)) = NaN;
+for i = 1:size(cellQ_pxls,1)
+    plotStruct(i).meanNucEGFP = cellQ(i,:);
+    plotStruct(i).meanNucRFP = nucQ(i,:);
+    plotStruct(i).medianCfpbkg = nucBKG;
+    plotStruct(i).medianSmadbkg = cellBKG;
+end
+
+for i = 1:size(centroidarray,1)
+    plotStruct(i).Centroid = centroidarray(i,:);
+end
+
+
 
 
 
@@ -2408,6 +2493,7 @@ exportStruct = struct();
     cd ..
     
         plotStructArray = cell(1,length(sList));
+%         for scenenumber = 1:length(sList)
         parfor scenenumber = 1:length(sList)
             cd(tPath)
             sceneN = sList{scenenumber};
@@ -2430,7 +2516,7 @@ exportStruct = struct();
                     makeIMG = makeIMG(1,:)&makeIMG(2,:);
                     makeIMGidx = find(makeIMG==1);
 
-                    plotStruct = plotthemfunctionToStructure(trackedArray,idScene,mPath,tFrames,makeIMG,makeIMGidx,cSeg,nSeg,bSeg,sPath)
+                    plotStruct = plotthemfunctionToStructure(trackedArray,idScene,mPath,tFrames,makeIMG,makeIMGidx,cSeg,nSeg,bSeg,sPath);
                     plotStructArray{scenenumber} = plotStruct;
                 end
         end
@@ -2901,16 +2987,10 @@ global Tracked imgsize psettings
     lxy = zeros(1,t);
     CC = Tracked{framesThatMustBeTracked(1)}.Cellz;
     PX = CC.PixelIdxList;
-    % makeIMG = cellfun(@(x) length(x)==1,PX,'UniformOutput',1); %choose only the cells without NAN
-    makeIMG = cellfun(@(x) length(x)<2,PX,'UniformOutput',1); %choose only the cells without NAN
-    
+    makeIMG = false(1,length(PX));
 
     for i = 1:t %determine centroids from 1:t for plotting a tracking tail 
         CC = Tracked{i}.Cellz;
-        %%%%%%%%%%%%%%%%%%%%%
-        % S = regionprops(CC,'Centroid');
-        % xy{i} = vertcat(S(:).Centroid);
-        % lxy(i) = length(xy{i});
 
         PXX =  CC.PixelIdxList;
         makeCentroids = find((~makeIMG)==1); %you don't want to do this calculation through all the NaN, so index for non NAN
@@ -2919,11 +2999,8 @@ global Tracked imgsize psettings
         my = nan(1,length(PXX));
             for j = 1:length(PX)
             px = PX{j};
-        %     [y,x] = ind2sub(CC.ImageSize,px); %x and y come out reverse of S.Centroid
             y = rem(px-1,imgsize(1))+1; %these two lines replace ind2sub
             x = (px-y)/imgsize(2) + 1;  %these two lines replace ind2sub
-    %         mx(j) = sum(x)./numel(x);
-    %         my(j) = sum(y)./numel(y);
 
             sx = sort(x);
             sy = sort(y);
@@ -2939,8 +3016,7 @@ global Tracked imgsize psettings
             end
 
         xy{i} = horzcat(mx',my');
-        lxy(i) = length(xy{i});
-        %%%%%%%%%%%%%%%%%%%%%
+        lxy(i) = size(xy{i},1);
     end
     
     traject = nan(max(lxy),2,t);
@@ -2950,6 +3026,22 @@ global Tracked imgsize psettings
     end
 end
 function trt = calculateTrackingLogical(Stacked)
+
+    %make a matrix where 1 means yes there is a segmented cell and 0 means
+    %there is no cell there (just NaN value)
+    MAR1 = Stacked{1}.Cellz.PixelIdxList;
+    trt = false(length(MAR1),length(Stacked));
+    for i=1:length(Stacked)
+        MAR = Stacked{i}.Cellz.PixelIdxList; %MAR contains the pixel indices for each nuclei
+        logx = false(1,length(MAR));
+        for j = 1:length(MAR)
+           x = MAR{j}; 
+           logx(j)  = ~isnan(x(1));
+        end
+        trt(:,i) = logx;
+    end
+end
+function trt = calculateTrackingLogicalOLD(Stacked)
 
 %make a matrix where 0 means yes there is a segmented cell and 1 means
 %there is no cell there (just NaN value)
@@ -3005,6 +3097,114 @@ ylim([-0.5 1.5])
 
 end
 function Trackedz = trackingCosmetics(Stacked)
+
+%this identifies the maximum length to identify the total number of cells
+%MARlength contains the number of cells in each frame
+    MARlength = zeros(1,length(Stacked));
+    for i=1:length(Stacked)
+    MAR = Stacked{i}.Cellz.PixelIdxList;
+    MARlength(i) = length(MAR);
+    end
+
+    %this makes a cell for each cell in all of the frames so each frame has
+    %the same total number of cells. (When track is ended NaN is added)
+    for i=1:length(Stacked)
+    MAR = Stacked{i}.Cellz.PixelIdxList;
+    PX = cell(1,max(MARlength));
+    PX(1:MARlength(i)) =  MAR;
+    PX(MARlength(i)+1:max(MARlength)) =  {NaN};
+    Stacked{i}.Cellz.PixelIdxList = PX;
+    end
+
+    
+trt = calculateTrackingLogical(Stacked);
+idxo = trt;
+%add the number of NaN remaining
+%the goal is that each track will only have one continous segment tracked
+didxo = diff(idxo,[],2);
+    for j=1:size(didxo,1) %iterate through each cell
+        endoftrack = find(didxo(j,:) == -1);
+        beginoftrack = find(didxo(j,:) == 1)+1;
+        
+        %add frame 1 if track exists at frame 1
+        if idxo(j,1)==1
+            beginoftrack = [1 beginoftrack];
+        end
+        
+        %add last frame if track exists at last frame
+        if idxo(j,size(idxo,2)) == 1
+            endoftrack = [endoftrack size(idxo,2)];
+        end
+        
+        if length(beginoftrack)==length(endoftrack)
+        else
+            error(('mis-identification of track length?'))
+        end
+        
+        tracks = zeros(length(beginoftrack),2);
+        for i =1:length(beginoftrack)
+            tracks(i,:)  = [beginoftrack(i) endoftrack(i)];
+        end
+
+            %move the post-gap cells to the end
+            for trackidx = 2:size(tracks,1) %start from the second track
+                beginoftrack = tracks(trackidx,1);
+                endoftrack = tracks(trackidx,2);
+                for frame = 1:length(Stacked)
+                    PX = Stacked{frame}.Cellz.PixelIdxList;
+                    px = cell(1,length(PX)+1);
+                    px(1:length(PX)) = PX;
+                    if frame>beginoftrack-1 && frame<endoftrack+1 % if frame is where cell is tracked
+                        px(length(PX)+1) = PX(j); %add the track to the end
+                        px(j) = {NaN}; %remove the track data from where it was previously located
+                    else %if the frame is not where the cell is located fill the track with NaN
+                        px(length(PX)+1) = {NaN};
+                    end
+                    Stacked{frame}.Cellz.PixelIdxList = px;
+                end
+                
+                %make the same changes to trt
+                Trt = false(size(idxo,1)+1,size(idxo,2));
+                Trt(1:size(idxo,1),:) = idxo; %set up new matrix
+                Trt(j,beginoftrack:endoftrack) = false; %make the track at the current position false
+                Trt(size(idxo,1)+1,beginoftrack:endoftrack) = true; %make the track true at the new ending position
+                idxo = Trt;
+            end
+    end
+
+
+
+%remove tracks that have no cells
+    index = find(idxo(:,1)==0); %find cells in the first frame that are not tracked
+    strt = sum(~idxo(index,:),2); %determine how 
+    istrt = (strt == length(1:length(Stacked)));
+    pxidxremove = index(istrt);
+    pxidx = 1:length(Stacked{1}.Cellz.PixelIdxList);
+    pxidx(pxidxremove) = [];
+    %update the fields of Stacked.Cellz to be accurate
+        for j=1:length(Stacked)
+        PX = Stacked{j}.Cellz.PixelIdxList;
+        px = PX(pxidx);
+        Stacked{j}.Cellz.PixelIdxList = px;
+        Stacked{j}.Cellz.NumObjects = length(px);
+        CC.Connectivity = Stacked{1}.Cellz.Connectivity;
+        CC.ImageSize = Stacked{1}.Cellz.ImageSize;
+        CC.NumObjects = Stacked{1}.Cellz.NumObjects;
+        CC.PixelIdxList = px;
+        stats = regionprops(CC,'Centroid');
+        centroidarray = {stats.Centroid};
+        Centroid = zeros(2,length(centroidarray));
+        for ijk = 1:length(centroidarray)
+            Centroid(:,ijk) = centroidarray{ijk};
+        end
+        CC.Centroid = Centroid;
+        Stacked{j}.Cellz = CC;
+        end
+    Trackedz=Stacked;
+
+    stophere=1;
+end
+function Trackedz = trackingCosmeticsOld(Stacked)
 
 
 %this identifies the maximum length to identify the total number of cells
@@ -3225,6 +3425,7 @@ end
 %This section involves calculating the nearest neighbor to the centroid
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 stophere=1;
+
 
 
 
@@ -3481,7 +3682,11 @@ elseif strcmp(ImageDetails.Channel,'BKGbinary')
      prim = imdilate(bwperim(~logical(backgroundimg)),strel('square',1));
      channelimg(prim) = max(max(channelimg));
 elseif strcmp(ImageDetails.Channel,'reporter_quantify')
-    channelimg;
+elseif strcmp(ImageDetails.Channel,'overlay')
+    channelimg = zeros(size(cellImg,1),size(cellImg,2),3);
+    channelimg(:,:,1) = nucleusImg;
+    channelimg(:,:,2) = cellImg;
+    channelimg(:,:,3) = DICImg;
 end
 
 backgroundimg(segmentimg) = true; 
@@ -3556,15 +3761,55 @@ global displaycomments psettings plottingON trunccmaplz timeFrames lprcntlt prcn
 
 %scripts for displaying contrasted image
     if strcmp(ImageDetails.Channel,'overlay') %when overlay display is desired
-        %nothing for overlay
-    else  %under normal circumstances
-            if ifCHANGEofCHANNELorSCENE==1
+        disprgb = zeros(size(channelimg));
+        channelimgrgb = channelimg;
+        for i = 1:size(channelimg,3)
+            if i==3
+                channelimg = channelimgrgb(:,:,i);
+                lprcntl = prctile(channelimg(:),lcontrast);
+                prcntl = prctile(channelimg(:),tcontrast);
+                scaleFactor = 150./(prcntl - lprcntl);
+                dispimg = channelimg.*scaleFactor;
+                dispimg = dispimg-(lprcntl.*scaleFactor);
+                dispimg(dispimg> 255) =254;
+                dispimg(dispimg<0) = 0;
+            else
+                channelimg = channelimgrgb(:,:,i);
                 lprcntl = prctile(channelimg(:),lcontrast);
                 prcntl = prctile(channelimg(:),tcontrast);
                 scaleFactor = 255./(prcntl - lprcntl);
-                ifCHANGEofCHANNELorSCENE=0;
+                dispimg = channelimg.*scaleFactor;
+                dispimg = dispimg-(lprcntl.*scaleFactor);
+                dispimg(dispimg> 255) =254;
+                dispimg(dispimg<0) = 0;
             end
-            lprcntl = bkgmedian.*0.90;
+            
+            if i==1
+                If = bwperim(If) | bwperim(imdilate(If,strel('disk',1)));
+                dispimg(If>0)=255;  
+                disprgb(:,:,i) = dispimg;
+            elseif i==2
+                disprgb(:,:,i) = dispimg;
+            elseif i==3
+                for j = 1:3
+                    cimg =  disprgb(:,:,j);
+                    cimg(dispimg>cimg) = dispimg(dispimg>cimg);
+                    disprgb(:,:,j) = cimg;
+                end
+            end
+            colormap(cmap);
+        end
+        
+        dispimg = disprgb;
+        
+    else  %under normal circumstances
+        if ifCHANGEofCHANNELorSCENE==1
+            lprcntl = prctile(channelimg(:),lcontrast);
+            prcntl = prctile(channelimg(:),tcontrast);
+            scaleFactor = 255./(prcntl - lprcntl);
+            ifCHANGEofCHANNELorSCENE=0;
+        end
+        lprcntl = bkgmedian.*0.90;
         scaleFactor = 255./(prcntl - lprcntl);
         dispimg = channelimg.*scaleFactor;
         dispimg = dispimg-(lprcntl.*scaleFactor);
@@ -3575,7 +3820,7 @@ global displaycomments psettings plottingON trunccmaplz timeFrames lprcntlt prcn
     end
 
 %title the displayed image
-    himg = imagesc(dispimg);
+    himg = imagesc(uint8(dispimg));
     himgax = get(himg,'Parent');
     himgax.CLim = [0 256];
     ttl = get(himgax,'Title');
@@ -3591,35 +3836,59 @@ global displaycomments psettings plottingON trunccmaplz timeFrames lprcntlt prcn
 
     if ~(t==1)
         if displaytracking==1
-            trajectForCmap = trackingTrajectories(framesThatMustBeTracked(1),ImageDetails,timeFrames);
-            trajectForPlot = trackingTrajectories(frameToLoad,ImageDetails,timeFrames);
-                himgax.NextPlot = 'add';
-                mainplotX = squeeze(trajectForPlot(:,1,:)); %28x22 means 28 cells on frame 22;
-                mainplotY = squeeze(trajectForPlot(:,2,:));
-                maincmapX = squeeze(trajectForCmap(:,1,:)); %28x22 means 28 cells on frame 22;
-                maincmapY = squeeze(trajectForCmap(:,2,:));
+            trajectForPlot = trackingTrajectories(t,ImageDetails,timeFrames);
+            himgax.NextPlot = 'add';
+            mainplotX = squeeze(trajectForPlot(:,1,:)); %28x22 means 28 cells on frame 22;
+            mainplotY = squeeze(trajectForPlot(:,2,:));
+
+            if size(mainplotY,2) == 1
+                mainplotY=mainplotY';
+                mainplotX=mainplotX';
+            end
             %only plot if the cell is currently tracked/segmented in this frame
                 idx = ~isnan(mainplotY(:,t));
-%                 idxtrunc = ~isnan(mainY(:,framesThatMustBeTracked(1)));
-                idxtrunc = ~isnan(maincmapY(:,framesThatMustBeTracked(1)));
-%                 idxtrunc = true(1,size(maincmapY,1));
-                h = plot(mainplotX(idx,1:t)',mainplotY(idx,1:t)','LineWidth',3);
+%                 h = plot(mainplotX(idx,1:t)',mainplotY(idx,1:t)','LineWidth',1,'Marker','s','MarkerSize',8);
+                h = plot(mainplotX(idx,1:t)',mainplotY(idx,1:t)','LineWidth',2);
+
             %generate colormap based on number of cells tracked
-%                 cmaplz = colormap(hsv(size(mainX,1)));
-                cmaplz = colormap(colorcube(size(maincmapX,1)./0.80));
+                cnew=[];
+%                 ccc = vertcat(colormap('summer'),colormap('autumn'),colormap('winter'),colormap('spring'));
+%                 ccc = vertcat(colormap('hsv'),colormap('hot'));
+                ccc = colormap('colorcube');
+                cccyc = 0;
+                for k = 1:size(ccc,1)
+                    cvec = ccc(k,:);
+                    if sum(cvec)>0.5 && sum(abs(diff(cvec)))>0.2 && sum(cvec)<2
+                        cccyc = cccyc+1;
+                        cnew(cccyc,:) = cvec;
+                    end
+                end
+                ccnew = zeros(size(mainplotX,1),size(cnew,2));
+                for j = 1:size(cnew,2)
+                    x = linspace(0,1,size(cnew,1));
+                    v = cnew(:,j);
+                    xq = linspace(0,1,size(mainplotX,1));
+                    ccnew(1:length(xq),j) = interp1(x,v,xq);
+                end
+                
+                cmaplz = ccnew;
                 cmapl = cmaplz;
                 idxa = find(idx==1);
-                idxtrunca = find(idxtrunc==1);
-%                 trunccmaplz = cmapl;
-                    for i=1:length(h)
-                        h(i).Color = cmapl(idxa(i),:);
-                        trunccmaplz(i,:) = cmapl(idxtrunca(i),:);
-                    end
+                trunccmaplz = cmaplz;
+                
+                plotcmap = zeros(length(idxa),3);
+                for i=1:length(h)
+%                     h(i).Color = cmapl(idxa(i),:);
+                    plotcmap(i,:) =  cmapl(idxa(i),:);
+%                     h(i).MarkerFaceColor = cmapl(idxa(i),:);
+%                     h(i).MarkerEdgeColor = cmapl(idxa(i),:)./1.2;
+                end
+                set(h, {'color'}, num2cell(plotcmap,2));
                 colormap(cmap);%return colormap so images display properly
-                    hax = h.Parent;
-                    hax.Color = 'none';
-                    himgax.CLim = [0 256];
-                    himgax.NextPlot = 'replace';
+                hax = h.Parent;
+                hax.Color = 'none';
+                himgax.CLim = [0 256];
+                himgax.NextPlot = 'replace';
         end
     end
     himgax.YTick = [];

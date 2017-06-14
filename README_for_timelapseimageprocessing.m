@@ -19,7 +19,7 @@
 %         dateArray = {'2017_04_17 plate exp1','2017_04_17 plate exp2'};
 %         dateArray = {'2017_02_04 plate exp1','2017_02_06 plate exp1','2017_02_06 plate exp2'};
 fullT = tic;
-        dateArray = {'2017_05_03 plate exp1','2017_05_03 plate exp2'};
+        dateArray = {'2017_03_08 plate exp2'};
     for BB = dateArray
 
     %get directory name from date Array
@@ -57,7 +57,7 @@ fullT = tic;
         dontsegment = BACKGROUND;
     
     %run Flatflield correction
-        BackgroundAndFlatfieldCorrectionOfTimeLapseImages(A,B,channelstoinput,BACKGROUND);
+%         BackgroundAndFlatfieldCorrectionOfTimeLapseImages(A,B,channelstoinput,BACKGROUND);
 
     %display time
         totalTime = toc(supertic); %report the timing
@@ -69,7 +69,7 @@ fullT = tic;
 
     %run autotracking algorithms
         AutoTrackCellz(B)
-        AutoExportNuclei(B)
+%         AutoExportNuclei(B)
     end
 fullTime = toc(fullT);
 disp(['total time for all is = ', num2str(fullTime./3600),' hours']);
