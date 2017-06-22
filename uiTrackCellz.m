@@ -1,20 +1,20 @@
 function uiTrackCellz
-global xAxisLimits DICimgstack dfoName cfoName trackingPath background_seg bfoName nfoName sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterate ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs adjuster cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes OGExpDate plottingON PlotAxes cmap TC expDirPath  timeFrames frameToLoad ImageDetails MainAxes SceneList displaytracking imgsize ExpDate
+global xAxisLimits DICimgstack dfoName cfoName trackingPath background_seg bfoName nfoName sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterateToggle ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs updateContrastToggle cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes expDateStr plotSettingsToggle PlotAxes cmap refineTrackingToggle expDirPath  timeFrames frameToLoad ImageDetails MainAxes SceneList displayTrackingToggle imgsize ExpDate
 
 
 %determine matfile directory
     mdir = mfilename('fullpath');
-        [~,b ] = regexp(mdir,'/');
-            if isempty(b)
-                [~,b] = regexp(mdir,'\');
-            end
+    [~,b ] = regexp(mdir,'/');
+    if isempty(b)
+        [~,b] = regexp(mdir,'\');
+    end
     parentdir = mdir(1:b(end)); %folder in which matfile exists
     exportdir = strcat(parentdir,'Export/');
 
     [~,b ] = regexp(parentdir,'/');
-        if isempty(b)
-            [~,b] = regexp(parentdir,'\');
-        end
+    if isempty(b)
+        [~,b] = regexp(parentdir,'\');
+    end
     gparentdir = parentdir(1:b(end-1)); %folder in which matfile parentdir exists
     
     
@@ -25,23 +25,22 @@ global xAxisLimits DICimgstack dfoName cfoName trackingPath background_seg bfoNa
     
 
 %set contrast and plotting details
-    adjuster=0;
+    updateContrastToggle=0;
     plottingTotalOrMedian = 'median';
     tcontrast = 99;
     lcontrast = 1;
-    runIterate =0;
-    TC = 1;
+    runIterateToggle =0;
+    refineTrackingToggle = 1;
     ImageDetails = InitializeImageDetails;
-    displaytracking = 0;
-    plottingON =0;
+    displayTrackingToggle = 0;
+    plotSettingsToggle =0;
     xAxisLimits = [0 50];
     
     
 %determine export details
     ExportNameKey = 'final';
-    if strcmp(ExportNameKey,'final')
-    else
-    disp(strcat('Export name key is "',ExportNameKey,'" not FINAL'))
+    if ~strcmp(ExportNameKey,'final')
+        disp(strcat('Export name key is "',ExportNameKey,'" not FINAL'))
     end
     ExportName = 'fricktrack';
    
@@ -61,14 +60,14 @@ global xAxisLimits DICimgstack dfoName cfoName trackingPath background_seg bfoNa
 %set colormap
     cd(parentdir)
     addpath('Colormaps')
-        cmap = colormap(gray(255));
+    cmap = colormap(gray(255));
 %         cmap = colormap(viridis(255));
-        % cmap = colormap(magma(255));
-        % cmap = colormap(inferno(255));
-        % cmap = colormap(plasma(255));
-        cmap(255,:)=[1 0 0];
-        cmapper = cmap;
-        close all
+    % cmap = colormap(magma(255));
+    % cmap = colormap(inferno(255));
+    % cmap = colormap(plasma(255));
+    cmap(255,:)=[1 0 0];
+    cmapper = cmap;
+    close all
 
         
 % user selects experiment directory to be analyzed
@@ -91,19 +90,20 @@ global xAxisLimits DICimgstack dfoName cfoName trackingPath background_seg bfoNa
 %determine date of experiment
     [a,b] = regexp(expDirPath,'201[0-9]');
     [~,d] = regexp(expDirPath,'exp[0-9]');
-    ExpDate = expDirPath(a:b+6);OGExpDate = expDirPath(a:d); [a,~] = regexp(ExpDate,'_');ExpDate(a) = '-';
+    ExpDate = expDirPath(a:b+6);expDateStr = expDirPath(a:d); 
+    [a,~] = regexp(ExpDate,'_');ExpDate(a) = '-';
 
 
 %subdirectories should include
-%> [ flat mstack ]
-%> [ mstack images ]
-%> [ segment mstack ]
-%> [ tracking files ]
+    %> [ flat mstack ]
+    %> [ mstack images ]
+    %> [ segment mstack ]
+    %> [ tracking files ]
 
 
 %load helpful metadata
     cd(exportdir)
-    FileName = OGExpDate;
+    FileName = expDateStr;
     datequery = strcat(FileName,'*DoseAndScene*');
     cd(exportdir)
     filelist = dir(datequery);
@@ -136,8 +136,8 @@ global xAxisLimits DICimgstack dfoName cfoName trackingPath background_seg bfoNa
     end
     bkinputs =channelregexpmaker(bkarray);
 
-timeVec = dosestructstruct.timeVec;
-% timeMatrix(i,:) = timeVec(idxtwo,1:finalFrame)-timeVec(1,stimulationFrame+1); %subtract by time closest to Tgfbeta addition 
+    timeVec = dosestructstruct.timeVec;
+    % timeMatrix(i,:) = timeVec(idxtwo,1:finalFrame)-timeVec(1,stimulationFrame+1); %subtract by time closest to Tgfbeta addition 
 
 
 %determine how many scenes are present
@@ -169,90 +169,95 @@ timeVec = dosestructstruct.timeVec;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%Set up  user interface
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-f = figure;
-f.Units = 'pixels';
-fpos = [1 1 1800 900];
-f.Position =[1 1 1800 900];
-fW = fpos(3);
-fH = fpos(4);
+    f = figure;
+    initialsize = [1 1 2560 1080];
+    f.Units = 'pixels';
+    figdim = [initialsize(3) initialsize(4)];
+    fpos = [1 1 figdim(1) figdim(2)];
+    f.Position = fpos;
+    fW = fpos(3);
+    fH = fpos(4);
 
 
-bW = 90;
-bH = 25;
-yP = sort(100:bH:(fH-fH./9),'descend');
-xP = ones(1,length(yP)).*(fW-fW./9);
-fontSize = 10;
+    bW = initialsize(3)./11; %button width
+    bH = initialsize(4)/36; %button height
+    yP = sort(100:bH:(fH-(fH/9)),'descend');
+    xP = ones(1,length(yP)).*(fW-(bW*2));
+    fontSize = 10;
+    
+    
+    
+    
 %instruct user how they can change to view different channels
     mmm=1;
-    chooseChannelText = uicontrol('Style','text','String','To choose channel push 1, 2, or 3',...
+    uicontrol('Style','text','String','To choose channel push 1, 2, or 3',...
               'Position',[xP(mmm),yP(mmm)+bH./1.5,bW,bH*2]);
 
 
 %set axis limits button
-
-    hplotAxisLimits = uicontrol('Style','pushbutton',...
+    uicontrol('Style','pushbutton',...
         'String','plotAxisLimits [x]',...
-        'Position',[fW-(bW*6),yP(mmm),bW,bH],...
+        'Position',[fW-(bW*5),yP(mmm),bW,bH],...
         'Callback',@plotAxis_callback);
 
 %move forward frame or previuos frame
     mmm=2;
-    hNextFrame = uicontrol('Style','pushbutton',...
+    uicontrol('Style','pushbutton',...
         'String','NextFrame [f]',...
         'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
         'Callback',@nextbutton_callback);
-    hPreviousFrame = uicontrol('Style','pushbutton',...
+    uicontrol('Style','pushbutton',...
         'String','PreviousFrame [a]',...
         'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
         'Callback',@prevbutton_callback);
-    hGoToFrame = uicontrol('Style','pushbutton',...
+    uicontrol('Style','pushbutton',...
         'String','GoToFrame',...
         'Position',[xP(mmm)-(bW./2)-bW,yP(mmm),bW,bH],...
         'Callback',@gotobutton_callback);
 
 %next row is final Frame and first Frame commands   
     mmm=3;
-    hFinalFrame = uicontrol('Style','pushbutton',...
+    uicontrol('Style','pushbutton',...
         'String','FinalFrame [g]',...
         'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
         'Callback',@finalbutton_callback);
-    hFirstFrame = uicontrol('Style','pushbutton',...
+    uicontrol('Style','pushbutton',...
         'String','FirstFrame [z]',...
         'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
         'Callback',@firstbutton_callback);
 
 %choose scene text and popup menu    
     mmm=5;
-    chooseSceneText = uicontrol('Style','text','String','Choose Scene',...
+    uicontrol('Style','text','String','Choose Scene',...
             'Position',[xP(mmm),yP(mmm),bW,bH]);
 
-    hpopup = uicontrol('Style','popupmenu',...
+    uicontrol('Style','popupmenu',...
         'String',SceneList',...
         'Position',[xP(mmm),yP(mmm)-bH./2,bW,bH./1.5],...
         'Callback',@popup_menu_Callback);
 
 %add area and remove area
     mmm=7;
-    hAddArea = uicontrol('Style','pushbutton','String','AddArea [v]',...
+    uicontrol('Style','pushbutton','String','AddArea [v]',...
         'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
         'Callback',@addareabutton_Callback);
-    hRemoveArea = uicontrol('Style', 'pushbutton', 'String', 'Remove area',...
+    uicontrol('Style', 'pushbutton', 'String', 'Remove area',...
         'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
         'Callback',@removeArea_Callback);
        
 %delete commands
     mmm=8; 
-    hDelete = uicontrol('Style','pushbutton','String','Delete',...
+    uicontrol('Style','pushbutton','String','Delete',...
         'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
         'Callback',@deletebutton_Callback);
-    hDeleteAllOnFrame = uicontrol('Style','pushbutton','String','DeleteAllOnFrame',...
+    uicontrol('Style','pushbutton','String','DeleteAllOnFrame',...
         'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
         'Callback',@deleteAllonFrame_Callback);
 
 
 %destroy commands    
     mmm=9;
-    hDestroy = uicontrol('Style','pushbutton','String','Destroy [d]',...
+    uicontrol('Style','pushbutton','String','Destroy [d]',...
         'Position',[xP(mmm),yP(mmm),bW,bH],...
         'Callback',@destroybutton_Callback);
     hDestroy = uicontrol('Style','pushbutton','String','DestroyPrevious',...
@@ -279,75 +284,67 @@ fontSize = 10;
 
 %chosen ones commands    
     mmm=11;
-    hchosenOnes = uicontrol('Style','pushbutton','String','Chosen Ones',...
+    uicontrol('Style','pushbutton','String','Chosen Ones',...
         'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
         'Callback',@chosenOnes_Callback);
-    hchosenOnes = uicontrol('Style','pushbutton','String','Chosen OnesAllOnFrame',...
+    uicontrol('Style','pushbutton','String','Chosen OnesAllOnFrame',...
         'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
         'Callback',@chosenOnesAllOnFrame_Callback);
 
 
-
-  
-
-
-
 %erode or dilate nuclei       
     mmm=12;
-    hErode = uicontrol('Style','pushbutton','String','Erode Selected Nuclei',...
+    uicontrol('Style','pushbutton','String','Erode Selected Nuclei',...
         'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
         'Callback',@erodeOnes_Callback);
-    hDilate = uicontrol('Style','pushbutton','String','Dilate Selected Nuclei',...
+    uicontrol('Style','pushbutton','String','Dilate Selected Nuclei',...
         'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
         'Callback',@dilateOnes_Callback);
 
 
 %tracking commands
-mmm=14;
-hLinkCells = uicontrol('Style','pushbutton','String','LinkCells [r]',...
-    'Position',[xP(mmm),yP(mmm),bW,bH],...
-    'Callback',@linkCells_Callback);
-mmm=15;
-hTrack = uicontrol('Style','pushbutton',...
-    'String','Run Tracking [t]',...
-    'Position',[xP(mmm)-bW./2,yP(mmm),bW*2,bH],...
-    'Callback',@trackbutton_Callback);    
-mmm=16;
-hLoadTracking = uicontrol('Style','pushbutton',...
-    'String','LoadTracking',...
-    'Position',[xP(mmm),yP(mmm),bW,bH],...
-    'Callback',@loadTrackingFile_callback);
+    mmm=14;
+    uicontrol('Style','pushbutton','String','LinkCells [r]',...
+        'Position',[xP(mmm),yP(mmm),bW,bH],...
+        'Callback',@linkCells_Callback);
+    mmm=15;
+    uicontrol('Style','pushbutton',...
+        'String','Run Tracking [t]',...
+        'Position',[xP(mmm)-bW./2,yP(mmm),bW*2,bH],...
+        'Callback',@trackbutton_Callback);    
+    mmm=16;
+    uicontrol('Style','pushbutton',...
+        'String','LoadTracking',...
+        'Position',[xP(mmm),yP(mmm),bW,bH],...
+        'Callback',@loadTrackingFile_callback);
 
-
-        
 
 %display commands
     mmm=18;
-    hContrast = uicontrol('Style','pushbutton',...
+    uicontrol('Style','pushbutton',...
         'String','contrast user',...
         'Position',[xP(mmm),yP(mmm),bW,bH],...
         'Callback',@contrast_Callback);
-    hDisplayTracking = uicontrol('Style','pushbutton',...
-        'String','DisplayTracking [m]',...
+    uicontrol('Style','pushbutton',...
+        'String','displayTrackingToggle [m]',...
         'Position',[xP(mmm),yP(mmm)-bH./2,bW,bH./1.5],...
         'Callback',@displayTrackingButton_Callback);
         
 
 %save commands
     mmm=20;
-    hSaveTrackingAs = uicontrol('Style','pushbutton',...
+    uicontrol('Style','pushbutton',...
         'String','SaveTrackingAs',...
         'Position',[xP(mmm)-bW./2,yP(mmm),bW+bW,bH],...
         'Callback',@saveTrackingFileAs_callback);
     
-
 %autotrack commands
     mmm=21;
-    hTrackSaveIterate = uicontrol('Style','pushbutton',...
+    uicontrol('Style','pushbutton',...
             'String','trackSaveIterate',...
             'Position',[xP(mmm)+bW./2,yP(mmm),bW+bW./2,bH./1.5],...
             'Callback',@trackSaveIterate_callback);
-    hTrackSaveIterate = uicontrol('Style','pushbutton',...
+    uicontrol('Style','pushbutton',...
         'String','TSIchosen',...
         'Position',[xP(mmm)-bW,yP(mmm),bW+bW./2,bH./1.5],...
         'Callback',@trackSaveIterateChosen_callback);
@@ -355,94 +352,118 @@ hLoadTracking = uicontrol('Style','pushbutton',...
 
 %plot and plot settings commands
     mmm=23;  
-    hPlot = uicontrol('Style','pushbutton',...
+    uicontrol('Style','pushbutton',...
         'String','PLOT!',...
         'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
         'Callback',@Plot_callback);
-    hPlotSpecificCell = uicontrol('Style','pushbutton',...
+    uicontrol('Style','pushbutton',...
         'String','Plot Specific Cell!',...
         'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
         'Callback',@Plot_SpecificCell_callback);
     mmm=24;
-    hPlotSettings = uicontrol('Style','pushbutton',...
+    uicontrol('Style','pushbutton',...
         'String','Plot Settings!',...
         'Position',[xP(mmm)-bW./2,yP(mmm),bW+bW./2,bH./1.5],...
         'Callback',@PlotSettings_callback);
 
 %export commands  
     mmm=26;
-    hExportCells = uicontrol('Style','pushbutton',...
+    uicontrol('Style','pushbutton',...
         'String','ExportTrackedCells',...
         'Position',[xP(mmm),yP(mmm),bW,bH*2],...
         'Callback',@exportTrackedCells);
-    hExportCells = uicontrol('Style','pushbutton',...
+	uicontrol('Style','pushbutton',...
         'String','ExportAllCells',...
         'Position',[xP(mmm)-bW,yP(mmm),bW,bH./1.5],...
         'Callback',@exportAllCells);
-    hExportCells = uicontrol('Style','pushbutton',...
+	uicontrol('Style','pushbutton',...
         'String',{'ExportSegmentedCells'},...
         'Position',[xP(mmm)+bW,yP(mmm),bW,bH*2],...
         'Callback',@exportSegmentedCells);
 
 %label and comment commands
     mmm=28;
-    hLabelCells = uicontrol('Style','pushbutton',...
+    uicontrol('Style','pushbutton',...
         'String','Label Cells',...
         'Position',[xP(mmm)-bW,yP(mmm),bW,bH./1.5],...
         'Callback',@labelCells); 
-    hcomment = uicontrol('Style','pushbutton','String','Comments',...
+	uicontrol('Style','pushbutton','String','Comments',...
         'Position',[xP(mmm),yP(mmm),bW,bH./1.5],...
         'Callback',@comment_Callback);
-    hExportLabelsCells = uicontrol('Style','pushbutton',...
+	uicontrol('Style','pushbutton',...
         'String','ExportLabels',...
         'Position',[xP(mmm)+bW,yP(mmm),bW,bH./1.5],...
-        'Callback',@ exportLabels);
+        'Callback',@exportLabels);
 
         
+%refine figure details
+    f.Visible = 'on'   ;
+    f.Units = 'normalized';
+    for i = 1:length(f.Children)
+       hhh = f.Children(i);
+       hhh.Units = 'normalized';
+    end
 
-f.Visible = 'on'   ;
-f.Units = 'normalized';
-for i = 1:length(f.Children)
-   hhh = f.Children(i);
-   hhh.Units = 'normalized';
-end
-
-MainAxes = axes;
-MainAxes.Units = 'pixels';
-MainAxes.XTick=[];
-MainAxes.YTick = [];
-imgdim = 512.*1.5;
-Position = [25 25 imgdim imgdim];
-% Position = [0.1 0.3 0.65 0.65];
-MainAxes.Position = Position;
-MainAxes.Units = 'normalized';
+    MainAxes = axes;
+    MainAxes.Units = 'pixels';
+    MainAxes.XTick=[];
+    MainAxes.YTick = [];
+    imgdim = (fW./2).*0.95;
+    Position = [10 10 imgdim imgdim];
+    % Position = [0.1 0.3 0.65 0.65];
+    MainAxes.Position = Position;
+    MainAxes.Units = 'normalized';
 
 
-PlotAxes = axes;
-% Position = [0.1 0.05 0.15 0.15];
-Position = [0.6440    0.6605    0.1500    0.1500];
-% Position = [822.7440 465.9920 191.4000 105.6000]
-PlotAxes.Position = Position;
+    PlotAxes = axes;
+    PlotAxes.Units = 'pixels';
+    pos = [imgdim+10+200   0.6605    0.1500    0.1500];
+    PlotAxes.Position = pos;
+    PlotAxes.Units = 'normalized';
+    pos = PlotAxes.Position;
+    pos(2:4) = [0.6605    0.1500    0.1500];
+    PlotAxes.Position = pos;
 
-SecondPlotAxes = axes;
-% Position = [0.3 0.05 0.15 0.15];
-Position = [0.6440    0.4605    0.1500    0.1500];
-SecondPlotAxes.Position = Position;
+    SecondPlotAxes = axes;
+    SecondPlotAxes.Units = 'pixels';
+    pos = [imgdim+10+200   0.6605    0.1500    0.1500];
+    SecondPlotAxes.Position = pos;
+    SecondPlotAxes.Units = 'normalized';
+    pos = SecondPlotAxes.Position;
+    pos(2:4) = [0.4605    0.1500    0.1500];
+    SecondPlotAxes.Position = pos;
 
-ThirdPlotAxes = axes;
-% Position = [0.5 0.05 0.15 0.15];
-Position = [0.6440    0.2605    0.1500    0.1500];
-ThirdPlotAxes.Position = Position;
+    ThirdPlotAxes = axes;
+    ThirdPlotAxes.Units = 'pixels';
+    pos = [imgdim+10+200   0.6605    0.1500    0.1500];
+    ThirdPlotAxes.Position = pos;
+    ThirdPlotAxes.Units = 'normalized';
+    pos = ThirdPlotAxes.Position;
+    pos(2:4) = [0.2605    0.1500    0.1500];
+    ThirdPlotAxes.Position = pos;
 
-% f.Position =[0.1,0.1,0.7,0.8];
-% f.Position = [0.1461 0.1370 0.4457 0.7315];
-f.Units = 'pixels';
-f.Position = fpos;
-f.Color = 'w';
-set(f,'KeyPressFcn',@keypress);
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    f.Units = 'pixels';
+    scrnsize = get(0,'screensize');
+    fpos = scrnsize;
+    fpos(1) = scrnsize(3)/2;
+    fpos(3) = scrnsize(3)/2;
+    fpos(4) = scrnsize(4).*0.75;
+    f.Position = fpos;
+    
+%constrain image axis to be square initially
+    MainAxes.Units = 'pixels';
+    pos = MainAxes.Position;
+    pos(3:4) = [min([pos(3) pos(4)]) min([pos(3) pos(4)])];
+    MainAxes.Position = pos;
+    MainAxes.Units = 'normalized'; 
+    pos = MainAxes.Position;
+    pos(2)= 0.5 - pos(4)/2;
+    MainAxes.Position = pos;
+    
+    
+    f.Color = 'w';
+    set(f,'KeyPressFcn',@keypress);
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 end
 
 
@@ -1437,11 +1458,11 @@ Tracked{t}.Cellz = CC;
       end
 end
 function linkCells_Callback(~,~)
-global ImageDetails frameToLoad Tracked TC imgsize timeFrames
+global ImageDetails frameToLoad Tracked refineTrackingToggle imgsize timeFrames
 
 %this is a quick workaround to get linking working with tracking
 %trajectories on
-% TC =1;
+% refineTrackingToggle =1;
 % setSceneAndTime
 
 button=1;
@@ -1451,7 +1472,7 @@ i=1;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 while button==1
-TC=0;
+refineTrackingToggle=0;
     [xx,yy,button] = ginput(1); %record each click
     
     if button ==1
@@ -1468,7 +1489,7 @@ TC=0;
     end
     
 end
-TC=1;
+refineTrackingToggle=1;
 
 cellx = round(cellxx);
 celly = round(cellyy);
@@ -1515,10 +1536,10 @@ end
 
 %plot your cells!
 function psettings = PlotSettings_callback(~,~)
-global exportdir OGExpDate frameToLoad
+global exportdir expDateStr frameToLoad
 cd(exportdir)
 
-queryName = strcat(OGExpDate,'*DoseAndScene*.mat');
+queryName = strcat(expDateStr,'*DoseAndScene*.mat');
 filelist = dir(queryName);
 if isempty(queryName)
 prompt = {'tgfbeta frame','last frame'};
@@ -1554,11 +1575,11 @@ Plot_callback([],[]);
 end
 
 function Plot_callback(~,~)
-global cell_seg nucleus_seg xAxisLimits trunccmaplz toggleCFPnorm SecondPlotAxes Tracked ImageDetails expDirPath trackingPath timeFrames mstackPath frameToLoad PlotAxes imgsize plottingON psettings cmaplz displaytracking cmap
+global cell_seg nucleus_seg xAxisLimits trunccmaplz toggleCFPnorm SecondPlotAxes Tracked ImageDetails expDirPath trackingPath timeFrames mstackPath frameToLoad PlotAxes imgsize plotSettingsToggle psettings cmaplz displayTrackingToggle cmap
 
-    if plottingON == 0
+    if plotSettingsToggle == 0
         psettings = PlotSettings_callback([],[]);
-        plottingON=1;
+        plotSettingsToggle=1;
     end
     framesThatMustBeTracked = psettings.framesThatMustBeTracked;
 
@@ -1578,7 +1599,7 @@ global cell_seg nucleus_seg xAxisLimits trunccmaplz toggleCFPnorm SecondPlotAxes
 
 
     smooththat=0;
-    [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
+    [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat);
 
     % plotStructUI.EGFP = Smad;
     % plotStructUI.mKate = mkate;
@@ -1611,7 +1632,7 @@ global cell_seg nucleus_seg xAxisLimits trunccmaplz toggleCFPnorm SecondPlotAxes
     idxa = find(idx==1);
     h = plot(SecondPlotAxes,toplot(idx,:)','LineWidth',2);
             
-    if displaytracking ==1
+    if displayTrackingToggle ==1
         for i=1:length(h)
             h(i).Color = cmapl(idxa(i),:);
         end
@@ -1634,7 +1655,7 @@ global cell_seg nucleus_seg xAxisLimits trunccmaplz toggleCFPnorm SecondPlotAxes
     toplot = plotMat;
     h = plot(PlotAxes,toplot(idx,:)','LineWidth',2);
     
-    if displaytracking ==1
+    if displayTrackingToggle ==1
         for i=1:length(h)
             h(i).Color = cmapl(i,:);
         end
@@ -1653,16 +1674,17 @@ global cell_seg nucleus_seg xAxisLimits trunccmaplz toggleCFPnorm SecondPlotAxes
     PlotAxes.XGrid = 'on';
     PlotAxes.YGrid = 'on';
     PlotAxes.Color = [0.95 0.95 0.95];
+    PlotAxes.Title.String = [ImageDetails.Channel ' in tracked cells'];
 
 end
 
 
 function Plot_SpecificCell_callback(~,~)
-global displaytracking trunccmaplz xAxisLimits plottingTotalOrMedian ThirdPlotAxes toggleCFPnorm Tracked ImageDetails expDirPath mstackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
+global displayTrackingToggle trunccmaplz xAxisLimits plottingTotalOrMedian ThirdPlotAxes toggleCFPnorm Tracked ImageDetails expDirPath mstackPath timeFrames frameToLoad PlotAxes imgsize plotSettingsToggle psettings
 
-if plottingON == 0
+if plotSettingsToggle == 0
 psettings = PlotSettings_callback([],[]);
-plottingON=1;
+plotSettingsToggle=1;
 end
 
 
@@ -1696,7 +1718,7 @@ makeIMGidx = find(makeIMG==1);
 
 
 smooththat=0;
-[plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
+[plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat);
 smooththat=toggleCFPnorm;
 SmadFC = plotStructUI.SmadFC;
     
@@ -1726,7 +1748,7 @@ ThirdPlotAxes.Color = [0.95 0.95 0.95];
 
     cmapl = trunccmaplz;
             
-    if displaytracking ==1
+    if displayTrackingToggle ==1
         for i=1:length(h)
             h(i).Color = cmapl(makeIMGidx(i),:);
         end 
@@ -1734,7 +1756,7 @@ ThirdPlotAxes.Color = [0.95 0.95 0.95];
 
 end
 
-function [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat)
+function [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat)
 global plottingTotalOrMedian cell_seg nucleus_seg background_seg segmentPath
 
 PXX = Tracked{1}.Cellz.PixelIdxList;
@@ -2082,11 +2104,11 @@ end
 
 %%%%comments!!!
 function xy = getxy(~,~)
-global Tracked plottingON psettings imgsize ImageDetails frameToLoad
+global Tracked plotSettingsToggle psettings imgsize ImageDetails frameToLoad
     
-    if plottingON == 0
+    if plotSettingsToggle == 0
     psettings = PlotSettings_callback([],[]);
-    plottingON=1;
+    plotSettingsToggle=1;
     end
     
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2426,11 +2448,11 @@ end
 end
 
 function comment_CallbackJ(~,~)
-global ExportNameKey ExportName OGExpDate displaycomments SceneList Tracked ImageDetails expDirPath trackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
+global ExportNameKey ExportName expDateStr displaycomments SceneList Tracked ImageDetails expDirPath trackPath timeFrames frameToLoad PlotAxes imgsize plotSettingsToggle psettings
 
-    if plottingON == 0
+    if plotSettingsToggle == 0
     psettings = PlotSettings_callback([],[]);
-    plottingON=1;
+    plotSettingsToggle=1;
     end
     
 framesThatMustBeTracked = psettings.framesThatMustBeTracked;
@@ -2474,12 +2496,12 @@ cd ..
 end
 
 function exportTrackedCells(~,~)
-global cell_seg nucleus_seg background_seg segmentPath ExportNameKey ExportName exportdir mstackPath OGExpDate SceneList ImageDetails expDirPath trackingPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
+global cell_seg nucleus_seg background_seg segmentPath ExportNameKey ExportName exportdir mstackPath expDateStr SceneList ImageDetails expDirPath trackingPath timeFrames frameToLoad PlotAxes imgsize plotSettingsToggle psettings
 exportStruct = struct();
 
-    if plottingON == 0
+    if plotSettingsToggle == 0
         psettings = PlotSettings_callback([],[]);
-        plottingON=1;
+        plotSettingsToggle=1;
     end
     
 %remove all global variables before parfor loop
@@ -2562,7 +2584,7 @@ exportStruct = struct();
         
         %save the exportStruct
             cd(exportdir)
-            filename = strcat(OGExpDate,'_tracking_export.mat'); 
+            filename = strcat(expDateStr,'_tracking_export.mat'); 
             save(filename,'exportStruct');
 end
 
@@ -2579,7 +2601,7 @@ trackedArray = Tracked;
 end
 
 function exportSegmentedCells(~,~)
-global cell_seg nucleus_seg background_seg segmentPath   exportdir mstackPath OGExpDate SceneList  trackingPath timeFrames
+global cell_seg nucleus_seg background_seg segmentPath   exportdir mstackPath expDateStr SceneList  trackingPath timeFrames
 
 
     exportNucleiStruct=struct();
@@ -2636,7 +2658,7 @@ global cell_seg nucleus_seg background_seg segmentPath   exportdir mstackPath OG
         
         %save the exportStruct
             cd(exportdir)
-            filename = strcat(OGExpDate,'_nuclei_export.mat'); 
+            filename = strcat(expDateStr,'_nuclei_export.mat'); 
             save(filename,'exportNucleiStruct');
             
 
@@ -2752,12 +2774,12 @@ exportNucleiStruct(size(cellQ_imgstack,3)).medianReporter = [];
 end
 
 function exportAllCells(~,~)
-global ExportNameKey ExportName exportdir  cell_seg nucleus_seg background_seg segmentPath OGExpDate SceneList ImageDetails expDirPath mstackPath timeFrames trackingPath frameToLoad PlotAxes imgsize plottingON psettings
+global ExportNameKey ExportName exportdir  cell_seg nucleus_seg background_seg segmentPath expDateStr SceneList ImageDetails expDirPath mstackPath timeFrames trackingPath frameToLoad PlotAxes imgsize plotSettingsToggle psettings
 exportStruct = struct();
 
-    if plottingON == 0
+    if plotSettingsToggle == 0
     psettings = PlotSettings_callback([],[]);
-    plottingON=1;
+    plotSettingsToggle=1;
     end
         
 %remove all global variables before parfor loop
@@ -2796,7 +2818,7 @@ exportStruct = struct();
                 makeIMG = true(size(makeIMG));
                 makeIMGidx = find(makeIMG==1);
                 smooththat=0;
-%                 [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,SceneDirPath,timeFrames,frameToLoad,PlotAxes,imgsize,plottingON,psettings,makeIMG,makeIMGidx,smooththat);
+%                 [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,SceneDirPath,timeFrames,frameToLoad,PlotAxes,imgsize,plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat);
                 plotStruct = plotthemfunctionToStructure(trackedArray,idScene,mPath,tFrames,makeIMG,makeIMGidx);
                 
                 fnames = fieldnames(plotStruct);
@@ -2822,18 +2844,18 @@ exportStruct = struct();
             end
     end
         cd(exportdir)
-        filename = strcat(OGExpDate,'_tracking_allcells_export.mat'); 
+        filename = strcat(expDateStr,'_tracking_allcells_export.mat'); 
         save(filename,'exportStruct');
 end
 
 function xy = labelCells(~,~)
 
 
-global ExportNameKey ExportName displaycomments  SceneList Tracked ImageDetails expDirPath trackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
+global ExportNameKey ExportName displaycomments  SceneList Tracked ImageDetails expDirPath trackPath timeFrames frameToLoad PlotAxes imgsize plotSettingsToggle psettings
 
-    if plottingON == 0
+    if plotSettingsToggle == 0
     psettings = PlotSettings_callback([],[]);
-    plottingON=1;
+    plotSettingsToggle=1;
     end
     
 t = ImageDetails.Frame;
@@ -2924,11 +2946,11 @@ end
 end
 
 function exportFrames(~,~)
-global ExportNameKey ExportName  imgsize displaytracking SceneList Tracked ImageDetails expDirPath trackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings
+global ExportNameKey ExportName  imgsize displayTrackingToggle SceneList Tracked ImageDetails expDirPath trackPath timeFrames frameToLoad PlotAxes imgsize plotSettingsToggle psettings
 
-    if plottingON == 0
+    if plotSettingsToggle == 0
     psettings = PlotSettings_callback([],[]);
-    plottingON=1;
+    plotSettingsToggle=1;
     end
     
     
@@ -2958,7 +2980,7 @@ CENTROID = struct();
         if ~isempty(trackfilename)
             load(trackfilename)
             setSceneAndTime;
-            displaytracking =1;
+            displayTrackingToggle =1;
 %             finalbutton_callback([],[]);
             for i=1:length(frameToLoad)
                 if i==1
@@ -2999,11 +3021,11 @@ CENTROID = struct();
  
 end
 function exportLabels(~,~)
-global ExportNameKey ExportName  imgsize displaytracking SceneList Tracked ImageDetails expDirPath trackPath timeFrames frameToLoad PlotAxes imgsize plottingON psettings adjuster
+global ExportNameKey ExportName  imgsize displayTrackingToggle SceneList Tracked ImageDetails expDirPath trackPath timeFrames frameToLoad PlotAxes imgsize plotSettingsToggle psettings updateContrastToggle
 
-    if plottingON == 0
+    if plotSettingsToggle == 0
     psettings = PlotSettings_callback([],[]);
-    plottingON=1;
+    plotSettingsToggle=1;
     end
     
 framesThatMustBeTracked = psettings.framesThatMustBeTracked;
@@ -3011,7 +3033,7 @@ cd(trackPath)
 cd ..
 CENTROID = struct();
     for scenenumber = 1:length(SceneList)
-        adjuster=1;
+        updateContrastToggle=1;
         cd(trackPath)
         cd ..
         sceneN = char(SceneList{scenenumber});
@@ -3029,7 +3051,7 @@ CENTROID = struct();
         if ~isempty(trackfilename)
             load(trackfilename)
             setSceneAndTime;
-            displaytracking =1;
+            displayTrackingToggle =1;
             finalbutton_callback([],[]);
        xy = labelCells([],[]);
             set(gcf,'Units','Pixels');
@@ -3059,18 +3081,18 @@ CENTROID = struct();
         
         
     end
-    adjuster=0;
+    updateContrastToggle=0;
 end
 
 
 %% tracking functions
 function displayTrackingButton_Callback(~,~)
-global    displaytracking 
+global    displayTrackingToggle 
 
-if displaytracking == 0
-displaytracking = 1;
+if displayTrackingToggle == 0
+displayTrackingToggle = 1;
 else
-displaytracking =0;
+displayTrackingToggle =0;
 end
 
 setSceneAndTime
@@ -3091,7 +3113,7 @@ end
 
 end
 function trackbutton_Callback(~,~)
-global  Tracked ImageDetails TC segmentPath nucleus_seg
+global  Tracked ImageDetails refineTrackingToggle segmentPath nucleus_seg
 pvalue = ImageDetails.Scene;
 
     trackfilelist = {'yes','no'};
@@ -3105,13 +3127,13 @@ Tracked = FrickTrackCellsYeah(segmentPath,pvalue,nucleus_seg);
             else
             end
 
-            TC =1;
+            refineTrackingToggle =1;
 setSceneAndTime;
 end
 
 function Tracked = loadTrackedStructure
-global trackingPath timeFrames TC ExportName runIterate ImageDetails
-if runIterate ==0
+global trackingPath timeFrames refineTrackingToggle ExportName runIterateToggle ImageDetails
+if runIterateToggle ==0
     cd(trackingPath)
     trackfile = dir(strcat('*',ImageDetails.Scene,'*.mat'));
     if ~isempty(trackfile)
@@ -3128,9 +3150,9 @@ if runIterate ==0
         end
 
         if isempty(Tracked{1}.Cellz)
-        TC=0;
+        refineTrackingToggle=0;
         else
-        TC =1;
+        refineTrackingToggle =1;
         end
 
     else
@@ -3143,10 +3165,10 @@ end
 
 end
 function loadTrackingFile_callback(~,~)
-global  Tracked TC
+global  Tracked refineTrackingToggle
 
 Tracked = loadTrackedStructure;
-TC =1;
+refineTrackingToggle =1;
 end
 
 %make trajectories for overlay of tracking
@@ -3615,7 +3637,7 @@ end
 
 %% Image Display functions
 function setSceneAndTime
-global TC DICimgstack dfoName  nucleus_seg backgroundimgstack bfoName nfoName background_seg cell_seg nucleusimgstack sfoName segmentimgstack  channelimgstack cfoName segmentPath frameToLoad ImageDetails  Tracked SceneList  trackPath imgfile mstackPath
+global refineTrackingToggle DICimgstack dfoName  nucleus_seg backgroundimgstack bfoName nfoName background_seg cell_seg nucleusimgstack sfoName segmentimgstack  channelimgstack cfoName segmentPath frameToLoad ImageDetails  Tracked SceneList  trackPath imgfile mstackPath
 
 %check for empty variables
     cd(mstackPath)
@@ -3813,7 +3835,7 @@ global TC DICimgstack dfoName  nucleus_seg backgroundimgstack bfoName nfoName ba
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
     if isempty(Tracked{1}.Cellz) %Tracked is empty try to load tracking or make new tracking structure
-        TC = 0;
+        refineTrackingToggle = 0;
         cd(segmentPath)
         imgfile = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*'));
         If = segmentimg;
@@ -3836,11 +3858,11 @@ global TC DICimgstack dfoName  nucleus_seg backgroundimgstack bfoName nfoName ba
 
 
 
-% disp(TC)
-if TC == 1
+% disp(refineTrackingToggle)
+if refineTrackingToggle == 1
 Tracked = trackingCosmetics(Tracked);
 end
-TC=0;
+refineTrackingToggle=0;
 
 
 if strcmp(ImageDetails.Channel,nucleus_seg)
@@ -3873,7 +3895,7 @@ end
 
 
 function contrast_Callback(~,~)
-global tcontrast lcontrast adjuster
+global tcontrast lcontrast updateContrastToggle
 prompt = {'High Contrast Percent Limit','Low Contrast Percent Limit'};
 dlg_title = 'Contrast limits from 0 to 100';
 num_lines = 1;
@@ -3882,13 +3904,13 @@ answer = inputdlg(prompt,dlg_title,num_lines,defaultans);
 tcontrast = str2double(answer{1});
 lcontrast = str2double(answer{2});
 
-adjuster =1;
+updateContrastToggle =1;
 setSceneAndTime
-adjuster =0;
+updateContrastToggle =0;
 end
 
 function contrast_Callbacknew(~,~)
-global tcontrast lcontrast adjuster
+global tcontrast lcontrast updateContrastToggle
 prompt = {'High Contrast Limit','Low Contrast Limit'};
 dlg_title = 'Contrast limits from 0 to 100';
 num_lines = 1;
@@ -3897,13 +3919,13 @@ answer = inputdlg(prompt,dlg_title,num_lines,defaultans);
 tcontrast = str2double(answer{1});
 lcontrast = str2double(answer{2});
 
-adjuster =1;
+updateContrastToggle =1;
 setSceneAndTime
-adjuster =0;
+updateContrastToggle =0;
 end
 
 function displayImageFunct(If,channelimg,bkgmedian)
-global displaycomments psettings plottingON trunccmaplz timeFrames lprcntlt prcntlt tcontrast lcontrast MainAxes displaytracking ImageDetails frameToLoad prcntlz lprcntlz prcntlk lprcntlk prcntl lprcntl D ExpDate cmap cmaplz adjuster
+global expDateStr displaycomments psettings plotSettingsToggle trunccmaplz timeFrames lprcntlt prcntlt tcontrast lcontrast MainAxes displayTrackingToggle ImageDetails frameToLoad prcntlz lprcntlz prcntlk lprcntlk prcntl lprcntl D ExpDate cmap cmaplz updateContrastToggle
 
 
 %determine current time Frame
@@ -3913,6 +3935,16 @@ global displaycomments psettings plottingON trunccmaplz timeFrames lprcntlt prcn
     axes(MainAxes);
     children = findobj(MainAxes,'Type','image');
     delete(children);
+
+%constrain image axis to be square initially
+    MainAxes.Units = 'pixels';
+    pos = MainAxes.Position;
+    pos(3:4) = [min([pos(3) pos(4)]) min([pos(3) pos(4)])];
+    MainAxes.Position = pos;
+    MainAxes.Units = 'normalized'; 
+    pos = MainAxes.Position;
+    pos(2)= 0.5 - pos(4)/2;
+    MainAxes.Position = pos;
 
 % important for updating the contrast
     %update contrast if time =1
@@ -3929,7 +3961,7 @@ global displaycomments psettings plottingON trunccmaplz timeFrames lprcntlt prcn
     end
 
 %update contrast if contrast values are updated
-    if adjuster ==1
+    if updateContrastToggle ==1
         ifCHANGEofCHANNELorSCENE = 1;
         D = ImageDetails.Channel;
     end
@@ -4000,17 +4032,19 @@ global displaycomments psettings plottingON trunccmaplz timeFrames lprcntlt prcn
     himgax.CLim = [0 256];
     ttl = get(himgax,'Title');
     t = ImageDetails.Frame;
-    set(ttl,'String',[ExpDate ' ' ImageDetails.Scene ' frame ' num2str(t) ' out of ' num2str(timeFrames)]);
+    expDateTitleStr = expDateStr;
+    [a,~] = regexp(expDateTitleStr,'_');expDateTitleStr(a) = '-';
+    set(ttl,'String',[expDateTitleStr ' ' ImageDetails.Scene ' frame ' num2str(t) ' out of ' num2str(timeFrames)]);
     set(ttl,'FontSize',12);
     
-    if plottingON == 0
+    if plotSettingsToggle == 0
         psettings = PlotSettings_callback([],[]);
-        plottingON=1;
+        plotSettingsToggle=1;
     end
     framesThatMustBeTracked = psettings.framesThatMustBeTracked;
 
     if ~(t==1)
-        if displaytracking==1
+        if displayTrackingToggle==1
             trajectForPlot = trackingTrajectories(t,ImageDetails,timeFrames);
             himgax.NextPlot = 'add';
             mainplotX = squeeze(trajectForPlot(:,1,:)); %28x22 means 28 cells on frame 22;
@@ -4070,151 +4104,7 @@ global displaycomments psettings plottingON trunccmaplz timeFrames lprcntlt prcn
     himgax.XTick = [];
 end
 
-function displayImageFunctold(If,channelimg)
-global displaycomments timeFrames lprcntlt prcntlt tcontrast lcontrast MainAxes displaytracking ImageDetails frameToLoad prcntlz lprcntlz prcntlk lprcntlk prcntl lprcntl D ExpDate cmap cmaplz adjuster
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   determine the frame to load
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-t = strcmp(frameToLoad,ImageDetails.Frame);
-t = find(t==1);
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   display the images overlayed
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-axes(MainAxes);
-children = findobj(MainAxes,'Type','image');
-delete(children);
-
-ifCHANGEofCHANNELorSCENE=0;
-if t==1
-D='new';
-ifCHANGEofCHANNELorSCENE=1;
-end
-
-if ~strcmp(ImageDetails.Channel,D)
-ifCHANGEofCHANNELorSCENE=1;
-D = ImageDetails.Channel;
-end
-
-if adjuster ==1
-    ifCHANGEofCHANNELorSCENE = 1;
-    D = ImageDetails.Channel;
-end
-
-if strcmp(ImageDetails.Channel,'overlay') %when overlay display is desired
-    imgone = channelimg(:,:,1);
-    imgtwo = channelimg(:,:,2);
-    imgthree = channelimg(:,:,3);
-    imgfour = channelimg(:,:,4);
-    channelimg = zeros(size(channelimg,1),size(channelimg,2),3);
-        if ifCHANGEofCHANNELorSCENE==1
-        
-        cimgline = reshape(imgone,[1 size(imgone,1).*size(imgone,2)]);
-        lprcntlz = prctile(cimgline,lcontrast);
-%         prcntlz = prctile(cimgline,tcontrast) - lprcntlz;
-        prcntlz = prctile(cimgline-lprcntlz,tcontrast);
-        
-        cimgline = reshape(imgtwo,[1 size(imgtwo,1).*size(imgtwo,2)]);
-        lprcntl = prctile(cimgline,lcontrast);
-%         prcntl = prctile(cimgline,tcontrast)-lprcntl;
-        prcntl = prctile(cimgline-lprcntl,tcontrast);
-        
-        cimgline = reshape(imgthree,[1 size(imgtwo,1).*size(imgtwo,2)]);
-        lprcntlk = prctile(cimgline,lcontrast);
-%         prcntlk = prctile(cimgline,tcontrast)-lprcntlk;
-        prcntlk = prctile(cimgline-lprcntlk,tcontrast);
-        
-        cimgline = reshape(imgfour,[1 size(imgtwo,1).*size(imgtwo,2)]);
-        lprcntlt = prctile(cimgline,lcontrast);
-%         prcntlk = prctile(cimgline,tcontrast)-lprcntlk;
-        prcntlt = prctile(cimgline-lprcntlt,tcontrast);
-        ifCHANGEofCHANNELorSCENE=0;
-        end
-    imgone = uint8(((imgone-lprcntlz)./prcntlz).*255);
-    imgtwo = uint8(((imgtwo-lprcntl)./prcntl).*255);
-    imgthree = uint8(((imgthree-lprcntlk)./prcntlk).*255);
-    imgfour = uint8(((imgfour-lprcntlt)./prcntlt).*255);
-    
-        imgone(imgone<imgfour) = imgfour(imgone<imgfour);
-        imgtwo(imgtwo<imgfour) = imgfour(imgtwo<imgfour);
-        imgthree(imgthree<imgfour) = imgfour(imgthree<imgfour);
-    
-    channelimg = uint8(channelimg);
-    channelimg(:,:,2) = imgone;
-    If = bwperim(If);
-    imgtwo(If) = 255;
-    channelimg(:,:,3) = imgtwo;
-    imgthree(If) = 255;
-    channelimg(:,:,1) = imgthree;
-    
-%     If = bwperim(If);
-%     channelimg(:,:,3)=uint8(If.*255);
-
-else  %under normal circumstances
-        if ifCHANGEofCHANNELorSCENE==1
-        cimgline = reshape(channelimg,[1 size(channelimg,1).*size(channelimg,2)]);
-        lprcntl = prctile(cimgline,lcontrast);
-%         prcntl = prctile(cimgline,tcontrast)-lprcntl;
-        prcntl = prctile(cimgline-lprcntl,tcontrast);
-        ifCHANGEofCHANNELorSCENE=0;
-        end
-
-    channelimg = uint8(((channelimg-lprcntl)./prcntl).*255);
-    channelimg(channelimg == 255) =254;
-    colormap(cmap);
-    If = bwperim(If) | bwperim(imdilate(If,strel('disk',1)));
-%     If = imdilate(If,strel('disk',1));
-    channelimg(If>0)=255;
-end
-
-
-himg = imagesc(channelimg);
-himgax = get(himg,'Parent');
-himgax.CLim = [0 256];
-% SLOW 
-%himgax.Title.String = strcat(ExpDate,'...',ImageDetails.Scene,'...frame ',num2str(t),' out of', num2str(length(frameToLoad)));
-%himgax.Title.FontSize = 12;
-ttl = get(himgax,'Title');
-t = ImageDetails.Frame;
-set(ttl,'String',strcat(ExpDate,'...',ImageDetails.Scene,'...frame ',num2str(t),' out of', num2str(timeFrames)));
-set(ttl,'FontSize',12);
-
-
-    if ~(t==1)
-        if displaytracking==1
-            traject = trackingTrajectories(frameToLoad,ImageDetails);
-            
-            himgax.NextPlot = 'add';
-            % rgbhax.NextPlot = 'replace';
-            mainX = squeeze(traject(:,1,:));
-            mainY = squeeze(traject(:,2,:));
-            
-            %only plot if the cell is currently tracked/segmented in this frame
-            idx = ~isnan(mainY(:,t));
-            h = plot(mainX(idx,:)',mainY(idx,:)','LineWidth',3);
-            
-            cmaplz = colormap(colorcube(size(mainX,1).*1.5));
-            cmapl = cmaplz;
-            idxa = find(idx==1);
-                for i=1:length(h)
-                    h(i).Color = cmapl(idxa(i),:);
-                end
-            colormap(cmap);
-            hax = h.Parent;
-            hax.Color = 'none';
-            himgax.CLim = [0 256];
-            himgax.NextPlot = 'replace';
-        end
-    end
-himgax.YTick = [];
-himgax.XTick = [];
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-% saveChannelFiveImages
-end
 
 %% saving functions
 function saveTrackingFileAs_callback(~,~)
@@ -4227,9 +4117,9 @@ save(strcat(filename,'_',ImageDetails.Scene,'_',ExportName,'.mat'),'Tracked')
 end
 
 function trackSaveIterate_callback(~,~)
-global runIterate SceneList ImageDetails TC expDirPath frameToLoad Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg
+global runIterateToggle SceneList ImageDetails refineTrackingToggle expDirPath frameToLoad Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg
 
-runIterate =1;
+runIterateToggle =1;
     for i=1:length(SceneList)
         %iteratively set scenes 
             Trackedz = makeTrackingFile(timeFrames);
@@ -4248,7 +4138,7 @@ runIterate =1;
             
             Tracked = FrickTrackCellsYeah(segmentPath,pvalue,nucleus_seg);
 %             Tracked = FrickTrackCellsYeah(expDirPath,frameToLoad,pvalue,[]);
-            TC =1;
+            refineTrackingToggle =1;
             setSceneAndTime;
 
 
@@ -4260,15 +4150,15 @@ runIterate =1;
 %             save(strcat(filename,ExportName,'.mat'),'Tracked')
             
     end
-runIterate =0;
+runIterateToggle =0;
 
 end
 
 
 function trackSaveIterateChosen_callback(~,~)
-global plottingON psettings runIterate SceneList ImageDetails TC expDirPath frameToLoad Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg
+global plotSettingsToggle psettings runIterateToggle SceneList ImageDetails refineTrackingToggle expDirPath frameToLoad Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg
 
-runIterate =1;
+runIterateToggle =1;
     for i=1:length(SceneList)
         %iteratively set scenes 
             Trackedz = makeTrackingFile(timeFrames);
@@ -4287,12 +4177,12 @@ runIterate =1;
             
             Tracked = FrickTrackCellsYeah(segmentPath,pvalue,nucleus_seg);
 %             Tracked = FrickTrackCellsYeah(expDirPath,frameToLoad,pvalue,[]);
-            TC =1;
+            refineTrackingToggle =1;
             setSceneAndTime;
             
-    if plottingON == 0
+    if plotSettingsToggle == 0
         psettings = PlotSettings_callback([],[]);
-        plottingON=1;
+        plotSettingsToggle=1;
     end
     
         %run chosen at two specific frames
@@ -4312,7 +4202,7 @@ runIterate =1;
 %             save(strcat(filename,ExportName,'.mat'),'Tracked')
             
     end
-runIterate =0;
+runIterateToggle =0;
 
 end
 
