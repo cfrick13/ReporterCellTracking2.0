@@ -452,7 +452,7 @@ set(f,'KeyPressFcn',@keypress);
 % trackSaveIterateChosen_callback([],[])
 % exportTrackedCells([],[])
 close(f)
-exportNuclei([],[])
+exportSegmentedCells([],[])
 
 end
 
@@ -474,7 +474,7 @@ updatePMseg
 updateImage
 end
 
-function exportNuclei(~,~)
+function exportSegmentedCells(~,~)
 global cell_seg nucleus_seg background_seg segmentPath   exportdir mstackPath OGExpDate SceneList  trackingPath timeFrames
 
 
@@ -628,6 +628,14 @@ exportNucleiStruct(size(cellQ_imgstack,3)).medianReporter = [];
             cellIntensities{j} = cellQ_img(pxidx);
         end
 
+        %store centroid values
+        stats = regionprops(CC,'Centroid');
+        centroidarray = {stats.Centroid};
+        Centroid = zeros(2,length(centroidarray));
+        for ijk = 1:length(centroidarray)
+            Centroid(:,ijk) = centroidarray{ijk};
+        end
+        
         exportNucleiStruct(i).medianReporter = cellfun(@nanmedian, nucIntensities,'UniformOutput',1);
         exportNucleiStruct(i).medianSmad = cellfun(@nanmedian, cellIntensities,'UniformOutput',1);
         exportNucleiStruct(i).meanReporter = cellfun(@nanmean, nucIntensities,'UniformOutput',1);
@@ -636,7 +644,7 @@ exportNucleiStruct(size(cellQ_imgstack,3)).medianReporter = [];
         exportNucleiStruct(i).totalSmad = cellfun(@nansum, cellIntensities,'UniformOutput',1);
         exportNucleiStruct(i).areaReporter = cellfun(@length, nucIntensities,'UniformOutput',1);
         exportNucleiStruct(i).areaSmad = cellfun(@length, cellIntensities,'UniformOutput',1);
-         
+        exportNucleiStruct(i).Centroid = Centroid;
     end
 end
 
