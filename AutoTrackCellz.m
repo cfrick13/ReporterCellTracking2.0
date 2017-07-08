@@ -1,4 +1,4 @@
-function AutoTrackCellz
+function AutoTrackCellz(B)
 global DivisionStruct xAxisLimits DICimgstack dfoName cfoName trackingPath background_seg bfoName nfoName sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterateToggle ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs updateContrastToggle cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes expDateStr plotSettingsToggle PlotAxes cmap refineTrackingToggle expDirPath  timeFrames frameToLoad ImageDetails MainAxes SceneList displayTrackingToggle imgsize ExpDate
 
     DivisionStruct = struct();
@@ -72,7 +72,11 @@ global DivisionStruct xAxisLimits DICimgstack dfoName cfoName trackingPath backg
         
 % user selects experiment directory to be analyzed
     cd(gparentdir)
-    expDirPath = uigetdir;
+%     expDirPath = uigetdir;
+    expdir = strcat(gparentdir,'/',B);
+    cd(expdir)
+    expDirPath = pwd;
+    
 
     cd(expDirPath)
     experimentdir = expDirPath;
@@ -3389,7 +3393,7 @@ end
 
 function [distProb,idx] = probSpitter(input,inputPrev,knnnum)
 %make a matrix that tells you the probability a value in one vector is the same as another
-    if size(input,1)<size(input,2)
+    if size(input,1)<size(input,2) && ~(size(input,1)==1)
         input=input';
         inputPrev=inputPrev';
     end
@@ -3398,6 +3402,12 @@ function [distProb,idx] = probSpitter(input,inputPrev,knnnum)
 %     distvec_norm = (distvec - min(distvec(:)))./(max(distvec(:)) - min(distvec(:))); %set to be from 0 to 1
 %     distProbValues = 1 - distvec_norm;
     
+if isempty(inputPrev) 
+    stophere=1;
+end
+if isempty(input)
+    stophere=1;
+end
     [idx,eps] = knnsearch(input,inputPrev,'K',knnnum); 
     distvec = eps;
     distProbValues = nan(size(eps));
@@ -3558,6 +3568,9 @@ Frame = struct();
             if ~isempty(centroids)
                %nearest neighbor distances to determine probability that
                %two cells are the same
+               if strcmp(pvalue,'s03')
+                   stopher=1;
+               end
                [distProb,distProbidx] = probSpitter(centroids,centroidsPrev,knnnum);
                newProb = zeros(size(distProb));
                for ijk = 1:length(centroidsPrev)
