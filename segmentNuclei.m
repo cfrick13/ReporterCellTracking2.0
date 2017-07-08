@@ -33,34 +33,51 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
 
             %determine the threshold by looking for minima in log-scaled histogram
             %of pixels from rawMinusLPScaled
-            rawMinusLPScaledvec = reshape(rawMinusLPScaled,size(rawMinusLPScaled,1)^2,1);
-            high_in = prctile(rawMinusLPScaledvec,99);
-            rawMinusLPScaledContrasted = imadjust(rawMinusLPScaled./high_in,[0.1; 0.99],[0; 1]);
-            vecOG = single(reshape(rawMinusLPScaledContrasted,size(rawMinusLPScaledContrasted,1)^2,1));
-            logvecpre = vecOG; logvecpre(logvecpre==0)=[];
+
+            
+
+            %rescale image
+                lcontrast = 0;
+                tcontrast = 100;
+                lprcntl = prctile(rawMinusLPScaled(:),lcontrast);
+                prcntl = prctile(rawMinusLPScaled(:),tcontrast);
+                scaleFactor = 1./(prcntl - lprcntl);
+                rawMinusLPScaledContrasted = rawMinusLPScaled.*scaleFactor;
+                rawMinusLPScaledContrasted = rawMinusLPScaledContrasted-(lprcntl.*scaleFactor);
+
+            
+            
+            vecOG = rawMinusLPScaledContrasted(:);
+            logvecpre = vecOG; logvecpre(~(logvecpre>0))=[];
             logvec = log10(logvecpre);
             vec = logvec;
-            lowperc = prctile(vec,1);
-            highperc = prctile(vec,100);
-            [numbers,bincenters] = hist(vec,lowperc:(highperc-lowperc)/1000:highperc);
-            numbersone = medfilt1(numbers, 10); %smooths curve
-            numberstwo = medfilt1(numbersone, 100); %smooths curve
-            fraction = numberstwo./sum(numberstwo);
-            mf = max(fraction);
-                %%%%%%%%%%%%%%%%%%% Important parameters for finding minima of
-                %%%%%%%%%%%%%%%%%%% histogram
-                left=0.5*mf;
-                slopedown=0.4*mf;
-                %%%%%%%%%%%%%%%%%%%%
-            leftedge = find(fraction > left,1,'first');
-            insideslopedown = find(fraction(leftedge:end) < slopedown,1,'first');
-            threshLocation = bincenters(leftedge+insideslopedown);
+           
+
+%             [sdf1,frac1,bc1,threshLocation1] = method1(vec);
+%             [sdf2,frac2,bc2,threshLocation2] = method2(vec);
+%             [sdf3,frac3,bc3,threshLocation3] = method3(vec);
+            [~,~,~,threshLocation] = method3(vec);
+            
+%             frameNum=2;
+%             if frames == frameNum
+%             figure(99)
+%             subplot(1,3,1);plot(bc1,frac1);hold on;plot(bc1(2:end),sdf1);stem(threshLocation1,1);
+%             title(num2str(frameNum));
+%             subplot(1,3,2);plot(bc2,frac2);hold on;plot(bc2(2:end),sdf2);stem(threshLocation2,1);
+%             subplot(1,3,3);plot(bc3,frac3);hold on;plot(bc3(2:end),sdf3);stem(threshLocation3,1);
+%             end
+
+            
+            
+
+
             subtractionThreshold = threshLocation;
 
             if size(subtractionThreshold,1)==size(subtractionThreshold,2)
                 else
                  subtractionThreshold = mean(threshLocation);
             end
+            
 
             subtractionThresholdScaled = (10.^subtractionThreshold).*threshFactor;
             subtracted = single(rawMinusLPScaledContrasted)-subtractionThresholdScaled;
@@ -72,6 +89,7 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             Ihcf = imfill(Ihc,'holes');
             Im=Ihcf;
 %             Im=Ih;
+
 
             %%%% this is the ultimate addition for watershed segmentation!!!
             see = strel('disk',1);
@@ -124,6 +142,8 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             %remove incorrect nuclei
             CellObjects = bwconncomp(If,8);
 
+            nm = CellObjects.NumObjects;
+
             %determine nuclei that meet roundness criteria
             stats = regionprops(CellObjects,'Area','Perimeter');
             areavec = horzcat(stats.Area);
@@ -141,7 +161,7 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             obRad = (nucDiameter./2);
             objectArea = pi.*(obRad.^2);
 
-            pxlogS = pxl>(objectArea./4); %only keep if area is bigger than small limit
+            pxlogS = pxl>(objectArea./8); %only keep if area is bigger than small limit
             pxlogL = pxl<(objectArea.*8); %only keep if area is smaller than large limit
 
             %apply logicals that remove small, large, and non-round segmented objects
@@ -151,21 +171,24 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             
 
             %%%%%%%%%remove segmentation if it overlaps with the border of theimage%%%%%%%%%%%%%%%%%%%
-            testImage = false(size(If));
-            dim = size(If);
-            bW = 1; %bW = borderWidth
-            testImage(1:(1+bW),1:dim(2)) =1; testImage((dim(1)-bW):dim(1),1:dim(2)) =1; testImage(1:dim(1),(1:1+bW)) =1; testImage(1:dim(1),(dim(2)-bW):dim(2)) =1;
-            borderpixels = find(testImage == 1);
-            for pidx = 1:length(PX)
-                px = PX{pidx};
-                testlog = ismember(px,borderpixels);
-                if sum(testlog)>(nucDiameter/2)
-                    If(px) = 0;
-                end
-
-            end
+%             testImage = false(size(If));
+%             dim = size(If);
+%             bW = 1; %bW = borderWidth
+%             testImage(1:(1+bW),1:dim(2)) =1; testImage((dim(1)-bW):dim(1),1:dim(2)) =1; testImage(1:dim(1),(1:1+bW)) =1; testImage(1:dim(1),(dim(2)-bW):dim(2)) =1;
+%             borderpixels = find(testImage == 1);
+%             for pidx = 1:length(PX)
+%                 px = PX{pidx};
+%                 testlog = ismember(px,borderpixels);
+%                 if sum(testlog)>(nucDiameter/2)
+%                     If(px) = 0;
+%                 end
+% 
+%             end
 
             
+            if frames ==9
+                eo=1;
+            end
             if frames==1
                 testOut.img = img;
                 testOut.imgRawDenoised = imgRawDenoised;
@@ -201,4 +224,148 @@ if ~isempty(varargin)
 else
     bw=gFrame;
 end
+end
+
+
+function [sdfdone,fraction,bincenters,threshLocation] = method1(vec)
+    lowperc = prctile(vec,1);
+    highperc = prctile(vec,100);
+    [numbers,bincenters] = hist(vec,lowperc:(highperc-lowperc)/500:highperc);
+%     numbersone = movmean(numbers,10,2,'Endpoints','shrink');
+%     numberstwo = movmean(numbersone,100,2,'Endpoints','shrink');
+%     numbersone = movmean(numbers,10,2);
+%     numbersone = smooth(numbers,'rlowess');
+    numbersone = movmean(numbers,5,2,'Endpoints','fill')';
+    movmeanmagnitude= 50;
+    numberstwo = movmean(numbersone,movmeanmagnitude,1,'Endpoints','shrink');
+    fraction = numberstwo./max(numberstwo);
+    diffFraction = diff(fraction,1,1);
+    diffFraction = diffFraction./max(diffFraction);
+%     sdf = smooth(diffFraction,'lowess');
+    sdf = movmean(diffFraction,5,1,'EndPoints','fill');
+%     sdf = movmean(diffFraction,5,1);
+%     sdfdone = movmean(sdf,50,1);
+    sdfdone = movmean(sdf,5,1,'Endpoints','fill');
+    sdfdone(1:movmeanmagnitude)=NaN; sdfdone(end-movmeanmagnitude:end) =NaN;
+    
+    leftedge = find(sdfdone == max(sdfdone),1,'first');
+    insideslopedown = find(sdfdone(leftedge:end) == min(sdfdone(leftedge:end)),1,'first');
+    slopeup = find(sdfdone(leftedge+insideslopedown-1:end) == max(sdfdone(leftedge+insideslopedown-1:end)),1,'first');
+    
+    threshLocation=[];
+    %conditionals for determining threshLocation
+    if isempty(leftedge)
+        stp=1;
+    elseif leftedge==1
+        whatup=1;
+    elseif isempty(insideslopedown) && (sum(logvec==0)>100)
+        threshLocation = bincenters(leftedge);
+    elseif isempty(slopeup) || slopeup==1
+         threshLocation = bincenters(leftedge);
+         threshFactor = 0.5;
+    elseif sdfdone(leftedge)<0.3
+        threshLocation = bincenters(leftedge);
+        threshFactor = 0.5;
+    elseif sdfdone(leftedge+insideslopedown-1)>0
+        threshLocation = bincenters(leftedge);
+    else
+        threshLocation = bincenters(leftedge+insideslopedown-1);
+    end
+    
+    
+end
+
+function [sdfdone,fraction,bincenters,threshLocation] = method2(vec)
+    lowperc = prctile(vec,1);
+    highperc = prctile(vec,100);
+    [numbers,bincenters] = hist(vec,lowperc:(highperc-lowperc)/250:highperc);
+%     numbersone = movmean(numbers,10,2,'Endpoints','shrink');
+%     numberstwo = movmean(numbersone,100,2,'Endpoints','shrink');
+%     numbersone = movmean(numbers,10,2);
+%     numbersone = smooth(numbers,'rlowess');
+    numbersone = movmean(numbers,5,2,'Endpoints','fill')';
+    movmeanmagnitude= 25;
+    numberstwo = movmean(numbersone,movmeanmagnitude,1,'Endpoints','shrink');
+    fraction = numberstwo./max(numberstwo);
+    diffFraction = diff(fraction,1,1);
+    diffFraction = diffFraction./max(diffFraction);
+%     sdf = smooth(diffFraction,'lowess');
+    sdf = movmean(diffFraction,5,1,'EndPoints','fill');
+%     sdf = movmean(diffFraction,5,1);
+%     sdfdone = movmean(sdf,50,1);
+    sdfdone = movmean(sdf,5,1,'Endpoints','fill');
+    sdfdone(1:movmeanmagnitude)=NaN; sdfdone(end-movmeanmagnitude:end) =NaN;
+    
+    leftedge = find(sdfdone == max(sdfdone),1,'first');
+    insideslopedown = find(sdfdone(leftedge:end) == min(sdfdone(leftedge:end)),1,'first');
+    slopeup = find(sdfdone(leftedge+insideslopedown-1:end) == max(sdfdone(leftedge+insideslopedown-1:end)),1,'first');
+    
+    threshLocation=[];
+    %conditionals for determining threshLocation
+    if isempty(leftedge)
+        stp=1;
+    elseif leftedge==1
+        whatup=1;
+    elseif isempty(insideslopedown) && (sum(logvec==0)>100)
+        threshLocation = bincenters(leftedge);
+    elseif isempty(slopeup) || slopeup==1
+         threshLocation = bincenters(leftedge);
+         threshFactor = 0.5;
+    elseif sdfdone(leftedge)<0.3
+        threshLocation = bincenters(leftedge);
+        threshFactor = 0.5;
+    elseif sdfdone(leftedge+insideslopedown-1)>0
+        threshLocation = bincenters(leftedge);
+    else
+        threshLocation = bincenters(leftedge+insideslopedown-1);
+    end
+    
+
+end
+
+function [sdfdone,fraction,bincenters,threshLocation]= method3(vec)
+    lowperc = prctile(vec,0.01);
+    highperc = prctile(vec,100);
+    [numbers,bincenters] = hist(vec,lowperc:(highperc-lowperc)/500:highperc);
+%     numbersone = movmean(numbers,10,2,'Endpoints','shrink');
+%     numberstwo = movmean(numbersone,100,2,'Endpoints','shrink');
+%     numbersone = movmean(numbers,10,2);
+%     numbersone = smooth(numbers,'rlowess');
+    numbersone = movmean(numbers,5,2,'Endpoints','fill')';
+    movmeanmagnitude= 50;
+    numberstwo = movmean(numbersone,movmeanmagnitude,1,'Endpoints','fill');
+    fraction = numberstwo./max(numberstwo);
+    diffFraction = diff(fraction,1,1);
+    diffFraction = diffFraction./max(diffFraction);
+%     sdf = smooth(diffFraction,'lowess');
+    sdf = movmean(diffFraction,5,1,'EndPoints','fill');
+%     sdf = movmean(diffFraction,5,1);
+%     sdfdone = movmean(sdf,50,1);
+    sdfdone = movmean(sdf,5,1,'Endpoints','fill');
+%     sdfdone(1:movmeanmagnitude)=NaN; sdfdone(end-movmeanmagnitude:end) =NaN;
+    
+    leftedge = find(sdfdone == max(sdfdone),1,'first');
+    insideslopedown = find(sdfdone(leftedge:end) == min(sdfdone(leftedge:end)),1,'first');
+    slopeup = find(sdfdone(leftedge+insideslopedown-1:end) == max(sdfdone(leftedge+insideslopedown-1:end)),1,'first');
+    
+    threshLocation=[];
+    %conditionals for determining threshLocation
+    if isempty(leftedge)
+        stp=1;
+    elseif leftedge==1
+        whatup=1;
+    elseif isempty(insideslopedown) && (sum(logvec==0)>100)
+        threshLocation = bincenters(leftedge);
+    elseif isempty(slopeup) || slopeup==1
+         threshLocation = bincenters(leftedge);
+         threshFactor = 0.5;
+    elseif sdfdone(leftedge)<0.3
+        threshLocation = bincenters(leftedge);
+        threshFactor = 0.5;
+    elseif sdfdone(leftedge+insideslopedown-1)>0
+        threshLocation = bincenters(leftedge);
+    else
+        threshLocation = bincenters(leftedge+insideslopedown-1);
+    end
+    
 end
