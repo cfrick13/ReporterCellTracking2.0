@@ -358,11 +358,9 @@ end
 
 %define parameter structure and default parameter values
 pStruct = struct();
-parameterDefaults.background = [100 1 15 0.5];
-parameterDefaults.nucleus = [20 1 2 0.5];
-parameterDefaults.nucleus = [40 1 2 0.5];
-parameterDefaults.nucleus = [20 1 2 0.5];
-parameterDefaults.cell = [20 1 2 0.5];
+parameterDefaults.background = [30 1 2 0.5];
+parameterDefaults.nucleus = [30 1 2 0.5];
+parameterDefaults.cell = [40 1 2 0.5];
 parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','metthresh'};
 for p = 1:length(parameterStrings)
     pString = char(parameterStrings{p});
@@ -1107,6 +1105,7 @@ global pStruct timeFrames mstackPath segInstructList channelList segmentList TC 
 % define channel spacing
 
     channelspacing = round(linspace(1,timeFrames,9));
+    channelspacing(2) =20;
     if length(channelspacing)>timeFrames
         channelspacing = 1:timeFrames;
     end

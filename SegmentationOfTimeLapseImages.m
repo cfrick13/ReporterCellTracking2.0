@@ -53,11 +53,9 @@ background_seg = segInstruct.background;
 
 %define parameter structure and default parameter values
     pStruct = struct();
-    parameterDefaults.background = [100 1 15 0.5];
-    parameterDefaults.nucleus = [20 1 2 0.5];
-    parameterDefaults.nucleus = [40 1 2 0.5];
-    parameterDefaults.nucleus = [20 1 2 0.5];
-    parameterDefaults.cell = [20 1 2 0.5];
+    parameterDefaults.background = [30 1 2 0.5];
+    parameterDefaults.nucleus = [30 1 2 0.5];
+    parameterDefaults.cell = [40 1 2 0.5];
     parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','metthresh'};
     for p = 1:length(parameterStrings)
         pString = char(parameterStrings{p});
@@ -88,6 +86,7 @@ SceneList = SceneList(bkgscenelog);
 
     
         for i=1:length(SceneList)
+%         for i=9
             tic
             sceneStr = SceneList{i};
             sceneName = char(sceneStr);
@@ -103,6 +102,14 @@ SceneList = SceneList(bkgscenelog);
             fileObject = matfile(nucleusFileName);
             FinalImage = fileObject.flatstack;
             disp(sceneName)
+            
+            %display details
+            if i ==1
+                dim = size(FinalImage(:,:,1));
+                memoryrequired = dim(1)*dim(2)*2;%background stack + imagestack
+                disp(strcat('memory required for one image =',num2str(round(memoryrequired./(1e6),2,'decimals')),'MegaBytes'))
+            end
+            
             [~,~] = segmentationNucleus(FinalImage,segmentPath,'nucleus',nucleusFileName,pStruct);
                 
 
@@ -185,8 +192,8 @@ function [IfFinal,testOut] = segmentationNucleus(FinalImage,segmentPath,nucleus_
     
     %determine number of parallel cores to employ based on memory requirements
         dim = size(img);
-        memoryrequired = size(dim(1)*dim(2)*2);%background stack + imagestack
-            disp(strcat('memory required for one image =',num2str(round(memoryrequired./(1e6),1,'decimals')),'MegaBytes'))
+        memoryrequired = dim(1)*dim(2)*2;%background stack + imagestack
+%             disp(strcat('memory required for one image =',num2str(round(memoryrequired./(1e6),2,'decimals')),'MegaBytes'))
         detWorkers = 6./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
         nWorkers = floor(detWorkers);
         possibleWorkers = feature('numcores');
@@ -209,8 +216,9 @@ function [IfFinal,testOut] = segmentationNucleus(FinalImage,segmentPath,nucleus_
             end
         end
     
-    % start segmentation
+%     start segmentation
     parfor frames = 1:size(FinalImage,3)
+%     for frames = 1:size(FinalImage,3)
         img = FinalImage(:,:,frames); 
         [If,~] = segmentNuclei(img,nucleus_seg,pStruct,frames);
         IfFinal(:,:,frames)=If;
@@ -218,7 +226,6 @@ function [IfFinal,testOut] = segmentationNucleus(FinalImage,segmentPath,nucleus_
                 
     nfilename = [nucleusFileName(1:end-4) '_' nucleus_seg '.mat'];
     savethatimagestack(IfFinal,nfilename,segmentPath)
-    stophere=1;
 end
 
 
@@ -228,8 +235,8 @@ function [IfFinal,testOut] = segmentationImageBackground(FinalImage,segmentPath,
     
     %determine number of parallel cores to employ based on memory requirements
         dim = size(img);
-        memoryrequired = size(dim(1)*dim(2)*2);%background stack + imagestack
-            disp(strcat('memory required for one image =',num2str(round(memoryrequired./(1e6),1,'decimals')),'MegaBytes'))
+        memoryrequired = dim(1)*dim(2)*2;%background stack + imagestack
+%             disp(strcat('memory required for one image =',num2str(round(memoryrequired./(1e6),1,'decimals')),'MegaBytes'))
         detWorkers = 6./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
         nWorkers = floor(detWorkers);
         possibleWorkers = feature('numcores');
