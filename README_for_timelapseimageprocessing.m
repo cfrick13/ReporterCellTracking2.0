@@ -1,9 +1,4 @@
-
-%*files must be exported as TIFFs from Zen using channel names
-%*the export folder must have the same name as the parent folder containing the zen experiment files
-% such as parent folder = 'D:/kkim/2016_10_25 bcat cells' then export folder should be 'D:/kkim/2016_10_25 bcat cells/2016_10_25 bcat cells'
-
-    %set parent directory
+%set parent directory
         mdir = mfilename('fullpath');
             [~,b] = regexp(mdir,'Tracking\w*/');
                 if isempty(b)
@@ -14,12 +9,27 @@
     cd(parentdir)
 
 
-%     dateArray = {'2017_02_08 plate exp1','2017_02_08 plate exp2'};
-%     dateArray = {'2017_02_08 plate exp1','2017_02_08 plate exp2','2017_04_12 plate exp1','2017_04_12 plate exp2','2017_04_12 plate exp3','2017_04_12 plate exp4','2017_04_12 plate exp5','2017_04_12 plate exp6','2017_04_12 plate exp7','2017_04_12 plate exp8','2017_04_14 plate exp2','2017_04_17 plate exp1','2017_04_17 plate exp2'};
-%         dateArray = {'2017_04_17 plate exp1','2017_04_17 plate exp2'};
-%         dateArray = {'2017_02_04 plate exp1','2017_02_06 plate exp1','2017_02_06 plate exp2'};
+
 fullT = tic;
-        dateArray = {'2017_03_08 plate exp2'};
+
+%         dateArray = {'2017_06_22 plate exp1','2017_06_24 plate exp1','2017_06_24 plate exp2',...
+%             '2017_06_24 plate exp3','2017_06_24 plate exp4','2017_06_26 plate exp2','2017_07_01 plate exp1',...
+%             '2017_07_01 plate exp2','2017_07_03 plate exp1','2017_07_03 plate exp2','2017_07_05 plate exp1'};
+
+        dateArray = {'2017_04_14 plate exp2','2017_04_12 plate exp8','2017_04_12 plate exp5',...
+            '2017_04_29 plate exp1','2017_05_01 plate exp1','2017_05_03 plate exp1','2017_05_03 plate exp2',...
+            '2017_06_22 plate exp1','2017_06_24 plate exp1','2017_06_24 plate exp2',...
+            '2017_06_24 plate exp3','2017_06_24 plate exp4','2017_06_26 plate exp2','2017_07_01 plate exp1',...
+            '2017_07_01 plate exp2','2017_07_03 plate exp1','2017_07_03 plate exp2','2017_07_05 plate exp1'};
+        
+        dateArray = {'2017_07_01 plate exp1',...
+            '2017_07_01 plate exp2','2017_07_03 plate exp1','2017_07_03 plate exp2','2017_07_05 plate exp1'};
+        
+%         dateArray = {'2017_04_12 plate exp5','2017_04_29 plate exp1','2017_05_01 plate exp1','2017_05_03 plate exp1','2017_05_03 plate exp2'};
+%         dateArray = {'2017_05_01 plate exp1','2017_05_03 plate exp1','2017_05_03 plate exp2'};
+        
+%         dateArray = {'2017_02_08 plate exp1','2017_02_08 plate exp2'};
+        dateArray = {'2017_06_26 plate exp2'};
     for BB = dateArray
 
     %get directory name from date Array
@@ -30,15 +40,15 @@ fullT = tic;
     %time the whole process
         supertic = tic; 
 
-    %extract images from .czi and save image stacks as .mat files
-        ExtractMetadataAndImages(B);  
+    %% extract images from .czi and save image stacks as .mat files
+%         ExtractMetadataAndImages(B);  
 
-    %extract data in excel file
+    %% extract data in excel file
         cd(parentdir)
         exName = strcat(B,'-metaData.mat');
-        makeDoseStructFromXLS(exName);
+%         makeDoseStructFromXLS(exName);
 
-    %load excel-extracted data
+    %% load excel-extracted data
         datequery = strcat(FileName,'*DoseAndScene*');
         cd(exportdir)
         filelist = dir(datequery);
@@ -56,24 +66,33 @@ fullT = tic;
         BACKGROUND = bkg{1};
         dontsegment = BACKGROUND;
     
-    %run Flatflield correction
+        
+        
+    %% run Flatflield correction
 %         BackgroundAndFlatfieldCorrectionOfTimeLapseImages(A,B,channelstoinput,BACKGROUND);
 
     %display time
         totalTime = toc(supertic); %report the timing
-        disp(strcat('total time from extract to flat is=', num2str(totalTime./60),' minutes'));
+%         disp(strcat('total time from extract to flat is=', num2str(totalTime./60),' minutes'));
 
-    %run segmentation
+
+    
+    %% run segmentation
 %         uiSegmentTimeLapseImages
-        SegmentationOfTimeLapseImages(A,B,dontsegment,segInstruct);
+%         SegmentationOfTimeLapseImages(A,B,dontsegment,segInstruct);
+%         donemail('cfrick@caltech.edu','segmentation complete','segmentation complete')
 
-    %run autotracking algorithms
-        AutoTrackCellz(B)
+    %% run autotracking algorithms
 %         AutoExportNuclei(B)
+
+        uiTrackCellz(B,'AutoExportNuclei')
+        AutoTrackCellz(B)
+        uiTrackCellz(B,'AutoTrackCellz')
+        
     end
 fullTime = toc(fullT);
 disp(['total time for all is = ', num2str(fullTime./3600),' hours']);
 
-
+donemail('cfrick@caltech.edu','export complete','export complete')
 
 

@@ -1,5 +1,5 @@
-function uiTrackCellz
-global DivisionStruct xAxisLimits DICimgstack dfoName cfoName trackingPath background_seg bfoName nfoName sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterateToggle ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs updateContrastToggle cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes expDateStr plotSettingsToggle PlotAxes cmap refineTrackingToggle expDirPath  timeFrames frameToLoad ImageDetails MainAxes SceneList displayTrackingToggle imgsize ExpDate
+function uiTrackCellz(FileDate,AutoTrackStr)
+global pStruct timeVec timeSteps DivisionStruct xAxisLimits DICimgstack dfoName cfoName trackingPath background_seg bfoName nfoName sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterateToggle ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs updateContrastToggle cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes expDateStr plotSettingsToggle PlotAxes cmap refineTrackingToggle expDirPath  timeFrames frameToLoad ImageDetails MainAxes SceneList displayTrackingToggle imgsize ExpDate
 
     DivisionStruct = struct();
 %determine matfile directory
@@ -38,22 +38,23 @@ global DivisionStruct xAxisLimits DICimgstack dfoName cfoName trackingPath backg
     
     
 %determine export details
-    ExportNameKey = 'final';
+    ExportNameKey = 'tsi';
     if ~strcmp(ExportNameKey,'final')
         disp(strcat('Export name key is "',ExportNameKey,'" not FINAL'))
     end
     ExportName = 'fricktrack';
    
     
-%initialize global variables    
-    cfoName = [];
+%initialize global variables  
     channelimgstack =[];
     segmentimgstack =[];
+    cfoName = [];
     sfoName =[];
     bfoName = [];
     nfoName = [];
-    DICimgstack=[];
     dfoName=[];
+    DICimgstack=[];
+
 
 
 
@@ -72,7 +73,14 @@ global DivisionStruct xAxisLimits DICimgstack dfoName cfoName trackingPath backg
         
 % user selects experiment directory to be analyzed
     cd(gparentdir)
+    if isempty(FileDate)
     expDirPath = uigetdir;
+    else
+    cd(gparentdir)
+    expdir = strcat(gparentdir,'/',FileDate);
+    cd(expdir)
+    expDirPath = pwd;
+    end
 
     cd(expDirPath)
     experimentdir = expDirPath;
@@ -469,7 +477,67 @@ h=    uicontrol('Style','pushbutton',...
     
     f.Color = 'w';
     set(f,'KeyPressFcn',@keypress);
-    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    
+    
+    pStruct = loadSegmentParameters([],FileName,exportdir); %loads saved value of pStruct
+    timeMat = loadMetadata(FileName,exportdir);
+    rtimeMat = round(timeMat);
+    stimulationFrame = dosestruct(1).tgfFrame + 1;
+    timeVec = rtimeMat(1,:)-rtimeMat(1,stimulationFrame);
+    timeSteps = diff(round(timeVec),[],2);
+    
+    if strcmpi(AutoTrackStr,'AutoTrackCells')
+        f.Visible = 'off';
+        trackSaveIterateChosen_callback([],[])
+        exportTrackedCells([],[])
+        % exportNuclei([],[])
+        close(f)
+    elseif strcmpi(AutoTrackStr,'AutoExportNuclei')
+        exportSegmentedCells([],[])
+        close(f)
+    else
+        ImageDetails.Scene = SceneList{1};
+        ImageDetails.Channel = nucleus_seg;
+        ImageDetails.Frame = 1;
+    end
+
+    
+end
+
+
+function timeVec = loadMetadata(FileName,loaddir)
+%load metadata associated with the experiment (requires manual input if there is ambiguity)
+    datequery = strcat(FileName,'*metaData.mat');
+    cd(loaddir)
+    filelist = dir(datequery);
+    if length({filelist.name}) ==1
+        metaData = load(char(filelist.name));
+    else
+        filename = uigetfile();
+        metaData = load(filename);
+    end
+%determine the timeVector from metaData [dim 1 is scene#, dim 2 is each time frame]
+    timeVec = metaData.timeVec;
+    timeVec = round(timeVec);
+    
+end
+function pStruct = loadSegmentParameters(pStruct,datename,exportdir)
+
+
+cd(exportdir)
+filename = strcat('*',datename,'*segmentParameters*');
+
+filelist = dir(filename);
+if ~isempty(filelist)
+loadname = char((filelist.name));
+A = load(loadname); %load pstruct values
+pStruct = A.pStruct;
+else
+    disp('RUN uiSegmentTimeLapseImages to set segmentation parameters')
+end
+
+    
+
 end
 
 
@@ -3136,15 +3204,21 @@ end
 
 %% tracking functions
 function displayTrackingButton_Callback(~,~)
-global    displayTrackingToggle 
+global    displayTrackingToggle Tracked
 
-if displayTrackingToggle == 0
-displayTrackingToggle = 1;
+
+if isempty(Tracked{1}.Cellz)
+    disp('need to run tracking!!!')
 else
-displayTrackingToggle =0;
+    if displayTrackingToggle == 0
+    displayTrackingToggle = 1;
+    else
+    displayTrackingToggle =0;
+    end
+    setSceneAndTime
 end
 
-setSceneAndTime
+
 end
 
 function Tracked = makeTrackingFile(timeFrames)
@@ -3247,7 +3321,6 @@ global Tracked
         traject(1:lxy(i),1:2,i) = xy{i};
     end
 end
-
 function trt = calculateTrackingLogical(Stacked)
 
     %make a matrix where 1 means yes there is a segmented cell and 0 means
@@ -3264,8 +3337,6 @@ function trt = calculateTrackingLogical(Stacked)
         trt(:,i) = logx;
     end
 end
-
-
 function Trackedz = trackingCosmetics(Stacked)
 global displayTrackingToggle
 %this identifies the maximum length to identify the total number of cells
@@ -3278,9 +3349,10 @@ global displayTrackingToggle
 
     %this makes a cell for each cell in all of the frames so each frame has
     %the same total number of cells. (When track is ended NaN is added)
+    mmarl = max(MARlength);
     for i=1:length(Stacked)
     MAR = Stacked{i}.Cellz.PixelIdxList;
-    PX = cell(1,max(MARlength));
+    PX = cell(1,mmarl);
     PX(1:MARlength(i)) =  MAR;
     PX(MARlength(i)+1:max(MARlength)) =  {NaN};
     Stacked{i}.Cellz.PixelIdxList = PX;
@@ -3321,7 +3393,10 @@ didxo = diff(idxo,[],2);
                 beginoftrack = tracks(trackidx,1);
                 endoftrack = tracks(trackidx,2);
                 for frame = 1:length(Stacked)
-                    PX = Stacked{frame}.Cellz.PixelIdxList;
+                    S = Stacked{frame};
+                    C = S.Cellz;
+                    PX = C.PixelIdxList;
+%                     PX = Stacked{frame}.Cellz.PixelIdxList;
                     px = cell(1,length(PX)+1);
                     px(1:length(PX)) = PX;
                     if frame>beginoftrack-1 && frame<endoftrack+1 % if frame is where cell is tracked
@@ -3330,8 +3405,17 @@ didxo = diff(idxo,[],2);
                     else %if the frame is not where the cell is located fill the track with NaN
                         px(length(PX)+1) = {NaN};
                     end
-                    Stacked{frame}.Cellz.PixelIdxList = px;
+                    C.PixelIdxList = px;
+                    S.Cellz = C;
+                    Stacked{frame} = S;
+%                     Stacked{frame}.Cellz.PixelIdxList = px;
                 end
+                
+                
+                %try tracking nucleus number (as opposed to all pixel data)
+                %and then use the changes below in TRT to track nuclear
+                %number instead of just ones and zeros and then you can
+                %easily update the PX with the new TRT. 
                 
                 %make the same changes to trt
                 Trt = false(size(idxo,1)+1,size(idxo,2));
@@ -3352,12 +3436,17 @@ didxo = diff(idxo,[],2);
     pxidx = 1:length(Stacked{1}.Cellz.PixelIdxList);
     pxidx(pxidxremove) = [];
     %update the fields of Stacked.Cellz to be accurate
+    connectivity = Stacked{1}.Cellz.Connectivity;
+    imgsize = Stacked{1}.Cellz.ImageSize;
         for j=1:length(Stacked)
-        PX = Stacked{j}.Cellz.PixelIdxList;
+        S = Stacked{j};
+        CC = S.Cellz;
+        PX = CC.PixelIdxList;
+%         PX = Stacked{j}.Cellz.PixelIdxList;
         px = PX(pxidx);
-        CC = Stacked{j}.Cellz;
-        CC.Connectivity = Stacked{1}.Cellz.Connectivity;
-        CC.ImageSize = Stacked{1}.Cellz.ImageSize;
+%         CC = Stacked{j}.Cellz;
+        CC.Connectivity = connectivity;
+        CC.ImageSize = imgsize;
         CC.NumObjects = length(px);
         CC.PixelIdxList = px;
         
@@ -3372,55 +3461,225 @@ didxo = diff(idxo,[],2);
         end
         
 %         CC = checkDivision()
-        Stacked{j}.Cellz = CC;
+        S.Cellz = CC;
+        Stacked{j} = S;
         end
     Trackedz=Stacked;
 
 
 end
+function trackSaveIterate_callback(~,~)
+global parellelToggle runIterateToggle SceneList ImageDetails refineTrackingToggle   Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg mstackPath cell_seg background_seg
 
-
-function [distProb,idx] = probSpitter(input,inputPrev,knnnum)
-%make a matrix that tells you the probability a value in one vector is the same as another
-    if size(input,1)<size(input,2)
-        input=input';
-        inputPrev=inputPrev';
-    end
-%     [idx,eps] = knnsearch(input,inputPrev,'K',knnnum); 
-%     distvec = eps;
-%     distvec_norm = (distvec - min(distvec(:)))./(max(distvec(:)) - min(distvec(:))); %set to be from 0 to 1
-%     distProbValues = 1 - distvec_norm;
-    
-    [idx,eps] = knnsearch(input,inputPrev,'K',knnnum); 
-    distvec = eps;
-    distProbValues = nan(size(eps));
-    for i = 1:size(distvec,1)
-        distvec_norm = (distvec(i,:) - min(distvec(i,:)))./(max(distvec(i,:)) - min(distvec(i,:)));
-        distProbValues(i,:) = 1 - distvec_norm;
-    end
-
-    distProb = zeros(size(inputPrev,1),size(input,1));
-    for di = 1:size(idx,1)
-       didx = idx(di,:);
-       distProb(di,didx) = distProbValues(di,:);
+runIterateToggle =1;
+parellelToggle = 1;
+    if isempty(h) % Enter parallel loop
+        poolobj = gcp('nocreate');
+        if isempty(poolobj)
+        poolobj = parpool(nWorkers);
+        else
+        nw = poolobj.NumWorkers;
+        if nw ==nWorkers
+        else
+        delete(poolobj)
+        poolobj = parpool(nWorkers);
+        end
+        end
     end
     
+    for i=1:length(SceneList)
+        %iteratively set scenes 
+            Trackedz = makeTrackingFile(timeFrames);
+            Tracked=Trackedz;
+            % Determine the selected data set.
+            str = SceneList;
+            val = i;
+            pvalue = char(str{val});
+            ImageDetails.Scene = pvalue;
+            setSceneAndTime
+            disp(pvalue)
+
+
+        %run tracking
+            pvalue = ImageDetails.Scene;
+            
+            Tracked = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,[]);
+%             Tracked = FrickTrackCellsYeah(expDirPath,frameToLoad,pvalue,[]);
+            refineTrackingToggle =1;
+            setSceneAndTime;
+
+
+        %save
+            % saveTrackingFileAs_callback([],[])
+            cd(trackingPath)
+            filename = 'initial';
+            save(strcat(filename,'_',ImageDetails.Scene,'_',ExportName,'.mat'),'Tracked')
+%             save(strcat(filename,ExportName,'.mat'),'Tracked')
+            
+    end
+runIterateToggle =0;
+parellelToggle = 0;
+
+end
+function trackSaveIterateChosen_callback(~,~)
+global parellelToggle plotSettingsToggle psettings runIterateToggle SceneList ImageDetails refineTrackingToggle   Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg mstackPath cell_seg background_seg
+
+runIterateToggle =1;
+parellelToggle = 1;
+    for i=1:length(SceneList)
+%     for i=22
+        %iteratively set scenes 
+            Trackedz = makeTrackingFile(timeFrames);
+            Tracked=Trackedz;
+            % Determine the selected data set.
+            str = SceneList;
+            val = i;
+            pvalue = char(str{val});
+            ImageDetails.Scene = pvalue;
+            setSceneAndTime
+            disp(pvalue)
+
+
+        %run tracking
+            pvalue = ImageDetails.Scene;
+            
+            Tracked = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,[]);
+%             Tracked = FrickTrackCellsYeah(expDirPath,frameToLoad,pvalue,[]);
+            refineTrackingToggle =1;
+            setSceneAndTime;
+            
+            cd(trackingPath)
+            filename = 'tsi';
+            save(strcat(filename,'_',ImageDetails.Scene,'_',ExportName,'.mat'),'Tracked')
+            
+            
+            
+    if plotSettingsToggle == 0
+        psettings = PlotSettings_callback([],[]);
+        plotSettingsToggle=1;
+    end
+    
+        %run chosen at two specific frames
+        framesThatMustBeTracked = psettings.framesThatMustBeTracked;
+        framesThatMustBeTracked(2) =  framesThatMustBeTracked(2)+10;
+        for ftmbt = framesThatMustBeTracked
+            ImageDetails.Frame =ftmbt;
+            chosenOnesAllOnFrame_Callback
+        end
+
+
+        %save
+            % saveTrackingFileAs_callback([],[])
+            cd(trackingPath)
+            filename = 'tsichosen';
+            save(strcat(filename,'_',ImageDetails.Scene,'_',ExportName,'.mat'),'Tracked')
+%             save(strcat(filename,ExportName,'.mat'),'Tracked')
+            
+    end
+runIterateToggle =0;
+parellelToggle = 0;
+
+end
+function saveTrackingFileAs_callbackJ(~,~,SceneDirPath)
+global   Tracked
+cd(SceneDirPath)
+% prompt = 'filename of tracking structure to be saved?';
+% dlg_title = 'save tracking structure as...specific filename';
+% filename = char(inputdlg(prompt,dlg_title));
+disp(iixixixi)
+%why am i saving a specific file name without asking if I want to
+%overwrite?
+save(strcat('finalfricktrack.mat'),'Tracked')
+end
+function valProbette = detProbette(val,valPrev,fidx,ijk)
+   valprobsub = abs(val(fidx) - valPrev(ijk));
+   valprosubvec =abs(valPrev - val(fidx));
+   valprobette = valprobsub/max(valprosubvec(:));
+   valProb = 1-valprobette;
+   valProbette = valProb';
+end
+function valnew = updatevaluefunc(val,oldidx,newidx)
+% validx = true(1,size(val,1));
+% valnew = val(validx,idx);
+% valnew(validx,loserz) = NaN;
+% valnew = horzcat(valnew,val(validx,missers));
+validx = true(1,size(val,2));
+if iscell(val)
+valnew = cell(length(oldidx),size(val,2));
+else
+    valnew = nan(length(oldidx),size(val,2));
+end
+
+idx1 = ~isnan(oldidx)&~(isnan(newidx));
+valnew(idx1,validx) = val(newidx(idx1),validx);
+
+idx2 = isnan(oldidx);
+valnew(idx2,validx) = val(newidx(idx2),validx);
+
+if iscell(val)
+idx3 = cellfun(@isempty,valnew,'UniformOutput',1);
+valnew(idx3,validx) = {NaN};
+end
+
 end
 
 
+function [distProb,idx,cutoffidx] = probSpitter(input,inputPrev,knnnum,displacementCutoff)
+%make a matrix that tells you the probability a value in one vector is the same as anothe
 
+    
+    [idx,eps] = knnsearch(input,inputPrev,'K',knnnum); 
+    distvec = eps;
+    distsub = 1./(distvec./max(distvec(:)));
+%     distsub = distvec./max(distvec(:));
+%     distProbValues = 1-distsub;
+    if (sum(distsub(:))==0) || isnan(nansum(distsub(:)))
+       distsuber = 1./(distvec);
+       distsuber(distsuber==Inf)=1;
+       distsub = distsuber./(max(distsuber(:)));
+       disp('one cell')
+    end
+    distsub(distsub==Inf) = max(distsub(~(distsub==Inf)));
+    distProbValues = distsub./max(distsub(:));
+    
+%     distProbValues = nan(size(eps));
+%     for i = 1:size(distinputvec,1)
+% %        valprobsub = abs(val(fidx) - valPrev(ijk));
+% %        valprobette = valprobsub/max(valprobsub);
+% %        valProbette = 1-valprobette;
+%         distvec_norm = (distvec(i,:) - min(distvec(i,:)))./(max(distvec(i,:)) - min(distvec(i,:)));
+%         distProbValues(i,:) = 1 - distvec_norm;
+%     end
+
+
+    
+    distProb = zeros(size(inputPrev,1),size(input,1));
+    epsMat = distProb;
+    for di = 1:size(idx,1)
+       didx = idx(di,:);
+       distProb(di,didx) = distProbValues(di,:);
+       epsMat(di,didx) = eps(di,:);
+    end
+    
+    cutoffidx = epsMat>displacementCutoff;
+    distProb(cutoffidx)=0;
+    
+    
+end
 %function for tracking cells
 function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,h)
+global pStruct timeVec timeSteps
 %function for tracking cells
 %   Detailed explanation goes here
 
 
+    %determine the size of the nuclei in each experiment
+    nucleiDist = pStruct.nucleus.nucDiameter;
+    
 
 
-Frame = struct();
-
-
-%load nucleus segmentation binary as segmentimgstack
+    Frame = struct();
+    %load nucleus segmentation binary as segmentimgstack
     cd(segmentPath)
     ff = dir(strcat('*',pvalue,'*',nucleus_seg,'*'));
     if length(ff)>1
@@ -3432,7 +3691,7 @@ Frame = struct();
     segmentimgstack = nucleusFileObject.IfFinal;
 
 
-%load background segmentation binary as segmentimgstack
+    %load background segmentation binary as segmentimgstack
     cd(segmentPath)
     ff = dir(strcat('*',pvalue,'*',background_seg,'*'));
     if length(ff)>1
@@ -3443,7 +3702,7 @@ Frame = struct();
     backgroundFileObject = matfile(filename);
     backgroundimgstack = backgroundFileObject.IfFinal;
 
-%load nucleus images as nosub_nucleusimgstack
+    %load nucleus images as nosub_nucleusimgstack
     cd(mstackPath)
     ff = dir(strcat('*',pvalue,'*',nucleus_seg,'*'));
     if length(ff)>1
@@ -3454,7 +3713,7 @@ Frame = struct();
     nucleusFileObject = matfile(filename);
     nosub_nucleusimgstack = nucleusFileObject.flatstack;   
 
-%load cell images as nosub_cellimgstack
+    %load cell images as nosub_cellimgstack
     cd(mstackPath)
     ff = dir(strcat('*',pvalue,'*',cell_seg,'*'));
     if length(ff)>1
@@ -3466,7 +3725,7 @@ Frame = struct();
     nosub_cellimgstack = cellFileObject.flatstack;      
     
 
-%background subtract nucleusimgstack
+    %background subtract nucleusimgstack
     nucleusimgstack = zeros(size(nosub_nucleusimgstack));
     cellimgstack = nucleusimgstack;
     for i=1:size(nosub_nucleusimgstack,3)
@@ -3478,12 +3737,12 @@ Frame = struct();
     end
     
         
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%This section involves calculating the nearest neighbor to the centroid
-%and organizing PixelLists and Centroid lists to match nearest neighbor
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+    %This section involves calculating the nearest neighbor to the centroid
+    %and organizing PixelLists and Centroid lists to match nearest neighbor
+    %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-%determine parameters of nuclei (%area,centroid,fluorescence,elllipticity,velocities?) 
+    %determine parameters of nuclei (%area,centroid,fluorescence,elllipticity,velocities?) 
     segment_Area_array = cell(1,size(segmentimgstack,3));
     segment_nucFluor_array = cell(1,size(segmentimgstack,3));
     segment_cellFluor_array = cell(1,size(segmentimgstack,3));
@@ -3500,19 +3759,21 @@ Frame = struct();
             CC = bwconncomp(segI);
             PX = CC.PixelIdxList;
             S = regionprops(CC,'Centroid','Area','Perimeter');
-            areavec = horzcat(S.Area);
-            perimetervec = horzcat(S.Perimeter);
+            areavec = vertcat(S.Area);
+            perimetervec = vertcat(S.Perimeter);
             elliptvec = 4.*pi.*areavec./(perimetervec.^2);
+            centroidMat = vertcat(S.Centroid);
             
             segment_Area_array{i} = areavec;
             segment_Ellipt_array{i} = elliptvec;
-            segment_nucFluor_array{i} = cellfun(@(x) nanmedian(nucI(x)),PX,'UniformOutput',1);
-            segment_cellFluor_array{i} = cellfun(@(x) nanmedian(cellI(x)),PX,'UniformOutput',1);
-            segment_Stdev_array{i} = cellfun(@(x) nanstd(nucI(x)),PX,'UniformOutput',1);
-            segment_Centroid_array{i} = vertcat(S.Centroid);
+            segment_nucFluor_array{i} = cellfun(@(x) nanmedian(nucI(x)),PX,'UniformOutput',1)';
+            segment_cellFluor_array{i} = cellfun(@(x) nanmedian(cellI(x)),PX,'UniformOutput',1)';
+            segment_Stdev_array{i} = cellfun(@(x) nanstd(nucI(x)),PX,'UniformOutput',1)';
+            segment_Centroid_array{i} = centroidMat;
             segment_Pixels_array{i} = PX;
         end
-%track based on assigning probabilities determined by minimizing changes to measured parameters
+        
+    %track based on assigning probabilities determined by minimizing changes to measured parameters
     Tracked = cell(1,size(segmentimgstack,3));
     segI = segmentimgstack(:,:,1); %choose the first frame of segmentimgstack to start with
     CC = bwconncomp(segI);
@@ -3526,46 +3787,47 @@ Frame = struct();
     
 %     segmentsequence = fliplr(1:size(segmentimgstack,3)-1); %track from last frame to first frame
     segmentsequence = 2:size(segmentimgstack,3); %track from first frame to last frame
-    samecellstruct = struct();
     
 
+ 
         for i = segmentsequence
                 if ~isempty(h)
                     waitbar(i./length(segmentsequence),h)
                 end
-            centroids = segment_Centroid_array{i};
-            centroidsPrev = segment_Centroid_array{i-1};
-            area = segment_Area_array{i};
-            areaPrev = segment_Area_array{i-1};
-            nucfluor = segment_nucFluor_array{i};
-            nucfluorPrev = segment_nucFluor_array{i-1};
-            cellfluor = segment_cellFluor_array{i};
-            cellfluorPrev = segment_cellFluor_array{i-1};            
-            pixels = segment_Pixels_array{i};
-            pixelsPrev = segment_Pixels_array{i-1};
-            ellipt = segment_Ellipt_array{i};
-            elliptPrev = segment_Ellipt_array{i-1};
+            a=i-1;
+            b=i;
+            centroids = segment_Centroid_array{b};
+            centroidsPrev = segment_Centroid_array{a};
+               if isempty(centroids) %that is, no cells were segmented
+                   b=i-1;
+                   centroids = segment_Centroid_array{b};
+               end
+               if isempty(centroidsPrev) %that is, no cells were tracked on previous frame
+                   a=i;
+                   centroidsPrev = segment_Centroid_array{a};
+               end
+            area = segment_Area_array{b};
+            areaPrev = segment_Area_array{a};
+            nucfluor = segment_nucFluor_array{b};
+            nucfluorPrev = segment_nucFluor_array{a};
+            cellfluor = segment_cellFluor_array{b};
+            cellfluorPrev = segment_cellFluor_array{a};            
+            pixels = segment_Pixels_array{b};
+            pixelsPrev = segment_Pixels_array{a};
+            ellipt = segment_Ellipt_array{b};
+            elliptPrev = segment_Ellipt_array{a};
             
-            prbs = struct();
-            knnnum = 5;
-            if ~isempty(centroids)
+            displacementCutoff = (nucleiDist)*(timeSteps(i-1)./10);
+
+            
                %nearest neighbor distances to determine probability that
                %two cells are the same
-               [distProb,distProbidx] = probSpitter(centroids,centroidsPrev,knnnum);
-               newProb = zeros(size(distProb));
-               for ijk = 1:length(centroidsPrev)
-                   dP = distProb(ijk,:);
-                   fidx = find(dP>0);
-                   distProbette = dP(fidx);
-                   areaProbette = 1./abs(area(fidx) - areaPrev(ijk));
-                   areaProbette = (areaProbette - min(areaProbette))./(max(areaProbette) - min(areaProbette));
-                   nucFluorProbette = 1./abs(nucfluor(fidx) - nucfluorPrev(ijk));
-                   nucFluorProbette = (nucFluorProbette - min(nucFluorProbette))./(max(nucFluorProbette) - min(nucFluorProbette));
-                   cellFluorProbette = 1./abs(nucfluor(fidx) - nucfluorPrev(ijk));
-                   cellFluorProbette = (cellFluorProbette - min(cellFluorProbette))./(max(cellFluorProbette) - min(cellFluorProbette));
-                   newProbette  = distProbette.*areaProbette.*nucFluorProbette.*cellFluorProbette;
-                   newProb(ijk,fidx) = newProbette;
-               end
+                knnnum = 5;
+               [distProb,~,distcut] = probSpitter(centroids,centroidsPrev,knnnum,displacementCutoff);
+               [areaProbette,~,areacut] = probSpitter(area,areaPrev,size(area,1),Inf);
+               [nucFluorProbette,~,nuccut] = probSpitter(nucfluor,nucfluorPrev,size(nucfluor,1),nanmedian(nucfluor)./2);
+               [cellFluorProbette,~,cellcut] = probSpitter(cellfluor,cellfluorPrev,size(cellfluor,1),Inf);
+               newProb = distProb.*areaProbette.*nucFluorProbette.*cellFluorProbette;     
                %distProb dimesionas are length(centroidsPrev) x length(centroids)
                
               %you should assign weights to the probilities as well
@@ -3575,72 +3837,168 @@ Frame = struct();
                %now you need to build a probability matrix that has rows
                % for all cells in centroidsPrev (size(CentroidsPrev,1) and columns for all cells in centroids (size(centroids,1))
                 trackProb = distProb;
+                trackProb(nuccut)=0;
                [maxvals,idx] = max(trackProb,[],2); %idx is index of input that matches to inputPrev such that input(idx) = inputPrev;
-               SameCellPX = pixels(idx);
                
                 %now some cells are assigned twice. Correct this based on highest probabilities
                 %num_cells_set should be = the size of the current NOT the prev
                 num_cells_set = 1:size(trackProb,2); %size(cellProb,2) = length(input)
                 
                 arbitrateProb = newProb;
-                [arbmaxvals,arbidx] = max(arbitrateProb,[],2); %idx is index of input that matches to inputPrev such that input(idx) = inputPrev;
-                
+                [arbmaxvals,~] = max(arbitrateProb,[],2); %idx is index of input that matches to inputPrev such that input(idx) = inputPrev;
+                arbmaxvals(arbmaxvals==0)=NaN;
+                idx(maxvals==0) = NaN;
                 [n, bin] = histc(idx, num_cells_set);
                 multiple = find(n>1); %the same cell is called closest to two previous cells
                 missers = find(n<1); %these are likely new cells
                 loserz = [];
                     if ~isempty(multiple)
                         for loop = multiple' %loop is the cellID in current frame 
-                            index    = find(ismember(bin, loop)); %cell IDs from prev frame
-                            loseridx = find(arbmaxvals(index) < max(arbmaxvals(index)));
-                            losern = index(loseridx);
+                            testidx    = find(ismember(bin, loop)); %cell IDs from prev frame
+                            winneridx = find(arbmaxvals(testidx) == max(arbmaxvals(testidx)));
+                            testidx(winneridx)=[];
+                            lidx=testidx;
+                            loseridx = find(true(size(testidx))==1);
+                            
+                            for ll = 1:length(lidx)
+                                lval = lidx(ll);
+                                arbval = zeros(1,length(missers));
+                                for u = 1:length(missers)
+                                    arbval(u) = arbitrateProb(lval,missers(u));
+                                end
+                                [maxarbval,maxidx] = max(arbval);
+                                if maxarbval>0
+                                    idx(lval) = missers(maxidx);
+                                    missers(maxidx)=[];
+                                    loseridx(ll)=NaN;
+                                end
+                            end
+                            loseridx(isnan(loseridx))=[];
+                            lidx=testidx(loseridx);
+                            losern = lidx;
                             loserz = [loserz losern'];
                         end
                     end 
                     
-                
-                SameCellPX(loserz) = {NaN}; %remove multiple links to same cell from previous frame so that cell is only linked to one previous               
-                
 
-
-                AllCellsPX = horzcat(SameCellPX,pixels(missers));
-                CC.PixelIdxList = AllCellsPX;
-                CC.NumObjects = numel(AllCellsPX);
-                stats = regionprops(CC,'Centroid');
-                Smat = vertcat(stats.Centroid);
-                CC.Centroid = Smat;
-                CC.Division = [];
-                Frame.filename = filename;
-                Frame.Cellz = CC;
-                Tracked{i} = Frame;
-                
-            centroidsnew = centroids(idx,:);
-            centroidsnew(loserz,:) = NaN;
-            centroidsnew = vertcat(centroidsnew,centroids(missers,:));
-            segment_Centroid_array{i} = centroidsnew;
-
-            areanew = area(idx);
-            areanew(loserz) = NaN;
-            areanew = horzcat(areanew,area(missers));
-            segment_Area_array{i} = areanew;
-
-            fluornew = nucfluor(idx);
-            fluornew(loserz) = NaN;
-            fluornew = horzcat(fluornew,nucfluor(missers));
-            segment_nucFluor_array{i} = fluornew;   
-%             
-            elliptnew = ellipt(idx);
-            elliptnew(loserz) = NaN;
-            elliptnew = horzcat(elliptnew,ellipt(missers));
-            segment_Ellipt_array{i} = elliptnew;   
-
-            segment_Pixels_array{i} = AllCellsPX;
-               
+                    newidx = idx;
+                    newidx(loserz)=NaN;
+                    newidx = vertcat(newidx,missers);
+%             newidx = updatevaluefunc((1:size(centroids,1))',idx,loserz,missers);
+            oldidx = [1:length(newidx)]'; oldidx(oldidx>length(pixelsPrev))=NaN;
+            
+            %display a table showing which cells become which
+                dispidx = zeros(length(newidx),length([num2str(length(newidx)) ' -> ' num2str(max(newidx))]));
+                dispidx = char(dispidx);
+                for iter=1:size(dispidx,1)
+                    origcellstr = num2str(oldidx(iter));
+                    vec  = [origcellstr ' -> ' num2str(newidx(iter))];
+                    dispidx(iter,1:length(vec)) = vec;
+                end
+            
+            [nn, ~] = histc(newidx, 1:nanmax(newidx));
+            if max(nn)>1
+                stophere=1;
+                error('cells called twice!!!')
             end
+%             idx(loserz) = [];
+%             idx = vertcat(idx,missers);
+           
+
+%             pidx = idx;
+%             pidx(isnan(pidx))=[];
+%             SameCellPX = pixels(pidx);
+%             SameCellPX(loserz) = {NaN}; %remove multiple links to same cell from previous frame so that cell is only linked to one previous               
+%             AllCellsPX = horzcat(SameCellPX,pixels(missers));
+%             emptyidx = find((cellfun(@isempty, AllCellsPX,'UniformOutput',1))==1);
+%             if ~isempty(emptyidx)
+%                 AllCellsPX(emptyidx) = {NaN};
+%             end
+            AllCellsPX = updatevaluefunc(pixels',oldidx,newidx)';
+            segment_Pixels_array{i} = AllCellsPX;
+            segment_Centroid_array{i} = updatevaluefunc(centroids,oldidx,newidx);
+            segment_Area_array{i} = updatevaluefunc(area,oldidx,newidx);
+            segment_nucFluor_array{i} = updatevaluefunc(nucfluor,oldidx,newidx);
+            segment_cellFluor_array{i} = updatevaluefunc(cellfluor,oldidx,newidx);
+            segment_Ellipt_array{i} = updatevaluefunc(ellipt,oldidx,newidx);
             
             
+            
+            
+            
+      %%%%      
+% figgy = figure(989);
+% trackimg = zeros(size(segmentimgstack(:,:,i-1)));
+% img1 = segmentimgstack(:,:,i-1);
+% img2 = segmentimgstack(:,:,i);
+% trackimg(img1>0)=1;
+% trackimg(img2>0)=2;
+% trackimg((img1>0)&(img2>0))=1.5;
+% 
+% imagesc(trackimg);hold on
+% centnew = updatevaluefunc(centroids,oldidx,newidx);
+% centidx = true(1,size(centroidsPrev,1));
+% x1 = centroidsPrev(centidx,1);
+% y1 = centroidsPrev(centidx,2);
+% x2 = centnew(:,1);
+% y2 = centnew(:,2);
+% x = horzcat(x1,x2(centidx));
+% y = horzcat(y1,y2(centidx));
+% plot(x',y','r','LineWidth',2);hold on
+% p=plot(x2,y2);
+% p.Marker = 's';
+% p.LineStyle='none';
+% p.MarkerFaceColor='k';
+% p.MarkerEdgeColor='none';
+% 
+% p=plot(x2(length(centidx):end),y2(length(centidx):end));
+% p.Marker = 'o';
+% p.MarkerSize = 8;
+% p.LineStyle='none';
+% p.MarkerFaceColor='g';
+% p.MarkerEdgeColor='g';
+% 
+% deadidx = isnan(x2(centidx));
+% p=plot(x1(deadidx),y1(deadidx));
+% p.Marker = 'x';
+% p.MarkerSize=10;
+% p.LineStyle='none';
+% p.MarkerFaceColor='r';
+% p.MarkerEdgeColor='r';
+
+
+
+            
+            %these are all based on tracking of nuclei number from frame to
+            %frame rather than rearranging pixelvalues
+            CC.oldix = oldidx; %index of cell on previous frame
+            CC.newidx = newidx; %corresponding index of cell on new frame
+            CC.dispidx = dispidx; %this shows the movement in a table.
+            CC.newcells = missers;
+            CC.gonecells = loserz';
+            
+
+            CC.PixelIdxList = AllCellsPX;
+            CC.NumObjects = numel(AllCellsPX);
+            stats = regionprops(CC,'Centroid');
+            Smat = vertcat(stats.Centroid);
+            CC.Centroid = Smat;
+            CC.Division = [];
+            Frame.filename = filename;
+            Frame.Cellz = CC;
+            Tracked{i} = Frame;
+               
+           
         end
 
+end
+function saveTrackingFileAs_callback(~,~)
+global  trackingPath Tracked ExportName ImageDetails
+cd(trackingPath)
+prompt = 'filename of tracking structure to be saved?';
+dlg_title = 'save tracking structure as...specific filename';
+filename = char(inputdlg(prompt,dlg_title));
+save(strcat(filename,'_',ImageDetails.Scene,'_',ExportName,'.mat'),'Tracked')
 end
 
 %% Image Display functions
@@ -3848,6 +4206,7 @@ global displayTrackingToggle refineTrackingToggle DICimgstack dfoName  nucleus_s
         imgfile = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*'));
         If = segmentimg;
         Tracked = loadTrackedStructure;
+        centroidDisagreement=false;
     else  %if there exists segmenttracking already...then load that. 
         CC = Tracked{t}.Cellz;
         PX = CC.PixelIdxList;
@@ -3891,6 +4250,7 @@ elseif strcmp(ImageDetails.Channel,'BKGbinary')
      backgroundimg(segmentimg) = true; 
      prim = imdilate(bwperim(~logical(backgroundimg)),strel('square',1));
      channelimg(prim) = max(max(channelimg));
+     channelimg(~backgroundimg) = channelimg(~backgroundimg)+1000;
 elseif strcmp(ImageDetails.Channel,'reporter_quantify')
 elseif strcmp(ImageDetails.Channel,'overlay')
     channelimg = zeros(size(cellImg,1),size(cellImg,2),3);
@@ -4101,121 +4461,6 @@ global expDateStr psettings plotSettingsToggle trunccmaplz timeFrames tcontrast 
     himgax.YTick = [];
     himgax.XTick = [];
 end
-
-
-
-%% saving functions
-function saveTrackingFileAs_callback(~,~)
-global  trackingPath Tracked ExportName ImageDetails
-cd(trackingPath)
-prompt = 'filename of tracking structure to be saved?';
-dlg_title = 'save tracking structure as...specific filename';
-filename = char(inputdlg(prompt,dlg_title));
-save(strcat(filename,'_',ImageDetails.Scene,'_',ExportName,'.mat'),'Tracked')
-end
-
-function trackSaveIterate_callback(~,~)
-global runIterateToggle SceneList ImageDetails refineTrackingToggle   Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg mstackPath cell_seg background_seg
-
-runIterateToggle =1;
-    for i=1:length(SceneList)
-        %iteratively set scenes 
-            Trackedz = makeTrackingFile(timeFrames);
-            Tracked=Trackedz;
-            % Determine the selected data set.
-            str = SceneList;
-            val = i;
-            pvalue = char(str{val});
-            ImageDetails.Scene = pvalue;
-            setSceneAndTime
-            disp(pvalue)
-
-
-        %run tracking
-            pvalue = ImageDetails.Scene;
-            
-            Tracked = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,[]);
-%             Tracked = FrickTrackCellsYeah(expDirPath,frameToLoad,pvalue,[]);
-            refineTrackingToggle =1;
-            setSceneAndTime;
-
-
-        %save
-            % saveTrackingFileAs_callback([],[])
-            cd(trackingPath)
-            filename = 'initial';
-            save(strcat(filename,'_',ImageDetails.Scene,'_',ExportName,'.mat'),'Tracked')
-%             save(strcat(filename,ExportName,'.mat'),'Tracked')
-            
-    end
-runIterateToggle =0;
-
-end
-
-
-function trackSaveIterateChosen_callback(~,~)
-global plotSettingsToggle psettings runIterateToggle SceneList ImageDetails refineTrackingToggle   Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg mstackPath cell_seg background_seg
-
-runIterateToggle =1;
-    for i=1:length(SceneList)
-        %iteratively set scenes 
-            Trackedz = makeTrackingFile(timeFrames);
-            Tracked=Trackedz;
-            % Determine the selected data set.
-            str = SceneList;
-            val = i;
-            pvalue = char(str{val});
-            ImageDetails.Scene = pvalue;
-            setSceneAndTime
-            disp(pvalue)
-
-
-        %run tracking
-            pvalue = ImageDetails.Scene;
-            
-            Tracked = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,[]);
-%             Tracked = FrickTrackCellsYeah(expDirPath,frameToLoad,pvalue,[]);
-            refineTrackingToggle =1;
-            setSceneAndTime;
-            
-    if plotSettingsToggle == 0
-        psettings = PlotSettings_callback([],[]);
-        plotSettingsToggle=1;
-    end
-    
-        %run chosen at two specific frames
-        framesThatMustBeTracked = psettings.framesThatMustBeTracked;
-        framesThatMustBeTracked(2) =  framesThatMustBeTracked(2)+10;
-        for ftmbt = framesThatMustBeTracked
-            ImageDetails.Frame =ftmbt;
-            chosenOnesAllOnFrame_Callback
-        end
-
-
-        %save
-            % saveTrackingFileAs_callback([],[])
-            cd(trackingPath)
-            filename = 'tsichosen';
-            save(strcat(filename,'_',ImageDetails.Scene,'_',ExportName,'.mat'),'Tracked')
-%             save(strcat(filename,ExportName,'.mat'),'Tracked')
-            
-    end
-runIterateToggle =0;
-
-end
-
-function saveTrackingFileAs_callbackJ(~,~,SceneDirPath)
-global   Tracked
-cd(SceneDirPath)
-% prompt = 'filename of tracking structure to be saved?';
-% dlg_title = 'save tracking structure as...specific filename';
-% filename = char(inputdlg(prompt,dlg_title));
-disp(iixixixi)
-%why am i saving a specific file name without asking if I want to
-%overwrite?
-save(strcat('finalfricktrack.mat'),'Tracked')
-end
-
 
 
 %% functions for determining variables
