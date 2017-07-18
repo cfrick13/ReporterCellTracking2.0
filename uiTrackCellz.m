@@ -177,7 +177,7 @@ global Tracked pStruct timeVec timeSteps DivisionStruct xAxisLimits DICimgstack 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%Set up  user interface
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-    f = figure;
+    f = figure(1);
     initialsize = [1 1 2560 1080];
     f.Units = 'pixels';
     figdim = [initialsize(3) initialsize(4)];
@@ -1906,15 +1906,6 @@ cd(mstackPath)
             channelfileObject = matfile(filename);
             cellQ_imgstack = channelfileObject.flatstack;
             
-                     %  open mKate img  %
-            cd(mstackPath)         
-            ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*'));
-    %         ff = dir(strcat(ImageDetails.Channel,'*'));
-            filename = char(ff.name);
-            channelfileObject = matfile(filename);
-            mkateimgstack = channelfileObject.flatstack;
-
-
                    %    open cfp img  %
             cd(mstackPath)         
             ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*'));
@@ -1952,22 +1943,16 @@ cd(mstackPath)
 
 %perform bkg subtraction
 Smadbkg = zeros(1,timeFrames,'single');
-Cfpbkg = zeros(1,timeFrames,'single');
-mkatebkg = zeros(1,timeFrames,'single');
-bkgstd = zeros(1,timeFrames,'single');
+Nucbkg = zeros(1,timeFrames,'single');
 for k=1:timeFrames
     bkglog = ~bkglogimgstack(:,:,k);
     cellQ_img = single(cellQ_imgstack(:,:,k));
     nuc_img = single(nuc_imgstack(:,:,k));
-    mkateimg = single(mkateimgstack(:,:,k));
     %background subtraction is just subtraction with a value
     Smadbkg(k) = nanmedian(cellQ_img(bkglog));
-    Cfpbkg(k) = nanmedian(nuc_img(bkglog));
-    mkatebkg(k) = nanmedian(mkateimg(bkglog));
-    bkgstd(k) = nanstd(mkateimg(bkglog));
+    Nucbkg(k) = nanmedian(nuc_img(bkglog));
     cellQ_imgstack(:,:,k) = cellQ_img-Smadbkg(k);
-    nuc_imgstack(:,:,k) = nuc_img-Cfpbkg(k);
-    mkateimgstack(:,:,k) = mkateimg - mkatebkg(k);
+    nuc_imgstack(:,:,k) = nuc_img-Nucbkg(k);
     %background subtraction is subtraction with an interpolated image
 %     smadbkgimg = regionfill(cellQ_img,~bkglog);
 %     cfpbkgimg = regionfill(nuc_img,~bkglog); %fill in the regions where bkglog is 0
@@ -1983,55 +1968,42 @@ nuc_pxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
 for i = 1:size(plotTracesCell,2)
     cellQ_img = single(squeeze(cellQ_imgstack(:,:,i)));
     nuc_img = single(squeeze(nuc_imgstack(:,:,i)));
-    mkateimg = single(squeeze(mkateimgstack(:,:,i)));
     for j=1:size(plotTracesCell,1)
     pxidx = plotTracesCell{j,i};
         if ~isnan(pxidx)
         cellQ_pxls(j,i) = {cellQ_img(pxidx)};
         nuc_pxls(j,i) = {nuc_img(pxidx)};
-        mkatepxls(j,i) = {mkateimg(pxidx)};
         else
         cellQ_pxls(j,i) = {single(13579)};
         nuc_pxls(j,i) = {single(13579)};
-        mkatepxls(j,i) = {single(13579)};
         end
     end
 end
 
-
-    Smadtotal = cellfun(@nansum,cellQ_pxls,'UniformOutput',1);
-    % Smad = cellfun(@nanmean,cellQ_pxls,'UniformOutput',1);
+    
+    Smadtotal = zeros(size(cellQ_pxls),'single');
+    mkatetotal = Smadtotal;
+    Smad = Smadtotal;
+    mkate = Smadtotal;
+    for i = 1:size(cellQ_pxls,1)
+        for j = 1:size(cellQ_pxls,2)
+            Smadtotal(i,j) = sum(cellQ_pxls{i,j});
+            mkatetotal(i,j) = sum(nuc_pxls{i,j});
+            Smad(i,j) = median(cellQ_pxls{i,j});
+            mkate(i,j) = median(nuc_pxls{i,j});
+        end
+    end
     Smadtotal(Smadtotal==single(13579)) = NaN;
-    Cfptotal = cellfun(@nansum,nuc_pxls,'UniformOutput',1);
-    Cfptotal(Cfptotal==single(13579)) = NaN;
-    mkatetotal = cellfun(@nansum,mkatepxls,'UniformOutput',1);
-    mkatetotal(mkatetotal==single(13579)) = NaN;
-
-    Smad = cellfun(@nanmedian,cellQ_pxls,'UniformOutput',1);
-    % Smad = cellfun(@nanmean,cellQ_pxls,'UniformOutput',1);
-    Smad(Smad==single(13579)) = NaN;
-    Cfp = cellfun(@nanmedian,nuc_pxls,'UniformOutput',1);
-    Cfp(Cfp==single(13579)) = NaN;
-    mkate = cellfun(@nanmedian,mkatepxls,'UniformOutput',1);
     mkate(mkate==single(13579)) = NaN;
+    mkatetotal(mkatetotal==single(13579)) = NaN;
+    Smad(Smad==single(13579)) = NaN;
 
 
 basalSUB = framesThatMustBeTracked(1)-7;
 if basalSUB<1
     basalSUB = framesThatMustBeTracked-1;
 end
-basalcfp = nanmean(Cfp(:,framesThatMustBeTracked(1)-basalSUB:framesThatMustBeTracked(1)),2);
 
-CfpFC = zeros(size(Cfp),'single');
-    for i = 1:size(Cfp,2)
-       CfpFC(:,i) = Cfp(:,i)./basalcfp; 
-    end
-    
-    if smooththat==1
-    %%%%%%%%%%%%%%%%%%%
-    Smad = Smad./CfpFC;
-    %%%%%%%%%%%%%%%%%%%
-    end
 basalsmad = nanmean(Smad(:,framesThatMustBeTracked(1)-basalSUB:framesThatMustBeTracked(1)),2);
 SmadFC = zeros(size(Smad),'single');
     for i = 1:size(Smad,2)
@@ -2044,6 +2016,12 @@ mkateFC = zeros(size(mkate),'single');
        mkateFC(:,i) = mkate(:,i)./basalmkate; 
     end
     
+    if smooththat==1
+    %%%%%%%%%%%%%%%%%%%
+    Smad = Smad./mkateFC;
+    %%%%%%%%%%%%%%%%%%%
+    end
+    
 basalmkatetotal = nanmean(mkatetotal(:,framesThatMustBeTracked(1)-basalSUB:framesThatMustBeTracked(1)),2);
 mkateFCtotal = zeros(size(mkatetotal),'single');
     for i = 1:size(mkatetotal,2)
@@ -2054,14 +2032,11 @@ mkateFCtotal = zeros(size(mkatetotal),'single');
 plotStructUI.Smad = Smad;
 plotStructUI.mkate = mkate;
 plotStructUI.mkatetotal = mkatetotal;
-plotStructUI.Cfp = Cfp;
-plotStructUI.CfpFC = CfpFC;
 plotStructUI.SmadFC = SmadFC;
 plotStructUI.mkateFC = mkateFC;
 plotStructUI.mkateFCtotal = mkateFCtotal;
 plotStructUI.Smadbkg = Smadbkg;
-plotStructUI.Cfpbkg = Cfpbkg;
-plotStructUI.mkatebkg = mkatebkg;
+plotStructUI.mkatebkg = Nucbkg;
     
 end
 function plotStruct = plotthemfunctionToStructure(Tracked,idScene,mstackPath,timeFrames,makeIMG,makeIMGidx,cell_seg,nucleus_seg,background_seg,segmentPath)
@@ -3242,7 +3217,7 @@ end
 function trackbutton_Callback(~,~)
 global  Tracked ImageDetails refineTrackingToggle segmentPath nucleus_seg mstackPath cell_seg background_seg
 pvalue = ImageDetails.Scene;
-
+tic
     trackfilelist = {'yes','no'};
     [S,~] = listdlg('PromptString','Are you sure you want to run tracking?',...
                 'SelectionMode','single',...
@@ -3252,13 +3227,13 @@ pvalue = ImageDetails.Scene;
             if S==1
                 h=waitbar(0,'running tracking algorithm...');
             Tracked = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,h);
-            
             else
             end
 
             refineTrackingToggle =1;
             close(h);
 setSceneAndTime;
+toc
 end
 
 function Tracked = loadTrackedStructure
@@ -3354,12 +3329,14 @@ global displayTrackingToggle
     %this makes a cell for each cell in all of the frames so each frame has
     %the same total number of cells. (When track is ended NaN is added)
     mmarl = max(MARlength);
+    PXBOX = cell(mmarl,length(Stacked));
     for i=1:length(Stacked)
     MAR = Stacked{i}.Cellz.PixelIdxList;
     PX = cell(1,mmarl);
     PX(1:MARlength(i)) =  MAR;
     PX(MARlength(i)+1:max(MARlength)) =  {NaN};
     Stacked{i}.Cellz.PixelIdxList = PX;
+    PXBOX(:,i) = PX;
     end
 
     
@@ -3394,6 +3371,7 @@ didxo = diff(idxo,[],2);
 
             %move the post-gap cells to the end
             for trackidx = 2:size(tracks,1) %start from the second track
+                disp('correcting tracking...')
                 beginoftrack = tracks(trackidx,1);
                 endoftrack = tracks(trackidx,2);
                 for frame = 1:length(Stacked)
@@ -3793,7 +3771,8 @@ global pStruct timeVec timeSteps
     segmentsequence = 2:size(segmentimgstack,3); %track from first frame to last frame
     
 
- 
+        newidxarray = cell(1,size(segmentimgstack,3));
+        newidxarray(1) = {1:size(Smat,1);}
         for i = segmentsequence
                 if ~isempty(h)
                     waitbar(i./length(segmentsequence),h)
@@ -3841,7 +3820,7 @@ global pStruct timeVec timeSteps
                %now you need to build a probability matrix that has rows
                % for all cells in centroidsPrev (size(CentroidsPrev,1) and columns for all cells in centroids (size(centroids,1))
                 trackProb = distProb;
-                trackProb(distcut&nuccut)=0;
+                trackProb(distcut|nuccut)=0;
                [maxvals,idx] = max(trackProb,[],2); %idx is index of input that matches to inputPrev such that input(idx) = inputPrev;
                
                 %now some cells are assigned twice. Correct this based on highest probabilities
@@ -3862,7 +3841,8 @@ global pStruct timeVec timeSteps
                     if ~isempty(multiple)
                         for loop = multiple' %loop is the cellID in current frame 
                             testidx    = find(ismember(bin, loop)); %cell IDs from prev frame
-                            winneridx = find(arbmaxvals(testidx) == max(arbmaxvals(testidx)));
+                            winneridx = find(arbmaxvals(testidx) == max(arbmaxvals(testidx))); %find the cell with the highest probability match
+                            winneridx(isnan(arbmaxvals(winneridx)))=[];%if the match is an artifact (if probability=NaN, then remove)
                             if ~isempty(winneridx)
                                 testidx(winneridx(1))=[]; %must be winneridx(1) because only one cell can win
                             end
@@ -3895,23 +3875,14 @@ global pStruct timeVec timeSteps
                     %matches with index 3 of newidx
                     
 
-                    newidx = idx; 
-                    newidx(loserz)=NaN; %remove duplicates (loserz)// that is to say, tracks that merge onto one cell
-                    [nn, ~] = histc(vertcat(newidx,missers), num_cells_currentFrame);
-                    updatemissers = find(nn<1);
-%                     loserz(isnan(areaPrev(loserz)))=[]; %remove if no cell before exists //this happens if NaN is identified as maximum
-%                     loserz(ismember(loserz,newidx)) = []; %remove if cell already exists in newidx
-%                     loserz(loserz>length(area))=[]; % remove if cell index is greater than number of cells present
-%                     loserz(ismember(loserz,missers))=[]; % remove if it's already been called as a new cell
-%                     newidx = vertcat(newidx,missers,loserz);
-                    newidx = vertcat(newidx,missers,updatemissers);
-%             newidx = updatevaluefunc((1:size(centroids,1))',idx,loserz,missers);
-            oldidx = [1:length(newidx)]'; oldidx(oldidx>length(pixelsPrev))=NaN;
-            oldidx(find(isnan(areaPrev)==1))=NaN;
+                newidx = idx; 
+                newidx(loserz)=NaN; %remove duplicates (loserz)// that is to say, tracks that merge onto one cell
+                [nn, ~] = histc(vertcat(newidx,missers), num_cells_currentFrame);
+                updatemissers = find(nn<1);
+                newidx = vertcat(newidx,missers,updatemissers);
+                oldidx = [1:length(newidx)]'; oldidx(oldidx>length(pixelsPrev))=NaN;
+                oldidx(find(isnan(areaPrev)==1))=NaN;
             
-            if i==27
-                ss=11;
-            end
             %display a table showing which cells become which
                 dispidx = zeros(length(newidx),length([num2str(length(newidx)) ' -> ' num2str(max(newidx))]));
                 dispidx = char(dispidx);
@@ -3920,30 +3891,15 @@ global pStruct timeVec timeSteps
                     vec  = [origcellstr ' -> ' num2str(newidx(iter))];
                     dispidx(iter,1:length(vec)) = vec;
                 end
-                disp({'',['i = ' num2str(i)]})
-                disp(dispidx)
+%                 disp({'',['i = ' num2str(i)]})
+%                 disp(dispidx)
             
             [nn, ~] = histc(newidx, 1:nanmax(newidx));
             if max(nn)>1
-                stophere=1;
                 error('cells called twice!!!')
             end
-%             idx(loserz) = [];
-%             idx = vertcat(idx,missers);
-           
 
-%             pidx = idx;
-%             pidx(isnan(pidx))=[];
-%             SameCellPX = pixels(pidx);
-%             SameCellPX(loserz) = {NaN}; %remove multiple links to same cell from previous frame so that cell is only linked to one previous               
-%             AllCellsPX = horzcat(SameCellPX,pixels(missers));
-%             emptyidx = find((cellfun(@isempty, AllCellsPX,'UniformOutput',1))==1);
-%             if ~isempty(emptyidx)
-%                 AllCellsPX(emptyidx) = {NaN};
-%             end
-if i==60
-    sooops=1;
-end
+
             AllCellsPX = updatevaluefunc(pixels',oldidx,newidx)';
             segment_Pixels_array{i} = AllCellsPX;
             segment_Centroid_array{i} = updatevaluefunc(centroids,oldidx,newidx);
@@ -3951,65 +3907,72 @@ end
             segment_nucFluor_array{i} = updatevaluefunc(nucfluor,oldidx,newidx);
             segment_cellFluor_array{i} = updatevaluefunc(cellfluor,oldidx,newidx);
             segment_Ellipt_array{i} = updatevaluefunc(ellipt,oldidx,newidx);
+%             cellnum{i} = updatevaluefunc(num_cells_currentFrame,oldidx,newidx);
+            newidxarray(i) = {newidx};
             
             
             
-            
-            
-      %%%      
-% figgy = figure(989);
-% children = figgy.Children;
-% if ~isempty(children)
-%     children.NextPlot='replace';
-% end
-% trackimg = zeros(size(segmentimgstack(:,:,i-1)));
-% img1 = segmentimgstack(:,:,i-1);
-% img2 = segmentimgstack(:,:,i);
-% trackimg(img1>0)=1;
-% trackimg(img2>0)=2;
-% trackimg((img1>0)&(img2>0))=1.5;
+     
+%             figgy = figure(989);
+%             children = figgy.Children;
+%             if ~isempty(children)
+%                 children.NextPlot='replace';
+%             end
+%             trackimg = zeros(size(segmentimgstack(:,:,i-1)));
+%             img1 = segmentimgstack(:,:,i-1);
+%             img2 = segmentimgstack(:,:,i);
+%             trackimg(img1>0)=1;
+%             trackimg(img2>0)=2;
+%             trackimg((img1>0)&(img2>0))=1.5;
 % 
-% imagesc(trackimg);hold on
-% for j=1:size(centroids,1)
-%     x = centroids(j,1);
-%     y = centroids(j,2);
-%     t = text(x,y,num2str(j));
-%     t.Color = 'r';
-% end
+%             imagesc(trackimg);hold on
+%             for j=1:size(centroids,1)
+%                 x = centroids(j,1);
+%                 y = centroids(j,2);
+%                 t = text(x,y,num2str(j));
+%                 t.Color = 'r';
+%             end
 % 
-% centnew = updatevaluefunc(centroids,oldidx,newidx);
-% centidx = true(1,size(centroidsPrev,1));
-% x1 = centroidsPrev(centidx,1);
-% y1 = centroidsPrev(centidx,2);
-% x2 = centnew(:,1);
-% y2 = centnew(:,2);
-% x = horzcat(x1,x2(centidx));
-% y = horzcat(y1,y2(centidx));
-% plot(x',y','r','LineWidth',2);hold on
-% p=plot(x2,y2);
-% p.Marker = 's';
-% p.LineStyle='none';
-% p.MarkerFaceColor='k';
-% p.MarkerEdgeColor='none';
+%             for j=1:size(centroidsPrev,1)
+%                 x = centroidsPrev(j,1);
+%                 y = centroidsPrev(j,2);
+%                 t = text(x,y,num2str(j));
+%                 t.Color = 'b';
+%             end
 % 
-% if length(centidx)<length(x2)
-% p=plot(x2(length(centidx)+1:end),y2(length(centidx)+1:end));
-% p.Marker = 'o';
-% p.MarkerSize = 8;
-% p.LineStyle='none';
-% p.MarkerFaceColor='g';
-% p.MarkerEdgeColor='g';
-% end
+%             centnew = updatevaluefunc(centroids,oldidx,newidx);
+%             centidx = true(1,size(centroidsPrev,1));
+%             x1 = centroidsPrev(centidx,1);
+%             y1 = centroidsPrev(centidx,2);
+%             x2 = centnew(:,1);
+%             y2 = centnew(:,2);
+%             x = horzcat(x1,x2(centidx));
+%             y = horzcat(y1,y2(centidx));
+%             plot(x',y','r','LineWidth',2);hold on
+%             p=plot(x2,y2);
+%             p.Marker = 's';
+%             p.LineStyle='none';
+%             p.MarkerFaceColor='k';
+%             p.MarkerEdgeColor='none';
 % 
-% deadidx = isnan(x2(centidx));
-% p=plot(x1(deadidx),y1(deadidx));
-% if ~isempty(p)
-% p.Marker = 'x';
-% p.MarkerSize=10;
-% p.LineStyle='none';
-% p.MarkerFaceColor='r';
-% p.MarkerEdgeColor='r';
-% end
+%             if length(centidx)<length(x2)
+%             p=plot(x2(length(centidx)+1:end),y2(length(centidx)+1:end));
+%             p.Marker = 'o';
+%             p.MarkerSize = 8;
+%             p.LineStyle='none';
+%             p.MarkerFaceColor='g';
+%             p.MarkerEdgeColor='g';
+%             end
+% 
+%             deadidx = isnan(x2(centidx));
+%             p=plot(x1(deadidx),y1(deadidx));
+%             if ~isempty(p)
+%             p.Marker = 'x';
+%             p.MarkerSize=10;
+%             p.LineStyle='none';
+%             p.MarkerFaceColor='r';
+%             p.MarkerEdgeColor='r';
+%             end
 
 
             
@@ -4034,7 +3997,7 @@ end
                
            
         end
-
+sss=1;
 end
 function saveTrackingFileAs_callback(~,~)
 global  trackingPath Tracked ExportName ImageDetails
@@ -4047,7 +4010,7 @@ end
 
 %% Image Display functions
 function setSceneAndTime
-global displayTrackingToggle refineTrackingToggle DICimgstack dfoName  nucleus_seg backgroundimgstack bfoName nfoName background_seg cell_seg nucleusimgstack sfoName segmentimgstack  channelimgstack cfoName segmentPath frameToLoad ImageDetails  Tracked SceneList  trackPath imgfile mstackPath
+global runIterateToggle displayTrackingToggle refineTrackingToggle DICimgstack dfoName  nucleus_seg backgroundimgstack bfoName nfoName background_seg cell_seg nucleusimgstack sfoName segmentimgstack  channelimgstack cfoName segmentPath frameToLoad ImageDetails  Tracked SceneList  trackPath imgfile mstackPath
 
 %check for empty variables
     cd(mstackPath)
@@ -4306,7 +4269,9 @@ end
 backgroundimg(segmentimg) = true; 
 bkgpixels = channelimg(backgroundimg);
 bkgmedian = nanmedian(bkgpixels);
+if runIterateToggle ==0
 displayImageFunct(If,channelimg,bkgmedian);
+end
 
 end
 
@@ -4425,6 +4390,7 @@ global expDateStr psettings plotSettingsToggle trunccmaplz timeFrames tcontrast 
         dispimg(dispimg> 255) =254;
         colormap(cmap);
         If = bwperim(If) | bwperim(imdilate(If,strel('disk',1)));
+%         If = bwperim(If);
         dispimg(If>0)=255;
     end
 
