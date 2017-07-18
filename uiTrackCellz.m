@@ -1,5 +1,5 @@
 function uiTrackCellz(FileDate,AutoTrackStr)
-global pStruct timeVec timeSteps DivisionStruct xAxisLimits DICimgstack dfoName cfoName trackingPath background_seg bfoName nfoName sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterateToggle ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs updateContrastToggle cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes expDateStr plotSettingsToggle PlotAxes cmap refineTrackingToggle expDirPath  timeFrames frameToLoad ImageDetails MainAxes SceneList displayTrackingToggle imgsize ExpDate
+global Tracked pStruct timeVec timeSteps DivisionStruct xAxisLimits DICimgstack dfoName cfoName trackingPath background_seg bfoName nfoName sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterateToggle ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs updateContrastToggle cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes expDateStr plotSettingsToggle PlotAxes cmap refineTrackingToggle expDirPath  timeFrames frameToLoad ImageDetails MainAxes SceneList displayTrackingToggle imgsize ExpDate
 
     DivisionStruct = struct();
 %determine matfile directory
@@ -38,7 +38,7 @@ global pStruct timeVec timeSteps DivisionStruct xAxisLimits DICimgstack dfoName 
     
     
 %determine export details
-    ExportNameKey = 'tsi';
+    ExportNameKey = 'tsi_';
     if ~strcmp(ExportNameKey,'final')
         disp(strcat('Export name key is "',ExportNameKey,'" not FINAL'))
     end
@@ -496,9 +496,11 @@ h=    uicontrol('Style','pushbutton',...
         exportSegmentedCells([],[])
         close(f)
     else
+        Tracked = makeTrackingFile(timeFrames);
         ImageDetails.Scene = SceneList{1};
         ImageDetails.Channel = nucleus_seg;
         ImageDetails.Frame = 1;
+        setSceneAndTime
     end
 
     
@@ -1742,6 +1744,8 @@ global cell_seg nucleus_seg xAxisLimits trunccmaplz SecondPlotAxes Tracked Image
     elseif strcmp(ImageDetails.Channel,nucleus_seg)
         plotMat = plotStructUI.mkatetotal;
         plotMatFC = plotStructUI.mkateFCtotal;
+%         plotMat = plotStructUI.mkate;
+%         plotMatFC = plotStructUI.mkateFC;
         ylimit =[0 3];
     else
         plotMat = plotStructUI.Smad;
@@ -3613,7 +3617,7 @@ end
 idx1 = ~isnan(oldidx)&~(isnan(newidx));
 valnew(idx1,validx) = val(newidx(idx1),validx);
 
-idx2 = isnan(oldidx);
+idx2 = isnan(oldidx)&~isnan(newidx);
 valnew(idx2,validx) = val(newidx(idx2),validx);
 
 if iscell(val)
@@ -3662,7 +3666,7 @@ function [distProb,idx,cutoffidx] = probSpitter(input,inputPrev,knnnum,displacem
     end
     
     cutoffidx = epsMat>displacementCutoff;
-    distProb(cutoffidx)=0;
+%     distProb(cutoffidx)=0;
     
     
 end
@@ -3824,7 +3828,7 @@ global pStruct timeVec timeSteps
                %two cells are the same
                 knnnum = 5;
                [distProb,~,distcut] = probSpitter(centroids,centroidsPrev,knnnum,displacementCutoff);
-               [areaProbette,~,areacut] = probSpitter(area,areaPrev,size(area,1),Inf);
+               [areaProbette,~,areacut] = probSpitter(area,areaPrev,size(area,1),nanmedian(area));
                [nucFluorProbette,~,nuccut] = probSpitter(nucfluor,nucfluorPrev,size(nucfluor,1),nanmedian(nucfluor)./2);
                [cellFluorProbette,~,cellcut] = probSpitter(cellfluor,cellfluorPrev,size(cellfluor,1),Inf);
                newProb = distProb.*areaProbette.*nucFluorProbette.*cellFluorProbette;     
@@ -3837,18 +3841,21 @@ global pStruct timeVec timeSteps
                %now you need to build a probability matrix that has rows
                % for all cells in centroidsPrev (size(CentroidsPrev,1) and columns for all cells in centroids (size(centroids,1))
                 trackProb = distProb;
-                trackProb(nuccut)=0;
+                trackProb(distcut&nuccut)=0;
                [maxvals,idx] = max(trackProb,[],2); %idx is index of input that matches to inputPrev such that input(idx) = inputPrev;
                
                 %now some cells are assigned twice. Correct this based on highest probabilities
                 %num_cells_set should be = the size of the current NOT the prev
-                num_cells_set = 1:size(trackProb,2); %size(cellProb,2) = length(input)
+                num_cells_currentFrame = 1:size(trackProb,2); %size(cellProb,2) = length(input)
+                num_cells_prevFrame = 1:size(trackProb,1); %size(cellProb,2) = length(input)
                 
                 arbitrateProb = newProb;
+                arbitrateProb(distcut|nuccut|areacut)=0;
                 [arbmaxvals,~] = max(arbitrateProb,[],2); %idx is index of input that matches to inputPrev such that input(idx) = inputPrev;
                 arbmaxvals(arbmaxvals==0)=NaN;
                 idx(maxvals==0) = NaN;
-                [n, bin] = histc(idx, num_cells_set);
+                idx(isnan(maxvals)) = NaN;
+                [n, bin] = histc(idx, num_cells_currentFrame);
                 multiple = find(n>1); %the same cell is called closest to two previous cells
                 missers = find(n<1); %these are likely new cells
                 loserz = [];
@@ -3856,7 +3863,9 @@ global pStruct timeVec timeSteps
                         for loop = multiple' %loop is the cellID in current frame 
                             testidx    = find(ismember(bin, loop)); %cell IDs from prev frame
                             winneridx = find(arbmaxvals(testidx) == max(arbmaxvals(testidx)));
-                            testidx(winneridx)=[];
+                            if ~isempty(winneridx)
+                                testidx(winneridx(1))=[]; %must be winneridx(1) because only one cell can win
+                            end
                             lidx=testidx;
                             loseridx = find(true(size(testidx))==1);
                             
@@ -3879,14 +3888,30 @@ global pStruct timeVec timeSteps
                             loserz = [loserz losern'];
                         end
                     end 
+                    %the index of loserz represents the cell number of
+                    %previous frame and the new indexed numbers of current
+                    %frame
+                    %i.e. loserz =3 means cell 3 from previous frame
+                    %matches with index 3 of newidx
                     
 
-                    newidx = idx;
-                    newidx(loserz)=NaN;
-                    newidx = vertcat(newidx,missers);
+                    newidx = idx; 
+                    newidx(loserz)=NaN; %remove duplicates (loserz)// that is to say, tracks that merge onto one cell
+                    [nn, ~] = histc(vertcat(newidx,missers), num_cells_currentFrame);
+                    updatemissers = find(nn<1);
+%                     loserz(isnan(areaPrev(loserz)))=[]; %remove if no cell before exists //this happens if NaN is identified as maximum
+%                     loserz(ismember(loserz,newidx)) = []; %remove if cell already exists in newidx
+%                     loserz(loserz>length(area))=[]; % remove if cell index is greater than number of cells present
+%                     loserz(ismember(loserz,missers))=[]; % remove if it's already been called as a new cell
+%                     newidx = vertcat(newidx,missers,loserz);
+                    newidx = vertcat(newidx,missers,updatemissers);
 %             newidx = updatevaluefunc((1:size(centroids,1))',idx,loserz,missers);
             oldidx = [1:length(newidx)]'; oldidx(oldidx>length(pixelsPrev))=NaN;
+            oldidx(find(isnan(areaPrev)==1))=NaN;
             
+            if i==27
+                ss=11;
+            end
             %display a table showing which cells become which
                 dispidx = zeros(length(newidx),length([num2str(length(newidx)) ' -> ' num2str(max(newidx))]));
                 dispidx = char(dispidx);
@@ -3895,6 +3920,8 @@ global pStruct timeVec timeSteps
                     vec  = [origcellstr ' -> ' num2str(newidx(iter))];
                     dispidx(iter,1:length(vec)) = vec;
                 end
+                disp({'',['i = ' num2str(i)]})
+                disp(dispidx)
             
             [nn, ~] = histc(newidx, 1:nanmax(newidx));
             if max(nn)>1
@@ -3914,6 +3941,9 @@ global pStruct timeVec timeSteps
 %             if ~isempty(emptyidx)
 %                 AllCellsPX(emptyidx) = {NaN};
 %             end
+if i==60
+    sooops=1;
+end
             AllCellsPX = updatevaluefunc(pixels',oldidx,newidx)';
             segment_Pixels_array{i} = AllCellsPX;
             segment_Centroid_array{i} = updatevaluefunc(centroids,oldidx,newidx);
@@ -3926,8 +3956,12 @@ global pStruct timeVec timeSteps
             
             
             
-      %%%%      
+      %%%      
 % figgy = figure(989);
+% children = figgy.Children;
+% if ~isempty(children)
+%     children.NextPlot='replace';
+% end
 % trackimg = zeros(size(segmentimgstack(:,:,i-1)));
 % img1 = segmentimgstack(:,:,i-1);
 % img2 = segmentimgstack(:,:,i);
@@ -3936,6 +3970,13 @@ global pStruct timeVec timeSteps
 % trackimg((img1>0)&(img2>0))=1.5;
 % 
 % imagesc(trackimg);hold on
+% for j=1:size(centroids,1)
+%     x = centroids(j,1);
+%     y = centroids(j,2);
+%     t = text(x,y,num2str(j));
+%     t.Color = 'r';
+% end
+% 
 % centnew = updatevaluefunc(centroids,oldidx,newidx);
 % centidx = true(1,size(centroidsPrev,1));
 % x1 = centroidsPrev(centidx,1);
@@ -3951,21 +3992,24 @@ global pStruct timeVec timeSteps
 % p.MarkerFaceColor='k';
 % p.MarkerEdgeColor='none';
 % 
-% p=plot(x2(length(centidx):end),y2(length(centidx):end));
+% if length(centidx)<length(x2)
+% p=plot(x2(length(centidx)+1:end),y2(length(centidx)+1:end));
 % p.Marker = 'o';
 % p.MarkerSize = 8;
 % p.LineStyle='none';
 % p.MarkerFaceColor='g';
 % p.MarkerEdgeColor='g';
+% end
 % 
 % deadidx = isnan(x2(centidx));
 % p=plot(x1(deadidx),y1(deadidx));
+% if ~isempty(p)
 % p.Marker = 'x';
 % p.MarkerSize=10;
 % p.LineStyle='none';
 % p.MarkerFaceColor='r';
 % p.MarkerEdgeColor='r';
-
+% end
 
 
             
@@ -4450,12 +4494,14 @@ global expDateStr psettings plotSettingsToggle trunccmaplz timeFrames tcontrast 
 %                     h(i).MarkerFaceColor = cmapl(idxa(i),:);
 %                     h(i).MarkerEdgeColor = cmapl(idxa(i),:)./1.2;
                 end
+                if ~isempty(h)
                 set(h, {'color'}, num2cell(plotcmap,2));
                 colormap(cmap);%return colormap so images display properly
                 hax = h.Parent;
                 hax.Color = 'none';
                 himgax.CLim = [0 256];
                 himgax.NextPlot = 'replace';
+                end
         end
     end
     himgax.YTick = [];
