@@ -3876,6 +3876,9 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
         nidxarraypre = cell(size(sceneArrayVec));
         for ii = 1:length(sceneArrayVec)
             i = sceneArrayVec(ii);
+                if ~isempty(h)
+                    waitbar(i./max(segmentsequence),h)
+                end
             a=i-1;
             b=i;
             centroids = segment_Centroid_array{b};
@@ -4083,11 +4086,12 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
             pxpx = newpx(i,:);
             pxpx(trackidx) = px(tracknums);
             newpx(i,:) = pxpx;
+            centroids = segment_Centroid_array{a};
+            centnew = nan(length(trackidx),size(centroids,2));
+            centnew(trackidx,:) = centroids(tracknums,:);
         end
         
-        centroids = segment_Centroid_array{a};
-        centnew = nan(length(trackidx),size(centroids,2));
-        centnew(trackidx,:) = centroids(tracknums,:);
+
         
 
         AllCellsPX = newpx(i,:);
