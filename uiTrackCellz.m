@@ -4082,14 +4082,17 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
         tracknums = trackvals(trackidx);
 
         px = segment_Pixels_array{a};
+        centroids = segment_Centroid_array{a};
+        centnew = nan(length(trackidx),size(centroids,2));
         if ~isempty(px)
             pxpx = newpx(i,:);
             pxpx(trackidx) = px(tracknums);
             newpx(i,:) = pxpx;
-            centroids = segment_Centroid_array{a};
-            centnew = nan(length(trackidx),size(centroids,2));
+
             centnew(trackidx,:) = centroids(tracknums,:);
         end
+        
+
         
 
         
@@ -4101,8 +4104,6 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
         CC.Connectivity = cnnec;
         CC.PixelIdxList = AllCellsPX;
         CC.NumObjects = numel(AllCellsPX);
-%             stats = regionprops(CC,'Centroid');
-%             Smat = vertcat(stats.Centroid);
         CC.Centroid = centnew;
         CC.Division = [];
         Frame.filename = filename;
