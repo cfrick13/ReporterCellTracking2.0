@@ -1312,6 +1312,17 @@ Tracked = Trackedz;
 
 end
 
+function Tracked = specialchosenOnesAllOnFrame_Callback(frame,Tracked)
+    t = frame;
+    CC = Tracked{t}.Cellz;
+    PX = CC.PixelIdxList;   
+
+    idxs = ~cellfun(@(x) length(x)>1,PX,'UniformOutput',1); %choose all cells on frame
+
+    Trackedz = crushThem(Tracked,~idxs,1,length(Tracked)); 
+    Tracked = Trackedz;
+end
+
 function erodeOnes_Callback(~,~)
 %choose the cells you want
 global ImageDetails Tracked imgsize refineTrackingToggle
@@ -3215,8 +3226,12 @@ end
 
 end
 function trackbutton_Callback(~,~)
-global  Tracked ImageDetails refineTrackingToggle segmentPath nucleus_seg mstackPath cell_seg background_seg
+global  pStruct timeSteps Tracked ImageDetails refineTrackingToggle segmentPath nucleus_seg mstackPath cell_seg background_seg
 pvalue = ImageDetails.Scene;
+
+    nucleiDist = pStruct.nucleus.nucDiameter;
+    tsteps = timeSteps;
+    
     tic
     trackfilelist = {'yes','no'};
     [S,~] = listdlg('PromptString','Are you sure you want to run tracking?',...
@@ -3226,7 +3241,7 @@ pvalue = ImageDetails.Scene;
             
             if S==1
                 h=waitbar(0,'running tracking algorithm...');
-            Tracked = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,h);
+                Tracked = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,h,nucleiDist,tsteps);
             else
             end
 
@@ -3451,8 +3466,11 @@ didxo = diff(idxo,[],2);
 
 end
 function trackSaveIterate_callback(~,~)
-global parellelToggle runIterateToggle SceneList ImageDetails refineTrackingToggle   Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg mstackPath cell_seg background_seg
+global parellelToggle pStruct timeSteps runIterateToggle SceneList ImageDetails refineTrackingToggle   Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg mstackPath cell_seg background_seg
 
+    nucleiDist = pStruct.nucleus.nucDiameter;
+    tsteps = timeSteps;
+    
 runIterateToggle =1;
 parellelToggle = 1;
     if isempty(h) % Enter parallel loop
@@ -3485,7 +3503,7 @@ parellelToggle = 1;
         %run tracking
             pvalue = ImageDetails.Scene;
             
-            Tracked = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,[]);
+            Tracked = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,[],nucleiDist,tsteps);
 %             Tracked = FrickTrackCellsYeah(expDirPath,frameToLoad,pvalue,[]);
             refineTrackingToggle =1;
             setSceneAndTime;
@@ -3504,64 +3522,105 @@ parellelToggle = 0;
 
 end
 function trackSaveIterateChosen_callback(~,~)
-global parellelToggle plotSettingsToggle psettings runIterateToggle SceneList ImageDetails refineTrackingToggle   Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg mstackPath cell_seg background_seg
-
-runIterateToggle =1;
-parellelToggle = 1;
-    for i=1:length(SceneList)
-%     for i=22
-        %iteratively set scenes 
-            Trackedz = makeTrackingFile(timeFrames);
-            Tracked=Trackedz;
-            % Determine the selected data set.
-            str = SceneList;
-            val = i;
-            pvalue = char(str{val});
-            ImageDetails.Scene = pvalue;
-            setSceneAndTime
-            disp(pvalue)
-
-
-        %run tracking
-            pvalue = ImageDetails.Scene;
-            
-            Tracked = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,[]);
-%             Tracked = FrickTrackCellsYeah(expDirPath,frameToLoad,pvalue,[]);
-            refineTrackingToggle =1;
-            setSceneAndTime;
-            
-            cd(trackingPath)
-            filename = 'tsi';
-            save(strcat(filename,'_',ImageDetails.Scene,'_',ExportName,'.mat'),'Tracked')
-            
-            
-            
-    if plotSettingsToggle == 0
-        psettings = PlotSettings_callback([],[]);
-        plotSettingsToggle=1;
+global   SceneList trackingPath ExportName segmentPath nucleus_seg mstackPath cell_seg background_seg timeFrames pStruct timeSteps
+    
+    %initialize this structure outside of the parfor loop
+    psettings = PlotSettings_callback([],[]);
+    framesThatMustBeTracked = psettings.framesThatMustBeTracked;
+    framesThatMustBeTracked(2) =  min([timeFrames framesThatMustBeTracked(2)+10]);
+    nucleiDist = pStruct.nucleus.nucDiameter;
+    tsteps = timeSteps;
+    
+    %remove all global variables before parfor loop
+        tPath = trackingPath;
+        mPath = mstackPath;
+        sList = SceneList;
+        cSeg = cell_seg;
+        nSeg = nucleus_seg;
+        bSeg = background_seg;
+        sPath = segmentPath;
+        eName = ExportName;
+        
+    possibleWorkers = feature('numcores');
+    nWorkers = possibleWorkers;
+    %create parallel pool
+    poolobj = gcp('nocreate');
+    if isempty(poolobj)
+        poolobj = parpool(nWorkers);
+    else
+        nw = poolobj.NumWorkers;
+        if ~(nw==nWorkers)
+           delete(poolobj)
+            poolobj = parpool(nWorkers);
+        end
     end
     
-        %run chosen at two specific frames
-        framesThatMustBeTracked = psettings.framesThatMustBeTracked;
-        framesThatMustBeTracked(2) =  framesThatMustBeTracked(2)+10;
-        for ftmbt = framesThatMustBeTracked
-            ImageDetails.Frame =ftmbt;
-            chosenOnesAllOnFrame_Callback
-        end
-
-
-        %save
-            % saveTrackingFileAs_callback([],[])
-            cd(trackingPath)
-            filename = 'tsichosen';
-            save(strcat(filename,'_',ImageDetails.Scene,'_',ExportName,'.mat'),'Tracked')
-%             save(strcat(filename,ExportName,'.mat'),'Tracked')
-            
+    
+    %split scenes across workers as evenly as possible
+    sceneVector = 1:length(sList);
+    fractions = length(sceneVector)./nWorkers;
+    firstlengths = ceil(fractions);
+    if firstlengths*nWorkers > length(sList)
+        firstlengths = firstlengths-1;
     end
-runIterateToggle =0;
-parellelToggle = 0;
+    sceneArray = cell(1,nWorkers);
+    for nw = 1:nWorkers
+        if nw == nWorkers
+            sceneArray{nw} = sceneVector(((nw-1)*firstlengths)+1:end);
+        else
+            sceneArray{nw} = sceneVector(((nw-1)*firstlengths)+1:firstlengths*nw);
+        end
+    end
+    
+    
 
+    parfor iNW=1:nWorkers
+        sceneArrayVec = sceneArray{iNW};
+        sub_sList = sList(sceneArrayVec);
+        for i = 1:length(sceneArrayVec)
+            %iteratively set scenes 
+            scenestr = char(sub_sList{i});
+
+            %run tracking
+%             tictime=tic;
+            Tracked1 = FrickTrackCellsYeah(sPath,mPath,scenestr,nSeg,cSeg,bSeg,[],nucleiDist,tsteps);
+
+            %refine tracking if necessary
+            Tracked2 = trackingCosmetics(Tracked1);
+            
+            %display time it takes to track and refine
+%             tval = toc(tictime);
+%             disp([scenestr ' took ' num2str(round(tval,1,'decimal')) ' s to segment'])
+            disp(scenestr)
+            
+            
+            Tracked = Tracked1;
+            cd(tPath)
+            filename = 'tsi';
+            saveTrackingIteratively(filename,scenestr,eName,Tracked)
+            %save(strcat(filename,'_',imgDetails.Scene,'_',ExportName,'.mat'),'Tracked')
+            
+
+            %run chosen at two specific frames
+            for ftmbt = framesThatMustBeTracked
+                frame = ftmbt;
+                Tracked3 = specialchosenOnesAllOnFrame_Callback(frame,Tracked2);
+                Tracked4 = trackingCosmetics(Tracked3);
+            end
+
+            Tracked = Tracked4;
+            cd(tPath)
+            filename = 'tsichosen';
+            saveTrackingIteratively(filename,scenestr,eName,Tracked)
+%             save(strcat(filename,'_',imgDetails.Scene,'_',eName,'.mat'),'Tracked')
+        end
+    end
 end
+function saveTrackingIteratively(filename,scenestr,eName,Tracked)
+save(strcat(filename,'_',scenestr,'_',eName,'.mat'),'Tracked');
+end
+
+
 function saveTrackingFileAs_callbackJ(~,~,SceneDirPath)
 global   Tracked
 cd(SceneDirPath)
@@ -3649,63 +3708,77 @@ function [distProb,idx,cutoffidx] = probSpitter(input,inputPrev,knnnum,displacem
     
 end
 %function for tracking cells
-function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,h)
-global pStruct timeVec timeSteps
+function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,h,nucleiDist,tsteps)
+
 %function for tracking cells
 %   Detailed explanation goes here
 
 
-    %determine the size of the nuclei in each experiment
-    nucleiDist = pStruct.nucleus.nucDiameter;
+    %set details for opening images necessary for tracking
+    imgstruct = struct();
+    imgstruct(1).path = segmentPath;
+    imgstruct(2).path = segmentPath;
+    imgstruct(3).path = mstackPath;
+    imgstruct(4).path = mstackPath;
     
+    imgstruct(1).seginstruct = nucleus_seg;
+    imgstruct(2).seginstruct = background_seg;
+    imgstruct(3).seginstruct = nucleus_seg;
+    imgstruct(4).seginstruct = cell_seg;
+    
+    imgstruct(1).segstr = 'nucleus';
+    imgstruct(2).segstr = 'background';
+    imgstruct(3).segstr = 'nucleus';
+    imgstruct(4).segstr = 'cell';
+    
+    imgstruct(1).openstr = 'IfFinal';
+    imgstruct(2).openstr = 'IfFinal';
+    imgstruct(3).openstr = 'flatstack';
+    imgstruct(4).openstr = 'flatstack';
+    
+    imgstruct(1).image =[];
+    imgstruct(1).filename =[];
 
-
-    Frame = struct();
+%parfor is slower with only 4 images    
+%     possibleWorkers = feature('numcores');
+%     nWorkers = min([length(imgstruct) possibleWorkers]);
+%     %create parallel pool
+%     poolobj = gcp('nocreate');
+%     if isempty(poolobj)
+%         poolobj = parpool(nWorkers);
+%     else
+%         nw = poolobj.NumWorkers;
+%         if ~(nw==nWorkers)
+%            delete(poolobj)
+%             poolobj = parpool(nWorkers);
+%         end
+%     end
+    
     %load nucleus segmentation binary as segmentimgstack
-    cd(segmentPath)
-    ff = dir(strcat('*',pvalue,'*',nucleus_seg,'*'));
-    if length(ff)>1
-        ff = dir(strcat('*',pvalue,'*',nucleus_seg,'*nucleus*')); 
+    for i = 1:length(imgstruct) %parfor is slower with only 4 images
+        pathstr = imgstruct(i).path;
+        seginstruct = imgstruct(i).seginstruct;
+        segstr = imgstruct(i).segstr;
+        openstr = imgstruct(i).openstr;
+        cd(pathstr)
+        ff = dir(strcat('*',pvalue,'*',seginstruct,'*'));
+        if length(ff)>1
+            ff = dir(strcat('*',pvalue,'*',seginstruct,'*',segstr,'*')); 
+        end
+        fimgname = char(ff.name);
+        nucleusFileObject = matfile(fimgname);
+        indimage = nucleusFileObject.(openstr);
+        imgstruct(i).image = indimage;
+        imgstruct(i).filename = fimgname;
     end
-    %         ff = dir(strcat(ImageDetails.Channel,'*'));
-    filename = char(ff.name);
-    nucleusFileObject = matfile(filename);
-    segmentimgstack = nucleusFileObject.IfFinal;
-
-
-    %load background segmentation binary as segmentimgstack
-    cd(segmentPath)
-    ff = dir(strcat('*',pvalue,'*',background_seg,'*'));
-    if length(ff)>1
-        ff = dir(strcat('*',pvalue,'*',background_seg,'*background*')); 
-    end
-    %         ff = dir(strcat(ImageDetails.Channel,'*'));
-    filename = char(ff.name);
-    backgroundFileObject = matfile(filename);
-    backgroundimgstack = backgroundFileObject.IfFinal;
-
-    %load nucleus images as nosub_nucleusimgstack
-    cd(mstackPath)
-    ff = dir(strcat('*',pvalue,'*',nucleus_seg,'*'));
-    if length(ff)>1
-        ff = dir(strcat('*',pvalue,'*',nucleus_seg,'*nucleus*')); 
-    end
-    %         ff = dir(strcat(ImageDetails.Channel,'*'));
-    filename = char(ff.name);
-    nucleusFileObject = matfile(filename);
-    nosub_nucleusimgstack = nucleusFileObject.flatstack;   
-
-    %load cell images as nosub_cellimgstack
-    cd(mstackPath)
-    ff = dir(strcat('*',pvalue,'*',cell_seg,'*'));
-    if length(ff)>1
-        ff = dir(strcat('*',pvalue,'*',cell_seg,'*cell*')); 
-    end
-    %         ff = dir(strcat(ImageDetails.Channel,'*'));
-    filename = char(ff.name);
-    cellFileObject = matfile(filename);
-    nosub_cellimgstack = cellFileObject.flatstack;      
     
+    segmentimgstack = imgstruct(1).image;
+    backgroundimgstack = imgstruct(2).image;
+    nosub_nucleusimgstack = imgstruct(3).image;
+    nosub_cellimgstack = imgstruct(4).image;
+    filename = imgstruct(1).filename;
+
+
 
     %background subtract nucleusimgstack
     nucleusimgstack = zeros(size(nosub_nucleusimgstack));
@@ -3733,7 +3806,6 @@ global pStruct timeVec timeSteps
     segment_Ellipt_array = cell(1,size(segmentimgstack,3));
     segment_Pixels_array = cell(1,size(segmentimgstack,3));
     segment_Cellnum_array = cell(1,size(segmentimgstack,3));
-%     segmentsequence = fliplr(1:size(segmentimgstack,3)); %track from last frame to first frame
     segmentsequence = 1:size(segmentimgstack,3); %track from first frame to last frame
         for i = segmentsequence
             segI = segmentimgstack(:,:,i);
@@ -3754,13 +3826,10 @@ global pStruct timeVec timeSteps
             segment_Stdev_array{i} = cellfun(@(x) nanstd(nucI(x)),PX,'UniformOutput',1)';
             segment_Centroid_array{i} = centroidMat;
             segment_Pixels_array{i} = PX;
-            segment_Cellnum_array{i} = [1:length(PX)]';
+            segment_Cellnum_array{i} = (1:length(PX))';
         end
         
     %track based on assigning probabilities determined by minimizing changes to measured parameters
-    
-        
-%     segmentsequence = fliplr(1:size(segmentimgstack,3)-1); %track from last frame to first frame
     segmentsequence = 2:size(segmentimgstack,3); %track from first frame to last frame
     birtharray = cell(1,size(segmentimgstack,3));
     nidxarray = cell(1,size(segmentimgstack,3));
@@ -3769,31 +3838,48 @@ global pStruct timeVec timeSteps
                
     possibleWorkers = feature('numcores');
     nWorkers = possibleWorkers;
-    %create parallel pool
-    poolobj = gcp('nocreate');
-    if isempty(poolobj)
-        poolobj = parpool(nWorkers);
-    else
-        nw = poolobj.NumWorkers;
-        if ~(nw==nWorkers)
-           delete(poolobj)
-            poolobj = parpool(nWorkers);
+%     %create parallel pool
+%     poolobj = gcp('nocreate');
+%     if isempty(poolobj)
+%         poolobj = parpool(nWorkers);
+%     else
+%         nw = poolobj.NumWorkers;
+%         if ~(nw==nWorkers)
+%            delete(poolobj)
+%             poolobj = parpool(nWorkers);
+%         end
+%     end
+
+    %split scenes across workers as evenly as possible
+    sceneVector = segmentsequence;
+    fractions = length(sceneVector)./nWorkers;
+    firstlengths = ceil(fractions);
+    if firstlengths*nWorkers > length(segmentsequence)
+        firstlengths = firstlengths-1;
+    end
+    sceneArray = cell(1,nWorkers);
+    for nw = 1:nWorkers
+        if nw == nWorkers
+            sceneArray{nw} = sceneVector(((nw-1)*firstlengths)+1:end);
+        else
+            sceneArray{nw} = sceneVector(((nw-1)*firstlengths)+1:firstlengths*nw);
         end
     end
-
-        parfor i = segmentsequence
+    
+    birtharrayz = cell(1,nWorkers);
+    nidxarrayz = cell(1,nWorkers);
+    
+    for iNW = 1:nWorkers
+%     parfor iNW = 1:nWorkers
+        sceneArrayVec = sceneArray{iNW};
+        birtharraypre = cell(size(sceneArrayVec));
+        nidxarraypre = cell(size(sceneArrayVec));
+        for ii = 1:length(sceneArrayVec)
+            i = sceneArrayVec(ii);
             a=i-1;
             b=i;
             centroids = segment_Centroid_array{b};
             centroidsPrev = segment_Centroid_array{a};
-               if isempty(centroids) %that is, no cells were segmented
-                   b=i-1;
-                   centroids = segment_Centroid_array{b};
-               end
-               if isempty(centroidsPrev) %that is, no cells were tracked on previous frame
-                   a=i;
-                   centroidsPrev = segment_Centroid_array{a};
-               end
             area = segment_Area_array{b};
             areaPrev = segment_Area_array{a};
             nucfluor = segment_nucFluor_array{b};
@@ -3802,22 +3888,25 @@ global pStruct timeVec timeSteps
             cellfluorPrev = segment_cellFluor_array{a};            
             pixels = segment_Pixels_array{b};
             pixelsPrev = segment_Pixels_array{a};
-            ellipt = segment_Ellipt_array{b};
-            elliptPrev = segment_Ellipt_array{a};
-            
-            displacementCutoff = (nucleiDist)*(timeSteps(i-1)./10);
+            %ellipt = segment_Ellipt_array{b};
+            %elliptPrev = segment_Ellipt_array{a};
 
-            
+            displacementCutoff = (nucleiDist)*(tsteps(i-1)./10);
+
+            if i==11
+                ssso=1;
+            end
+            if ~(isempty(pixels) || isempty(pixelsPrev))
                %nearest neighbor distances to determine probability that
                %two cells are the same
                 knnnum = 5;
                [distProb,~,distcut] = probSpitter(centroids,centroidsPrev,knnnum,displacementCutoff);
                [areaProbette,~,areacut] = probSpitter(area,areaPrev,size(area,1),nanmedian(area));
                [nucFluorProbette,~,nuccut] = probSpitter(nucfluor,nucfluorPrev,size(nucfluor,1),nanmedian(nucfluor)./2);
-               [cellFluorProbette,~,cellcut] = probSpitter(cellfluor,cellfluorPrev,size(cellfluor,1),Inf);
+               [cellFluorProbette,~,~] = probSpitter(cellfluor,cellfluorPrev,size(cellfluor,1),Inf);
                newProb = distProb.*areaProbette.*nucFluorProbette.*cellFluorProbette;     
                %distProb dimesionas are length(centroidsPrev) x length(centroids)
-               
+
               %you should assign weights to the probilities as well
 
                %centroids [37x2] centroidPrev[34x2] idx[34x3] distProb[34x37];
@@ -3827,21 +3916,24 @@ global pStruct timeVec timeSteps
                 trackProb = distProb;
                 trackProb(distcut|nuccut)=0;
                [maxvals,idx] = max(trackProb,[],2); %idx is index of input that matches to inputPrev such that input(idx) = inputPrev;
-               
+               %idx has length(idx) = length(inputPrev);
+               %idx has max(idx) = length(input);
+
                 %now some cells are assigned twice. Correct this based on highest probabilities
                 %num_cells_set should be = the size of the current NOT the prev
-                num_cells_currentFrame = 1:size(trackProb,2); %size(cellProb,2) = length(input)
-                num_cells_prevFrame = 1:size(trackProb,1); %size(cellProb,2) = length(input)
-                
+                num_cells_currentFrame = 1:size(trackProb,2); %size(trackProb,2) = length(input)
+                %num_cells_prevFrame = 1:size(trackProb,1); %size(trackProb,1) = length(inputPrev)
+
                 arbitrateProb = newProb;
                 arbitrateProb(distcut|nuccut|areacut)=0;
                 [arbmaxvals,~] = max(arbitrateProb,[],2); %idx is index of input that matches to inputPrev such that input(idx) = inputPrev;
                 arbmaxvals(arbmaxvals==0)=NaN;
                 idx(maxvals==0) = NaN;
                 idx(isnan(maxvals)) = NaN;
+
                 [n, bin] = histc(idx, num_cells_currentFrame);
-                multiple = find(n>1); %the same cell is called closest to two previous cells
-                missers = find(n<1); %these are likely new cells
+                multiple = find(n>1);%the same cell is called closest to two previous cells
+                missers = find(n<1);
                 loserz = [];
                     if ~isempty(multiple)
                         for loop = multiple' %loop is the cellID in current frame 
@@ -3853,7 +3945,7 @@ global pStruct timeVec timeSteps
                             end
                             lidx=testidx;
                             loseridx = find(true(size(testidx))==1);
-                            
+
                             for ll = 1:length(lidx)
                                 lval = lidx(ll);
                                 arbval = zeros(1,length(missers));
@@ -3867,10 +3959,11 @@ global pStruct timeVec timeSteps
                                     loseridx(ll)=NaN;
                                 end
                             end
+
                             loseridx(isnan(loseridx))=[];
                             lidx=testidx(loseridx);
                             losern = lidx;
-                            loserz = [loserz losern'];
+                            loserz = [loserz(:)' losern(:)'];
                         end
                     end 
                     %the index of loserz represents the cell number of
@@ -3878,107 +3971,130 @@ global pStruct timeVec timeSteps
                     %frame
                     %i.e. loserz =3 means cell 3 from previous frame
                     %matches with index 3 of newidx
-                    
-
                 nidx = idx; 
                 nidx(loserz)=NaN; %remove duplicates (loserz)// that is to say, tracks that merge onto one cell
-                [nn, ~] = histc(vertcat(nidx,missers), num_cells_currentFrame);
+
+                [nn, ~] = histc([nidx(:)' missers(:)'], num_cells_currentFrame);
                 updatemissers = find(nn<1);
-                
-                
-                newidx = vertcat(nidx,missers,updatemissers);
-                oldidx = [1:length(newidx)]'; oldidx(oldidx>length(pixelsPrev))=NaN;
-                oldidx((isnan(areaPrev)==1))=NaN;
-            
-            %display a table showing which cells become which
-                dispidx = zeros(length(newidx),length([num2str(length(newidx)) ' -> ' num2str(max(newidx))]));
-                dispidx = char(dispidx);
-                for iter=1:size(dispidx,1)
-                    origcellstr = num2str(oldidx(iter));
-                    vec  = [origcellstr ' -> ' num2str(newidx(iter))];
-                    dispidx(iter,1:length(vec)) = vec;
-                end
-%                 disp({'',['i = ' num2str(i)]})
-%                 disp(dispidx)
-            
+                newidx = [nidx(:)' missers(:)' updatemissers(:)']';
+
+            elseif isempty(pixelsPrev)
+                idx = nan(1);
+                nidx = idx;
+                missers = [];
+                num_cells_currentFrame = length(area);
+                [nn, ~] = histc([nidx(:)' missers(:)'], num_cells_currentFrame);
+                updatemissers = find(nn<1);
+                newidx = [nidx(:)' missers(:)' updatemissers(:)']';
+            else %if no cells are segmented on the current frame
+                idx = nan(size(areaPrev));
+                nidx = idx;
+                newidx = idx;
+                missers = [];
+                updatemissers = [];
+            end
+
             [nn, ~] = histc(newidx, 1:nanmax(newidx));
             if max(nn)>1
                 error('cells called twice!!!')
             end
 
-            
-            birtharray(i) = {vertcat(missers,updatemissers)};
-            nidxarray(i) = {nidx};
+            birtharraypre(ii) = {[missers(:)' updatemissers(:)']'};
+            nidxarraypre(ii) = {nidx};
         end
+        birtharrayz{iNW} = birtharraypre;
+        nidxarrayz{iNW} = nidxarraypre;
+    end
+
+    birtharray(2:end) = horzcat(birtharrayz{:});
+    nidxarray(2:end) = horzcat(nidxarrayz{:}) ;
   
 
-%determine the number of births (new tracks) to determine the dimensions of
-%the track vector
-numbirths = zeros(1,length(birtharray));
-for i = 1:length(nidxarray)
-    births = birtharray{i};
-    numbirths(i) = length(births);
-end
-
-number_of_tracks = sum(numbirths);
-trackmatrix = nan(size(segmentimgstack,3),number_of_tracks);
-birthdistold = 0;
-for i = 1:size(segmentimgstack,3)
-    births = birtharray{i};
-    nidx = nidxarray{i}';
-    nidvec = nidx(~isnan(nidx));
-
-    if i>1
-       prevvecinit = trackmatrix(i-1,1:birthdistold);
-       prevvec = prevvecinit(~isnan(prevvecinit));
-       %they are always the same size
-        %        disp(size(prevvec))
-        %        disp(size(nidx))
-        %        disp(max(prevvec))
-    else
-       prevvec = 1:length(nidvec);
-    end
-
-    if ~isempty(nidx)
-        jvec = 1:length(prevvec);
-        jvectwo = zeros(size(jvec));
-        for k = 1:length(prevvec)
-            nval = find(prevvecinit == prevvec(k));
-            jvectwo(k) = nval;
-        end
-
-        for j = jvec
-            trackmatrix(i,jvectwo(j)) = nidx(prevvec(j));
+    %determine the number of births (new tracks) to determine the dimensions of
+    %the track vector
+    numbirths = zeros(1,length(birtharray));
+    birthdistmat = zeros(1,length(birtharray));
+    for i = 1:length(nidxarray)
+        births = birtharray{i};
+        numbirths(i) = length(births);
+        if i>1
+        birthdistmat(i) = sum(numbirths(1:i-1));
+        else
+            birthdistmat(i) = 0;
         end
     end
 
-    if ~isempty(births)
-        trackmatrix(i,birthdistold+1:birthdistold+length(births)) = births;
-        birthdistnew = max(birthdistold+1:birthdistold+length(births));
-        birthdistold=birthdistnew;
-    end
-end
-
-
-%now update all the fields
-newpx = cell(size(trackmatrix));
-newpx(:) = {NaN};
-segI = segmentimgstack(:,:,1); %choose the first frame of segmentimgstack to start with
-CC = bwconncomp(segI);
-Tracked = cell(1,size(segmentimgstack,3));
+    number_of_tracks = sum(numbirths);
+    trackmatrix = nan(size(segmentimgstack,3),number_of_tracks);
     for i = 1:size(segmentimgstack,3)
-        px = segment_Pixels_array{i};
+        births = birtharray{i};
+        nidx = nidxarray{i}';
+        nidvec = nidx(~isnan(nidx));
+        bdist = birthdistmat(i);
+        nb = numbirths(i);
+
+        if i>1
+           prevvecinit = trackmatrix(i-1,1:bdist);
+           prevvec = prevvecinit(~isnan(prevvecinit));
+           %they are always the same size
+            %        disp(size(prevvec))
+            %        disp(size(nidx))
+            %        disp(max(prevvec))
+        else
+           prevvec = 1:length(nidvec);
+        end
+
+        if ~isempty(nidx(~isnan(nidx)))
+            jvec = 1:length(prevvec);
+            jvectwo = zeros(size(jvec));
+            for k = 1:length(prevvec)
+                nval = find(prevvecinit == prevvec(k));
+                jvectwo(k) = nval;
+            end
+
+            for j = jvec
+                trackmatrix(i,jvectwo(j)) = nidx(prevvec(j));
+            end
+        end
+
+        if ~isempty(births)
+            trackmatrix(i,bdist+1:bdist+nb) = births;
+        end
+    end
+
+
+    %now update all the fields
+    newpx = cell(size(trackmatrix));
+    newpx(:) = {NaN};
+    segI = segmentimgstack(:,:,1); %choose the first frame of segmentimgstack to start with
+    CC = bwconncomp(segI);
+    cnnec = CC.Connectivity;
+    imgsize = CC.ImageSize;
+    Tracked = cell(1,size(segmentimgstack,3));
+    %parfor i = 1:size(segmentimgstack,3)
+    for i = 1:size(segmentimgstack,3)
+        a=i;
         trackvals=trackmatrix(i,:);
         trackidx = ~isnan(trackvals);
         tracknums = trackvals(trackidx);
-        newpx(i,trackidx) = px(tracknums);
+
+        px = segment_Pixels_array{a};
+        if ~isempty(px)
+            pxpx = newpx(i,:);
+            pxpx(trackidx) = px(tracknums);
+            newpx(i,:) = pxpx;
+        end
         
-        centroids = segment_Centroid_array{i};
+        centroids = segment_Centroid_array{a};
         centnew = nan(length(trackidx),size(centroids,2));
         centnew(trackidx,:) = centroids(tracknums,:);
         
 
         AllCellsPX = newpx(i,:);
+        CC = struct();
+        Frame = struct();
+        CC.ImageSize = imgsize;
+        CC.Connectivity = cnnec;
         CC.PixelIdxList = AllCellsPX;
         CC.NumObjects = numel(AllCellsPX);
 %             stats = regionprops(CC,'Centroid');
@@ -3989,6 +4105,7 @@ Tracked = cell(1,size(segmentimgstack,3));
         Frame.Cellz = CC;
         Tracked{i} = Frame;
     end
+    
 end
 function saveTrackingFileAs_callback(~,~)
 global  trackingPath Tracked ExportName ImageDetails
@@ -4205,7 +4322,7 @@ global runIterateToggle displayTrackingToggle refineTrackingToggle DICimgstack d
         If = segmentimg;
         Tracked = loadTrackedStructure;
         centroidDisagreement=false;
-    else  %if there exists segmenttracking already...then load that. 
+    else  %if there exists segmenttracking already...then use that. 
         CC = Tracked{t}.Cellz;
         PX = CC.PixelIdxList;
         Centroids  = CC.Centroid;
@@ -4453,12 +4570,12 @@ global expDateStr psettings plotSettingsToggle trunccmaplz timeFrames tcontrast 
                 end
                 if ~isempty(h)
                 set(h, {'color'}, num2cell(plotcmap,2));
-                colormap(cmap);%return colormap so images display properly
                 hax = h.Parent;
                 hax.Color = 'none';
                 himgax.CLim = [0 256];
                 himgax.NextPlot = 'replace';
                 end
+                colormap(himgax,cmap);%return colormap so images display properly
         end
     end
     himgax.YTick = [];
