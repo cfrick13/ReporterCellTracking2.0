@@ -52,21 +52,9 @@ background_seg = segInstruct.background;
 
 
 %define parameter structure and default parameter values
-    pStruct = struct();
-    parameterDefaults.background = [30 1 2 0.5];
-    parameterDefaults.nucleus = [30 1 2 0.5];
-    parameterDefaults.cell = [40 1 2 0.5];
-    parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','metthresh'};
-    for p = 1:length(parameterStrings)
-        pString = char(parameterStrings{p});
-        for c = 1:length(segInstructList)
-            cstr = char(segInstructList{c});
-            cString = alterChanName(cstr);
-            pd = parameterDefaults.(cString);
-            pStruct.(cString).(pString) = pd(p); 
-        end
-    end
-    pStruct = loadSegmentParameters(pStruct,datename,exportdir); %loads saved value of pStruct
+pStruct = defaultpStructFunc(segInstructList);
+
+pStruct = loadSegmentParameters(pStruct,datename,exportdir); %loads saved value of pStruct
 
 
 bkarray = bkarraymaker(BACKGROUND);
@@ -83,63 +71,117 @@ SceneList = unique(cellfun(@(x) x{1},dcell,'UniformOutput',0));
 bkgscenelog = cellfun(@isempty,d,'UniformOutput',1);
 SceneList = SceneList(bkgscenelog);
 
+fileobject = matfile(char(nucleusFileList(3).name));
+imgstack = fileobject.flatstack;
+    %determine number of parallel cores to employ based on memory requirements
+        dim = size(imgstack);
+        memoryrequired = dim(1)*dim(2)*dim(3)*2*2;%background stack + imagestack
+%             disp(strcat('memory required for one image =',num2str(round(memoryrequired./(1e6),2,'decimals')),'MegaBytes'))
+        detWorkers = 6./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
+        nWorkers = floor(detWorkers);
+        possibleWorkers = feature('numcores');
+        if nWorkers>possibleWorkers
+            nWorkers = possibleWorkers;
+        elseif nWorkers <1
+            nWorkers = 1;
+        end
+        
 
+        disp(['memory required for imagestack = ' num2str(round(memoryrequired./(1e6),0,'decimals')) ' MB'])
+
+        
+     % Enter parallel loop
+        poolobj = gcp('nocreate');
+        if isempty(poolobj)
+            poolobj = parpool(nWorkers);
+        else
+        nw = poolobj.NumWorkers;
+            if nw ==nWorkers
+            else
+                delete(poolobj)
+                poolobj = parpool(nWorkers);
+            end
+        end
     
-        for i=1:length(SceneList)
-%         for i=9
-            tic
-            sceneStr = SceneList{i};
-            sceneName = char(sceneStr);
 
+
+    %split scenes across workers as evenly as possible
+    sList = SceneList;
+    sceneVector = 1:length(sList);
+    fractions = length(sceneVector)./nWorkers;
+    firstlengths = ceil(fractions);
+    if firstlengths*nWorkers > length(sList)
+        firstlengths = firstlengths-1;
+    end
+    sceneArray = cell(1,nWorkers);
+    for nw = 1:nWorkers
+        if nw == nWorkers
+            sceneArray{nw} = sceneVector(((nw-1)*firstlengths)+1:end);
+        else
+            sceneArray{nw} = sceneVector(((nw-1)*firstlengths)+1:firstlengths*nw);
+        end
+    end
+    
+    parfor iNW=1:nWorkers
+        sceneArrayVec = sceneArray{iNW};
+        sub_sList = sList(sceneArrayVec);
+        for i = 1:length(sceneArrayVec)
+            scenestr = char(sub_sList{i});
+
+        %locate nuclei data set
+            nuctic = tic;
             cd(mstackPath)
-            nucleusFileList = dir(strcat('*',sceneName,'*',nucleus_seg,'*.mat'));
+            nucleusFileList = dir(strcat('*',scenestr,'*',nucleus_seg,'*.mat'));
             if isempty(nucleusFileList)
                 error(strcat('the channel set for "nucleus_seg" ("',nucleus_seg,'") does not exist'))
             end
-          
-            
+            %load nuclei data set
             nucleusFileName = char(nucleusFileList.name);
             fileObject = matfile(nucleusFileName);
             FinalImage = fileObject.flatstack;
-            disp(sceneName)
-            
-            %display details
-            if i ==1
-                dim = size(FinalImage(:,:,1));
-                memoryrequired = dim(1)*dim(2)*2;%background stack + imagestack
-                disp(strcat('memory required for one image =',num2str(round(memoryrequired./(1e6),2,'decimals')),'MegaBytes'))
-            end
-            
+            %segment nuclei
             [~,~] = segmentationNucleus(FinalImage,segmentPath,'nucleus',nucleusFileName,pStruct);
-                
+            nuctoc = num2str(round(toc(nuctic),0,'decimals'));
 
-            % %load image of segmented nuclei
-            % cd(segmentPath)
-            % nucleusFileList = dir(strcat('*',sceneName,'*',nucleus_seg,'*.mat'));
-            % nucleusFileName = char(nucleusFileList.name);
-            % fileObject = matfile(nucleusFileName);
-            % FinalImage = fileObject.flatstack;
-
-            %segmentationREPORTERBKG(FinalImage,'mKate',scenename,fname,'BKGbinary_flat',pStruct);
-            %segmentationRFP(FinalImage,subdirname,scenename,fname,'mKatebinary_flat');
-            %segmentationMNG(FinalImage,subdirname,scenename,fname,'EGFPbinary_flat',pStruct);
             
-            
+        %locate cell fluorescence data set for background segmentation
+            backtic = tic;
             cd(mstackPath)
-            backgroundFileList = dir(strcat('*',sceneName,'*',background_seg,'*.mat'));
+            backgroundFileList = dir(strcat('*',scenestr,'*',background_seg,'*.mat'));
             if isempty(backgroundFileList)
                 error(strcat('the channel set for "background_seg" ("',background_seg,'") does not exist'))
             end
+            %load cell fluorescence data set
             backgroundFileName = char(backgroundFileList.name);
             fileObject = matfile(backgroundFileName);
             FinalImage = fileObject.flatstack;
-            disp(sceneName)
-%             [~,~] = segmentationImageBackground(FinalImage,segmentPath,background_seg,backgroundFileName,pStruct);
+            %segment background
             [~,~] = segmentationImageBackground(FinalImage,segmentPath,'background',backgroundFileName,pStruct);  
-            toc
-            
             cd ..
+            backtoc = num2str(round(toc(backtic),0,'decimals'));
+            
+            disp([scenestr ' nucSeg time= ' nuctoc ' s , backSeg time= ' backtoc ' s'])
+            
         end
+    end
+end
+
+
+function pStruct = defaultpStructFunc(segInstructList)
+    pStruct = struct();
+    parameterDefaults.background = [30 1 2 0.5 10];
+    parameterDefaults.nucleus = [30 1 2 0.5 10];
+    parameterDefaults.cell = [40 1 2 0.5 10];
+    parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','metthresh','percentSmoothed'};
+    for p = 1:length(parameterStrings)
+        pString = char(parameterStrings{p});
+        for c = 1:length(segInstructList)
+            cstr = char(segInstructList{c});
+            cString = alterChanName(cstr);
+            pd = parameterDefaults.(cString);
+            pStruct.(cString).(pString) = pd(p); 
+        end
+    end
 end
 
 
@@ -190,35 +232,36 @@ function [IfFinal,testOut] = segmentationNucleus(FinalImage,segmentPath,nucleus_
     img = FinalImage(:,:,1);
     
     
-    %determine number of parallel cores to employ based on memory requirements
-        dim = size(img);
-        memoryrequired = dim(1)*dim(2)*2;%background stack + imagestack
-%             disp(strcat('memory required for one image =',num2str(round(memoryrequired./(1e6),2,'decimals')),'MegaBytes'))
-        detWorkers = 6./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
-        nWorkers = floor(detWorkers);
-        possibleWorkers = feature('numcores');
-        if nWorkers>possibleWorkers
-            nWorkers = possibleWorkers;
-        elseif nWorkers <1
-            nWorkers = 1;
-        end
-        
-     % Enter parallel loop
-        poolobj = gcp('nocreate');
-        if isempty(poolobj)
-            poolobj = parpool(nWorkers);
-        else
-        nw = poolobj.NumWorkers;
-            if nw ==nWorkers
-            else
-                delete(poolobj)
-                poolobj = parpool(nWorkers);
-            end
-        end
+%     %determine number of parallel cores to employ based on memory requirements
+%         dim = size(img);
+%         memoryrequired = dim(1)*dim(2)*2;%background stack + imagestack
+% %             disp(strcat('memory required for one image =',num2str(round(memoryrequired./(1e6),2,'decimals')),'MegaBytes'))
+%         detWorkers = 6./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
+%         nWorkers = floor(detWorkers);
+%         possibleWorkers = feature('numcores');
+%         if nWorkers>possibleWorkers
+%             nWorkers = possibleWorkers;
+%         elseif nWorkers <1
+%             nWorkers = 1;
+%         end
+%         
+%      % Enter parallel loop
+%         poolobj = gcp('nocreate');
+%         if isempty(poolobj)
+%             poolobj = parpool(nWorkers);
+%         else
+%         nw = poolobj.NumWorkers;
+%             if nw ==nWorkers
+%             else
+%                 delete(poolobj)
+%                 poolobj = parpool(nWorkers);
+%             end
+%         end
     
 %     start segmentation
-    parfor frames = 1:size(FinalImage,3)
-%     for frames = 1:size(FinalImage,3)
+%     parfor frames = 1:size(FinalImage,3)
+    IfFinal = false(size(FinalImage));
+    for frames = 1:size(FinalImage,3)
         img = FinalImage(:,:,frames); 
         [If,~] = segmentNuclei(img,nucleus_seg,pStruct,frames);
         IfFinal(:,:,frames)=If;
@@ -233,34 +276,35 @@ function [IfFinal,testOut] = segmentationImageBackground(FinalImage,segmentPath,
     testOut = struct();                           
     img = FinalImage(:,:,1);
     
-    %determine number of parallel cores to employ based on memory requirements
-        dim = size(img);
-        memoryrequired = dim(1)*dim(2)*2;%background stack + imagestack
-%             disp(strcat('memory required for one image =',num2str(round(memoryrequired./(1e6),1,'decimals')),'MegaBytes'))
-        detWorkers = 6./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
-        nWorkers = floor(detWorkers);
-        possibleWorkers = feature('numcores');
-        if nWorkers>possibleWorkers
-            nWorkers = possibleWorkers;
-        elseif nWorkers <1
-            nWorkers = 1;
-        end
-        
-     % Enter parallel loop
-        poolobj = gcp('nocreate');
-        if isempty(poolobj)
-            poolobj = parpool(nWorkers);
-        else
-        nw = poolobj.NumWorkers;
-            if nw ==nWorkers
-            else
-                delete(poolobj)
-                poolobj = parpool(nWorkers);
-            end
-        end
+%     %determine number of parallel cores to employ based on memory requirements
+%         dim = size(img);
+%         memoryrequired = dim(1)*dim(2)*2;%background stack + imagestack
+% %             disp(strcat('memory required for one image =',num2str(round(memoryrequired./(1e6),1,'decimals')),'MegaBytes'))
+%         detWorkers = 6./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
+%         nWorkers = floor(detWorkers);
+%         possibleWorkers = feature('numcores');
+%         if nWorkers>possibleWorkers
+%             nWorkers = possibleWorkers;
+%         elseif nWorkers <1
+%             nWorkers = 1;
+%         end
+%         
+%      % Enter parallel loop
+%         poolobj = gcp('nocreate');
+%         if isempty(poolobj)
+%             poolobj = parpool(nWorkers);
+%         else
+%         nw = poolobj.NumWorkers;
+%             if nw ==nWorkers
+%             else
+%                 delete(poolobj)
+%                 poolobj = parpool(nWorkers);
+%             end
+%         end
+
     IfFinal = false(size(FinalImage));
-    
-    parfor frames = 1:size(FinalImage,3)
+%     parfor frames = 1:size(FinalImage,3)
+    for frames = 1:size(FinalImage,3)
         img = FinalImage(:,:,frames); 
         [If,~] = segmentCellBackground(img,background_seg,pStruct,frames);
         IfFinal(:,:,frames)=If;
