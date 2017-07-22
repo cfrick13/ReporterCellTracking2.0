@@ -10,6 +10,7 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
         metthresh=0.1;
     end
     wienerP=5;
+    percentSmoothed = pStruct.(nucleus_seg).percentSmoothed;
     testOut = struct();
            
             imgRaw = img;
@@ -29,7 +30,7 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             LPscalingFactor = imgRawDenoised(globalMinimaIndices)./imgLowPass(globalMinimaIndices);
             imgLPScaled = imgLowPass.*nanmedian(LPscalingFactor);
             rawMinusLPScaled = single(imgRawDenoised) - single(imgLPScaled);
-
+        
 
             %determine the threshold by looking for minima in log-scaled histogram
             %of pixels from rawMinusLPScaled
@@ -105,13 +106,20 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             %BEGIN THE WATERSHET ALGORITHM
 %             I = imgRawDenoised;
 %             I = gaussianBlurz(rawMinusLPScaled,sigma./4,kernelgsize);
-            I = rawMinusLPScaledContrasted;
+%             I = rawMinusLPScaledContrasted;
+
+            Inew = rawMinusLPScaledContrasted;
+            pxvals = Inew(waterBoundary); 
+            px10 = prctile(pxvals,percentSmoothed); 
+            Inew(Inew>px10)=px10;
+
+            
 
             %gradmag
             hy = fspecial('sobel');
             hx = hy';
-            Iy = imfilter(single(I), hy, 'replicate');
-            Ix = imfilter(single(I), hx, 'replicate');
+            Iy = imfilter(single(Inew), hy, 'replicate');
+            Ix = imfilter(single(Inew), hx, 'replicate');
             gradmag = sqrt(Ix.^2 + Iy.^2);
 
             %Smoothing and identification of regional maxima (seeding watershed)
@@ -137,7 +145,7 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             %L
             L = watershed(gradmag2,8);
             L(waterBoundary<1) = 0;
-            If = L>1;
+            If = L>0;
 
             %remove incorrect nuclei
             CellObjects = bwconncomp(If,8);
@@ -186,7 +194,7 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
 %             end
 
             
-            if frames ==9
+            if frames ==7
                 eo=1;
             end
             if frames==1
@@ -201,6 +209,7 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
                 testOut.Ieg = Ieg;
                 testOut.fgm4 = fgm4;
                 testOut.Ie = Ie;
+                testOut.Inew = Inew;
                 testOut.L = L;
                 testOut.gradmag = gradmag;
                 testOut.gradmag2 = gradmag2;

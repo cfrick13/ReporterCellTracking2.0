@@ -357,20 +357,7 @@ end
 
 
 %define parameter structure and default parameter values
-pStruct = struct();
-parameterDefaults.background = [30 1 2 0.5];
-parameterDefaults.nucleus = [30 1 2 0.5];
-parameterDefaults.cell = [40 1 2 0.5];
-parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','metthresh'};
-for p = 1:length(parameterStrings)
-    pString = char(parameterStrings{p});
-    for c = 1:length(segInstructList)
-        cstr = char(segInstructList{c});
-        cString = alterChanName(cstr);
-        pd = parameterDefaults.(cString);
-        pStruct.(cString).(pString) = pd(p); 
-    end
-end
+pStruct = defaultpStructFunc(segInstructList);
 
 pStruct = loadSegmentParameters(pStruct,FileName,exportdir); %loads saved value of pStruct
 f.Units='normalized';
@@ -378,6 +365,22 @@ f.Position =[0.1,0.2,0.8,0.7];
 set(f,'KeyPressFcn',@keypress);
 end
 
+function pStruct = defaultpStructFunc(segInstructList)
+    pStruct = struct();
+    parameterDefaults.background = [30 1 2 0.5 10];
+    parameterDefaults.nucleus = [30 1 2 0.5 10];
+    parameterDefaults.cell = [40 1 2 0.5 10];
+    parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','metthresh','percentSmoothed'};
+    for p = 1:length(parameterStrings)
+        pString = char(parameterStrings{p});
+        for c = 1:length(segInstructList)
+            cstr = char(segInstructList{c});
+            cString = alterChanName(cstr);
+            pd = parameterDefaults.(cString);
+            pStruct.(cString).(pString) = pd(p); 
+        end
+    end
+end
 
 function pStruct = loadSegmentParameters(pStruct,datename,exportdir)
 
@@ -415,16 +418,13 @@ end
 
 
 function updateSliders
-global pStruct ImageDetails sliderOne sliderOneTxt editBox
+global pStruct ImageDetails sliderOne sliderOneTxt 
 
 sliderx = 0.72;
 sliderw = 0.1;
 sliderh = 0.02;
 slidertextw = 0.1;
 sliderspace = 0.1;
-
-
-
 
 
 channel = ImageDetails.segInstruct;
@@ -450,6 +450,10 @@ sliderspacing = linspace(0.8,0.7,length(fnames));
             minz = 0;
             maxz = 1;
             ssa = 20;
+        elseif strcmp(str,'percentSmoothed')
+            minz = 1;
+            maxz = 100;
+            ssa = 1/2.5;
         else
             disp('parameter NOT CURRENTLY DEFINED') 
             if sum(strcmp(fnames,'metthresh'))<1
@@ -540,10 +544,10 @@ function plotTestOut(testOut,channel)
     global subaxestwo
 
     if strcmp(channel,'mKate')
-    stringsToTest = {'rawMinusLPScaled','Ihcf','gradmag2','Ieg'};
+    stringsToTest = {'rawMinusLPScaled','Inew','gradmag2','Ieg'};
     else
 %     stringsToTest = {'rawMinusLPScaled','Ih','Ihcd','Shapes'};
-    stringsToTest = {'imgRawDenoised','Ih','gradmag2','fgm4'};
+    stringsToTest = {'imgRawDenoised','Inew','gradmag2','fgm4'};
     end
     for i = 1:length(subaxestwo)
     axes(subaxestwo(i))
@@ -573,6 +577,7 @@ function [IfFinal,testOut] = segmentationNucleus(FinalImage,segmentPath,nucleus_
     testOut = struct();
     frames = 1;
     img = FinalImage(:,:,frames); 
+%     frames=1;
     [~,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames);
     
     IfFinal = false(size(FinalImage));

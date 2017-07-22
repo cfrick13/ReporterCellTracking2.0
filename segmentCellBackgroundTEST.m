@@ -16,9 +16,9 @@ imgW = wiener2(img,[1 20]);
 imgWW = wiener2(imgW,[20 1]);
 imgWWW = wiener2(imgWW,[5 5]);
 imgRawDenoised = imgWWW;
-denoiseVec = single(reshape(imgRawDenoised,size(imgRawDenoised,1)^2,1));
-highpoints = prctile(denoiseVec,95);
-imgRawDenoised(imgRawDenoised>highpoints) = highpoints;
+% denoiseVec = single(reshape(imgRawDenoised,size(imgRawDenoised,1)^2,1));
+% highpoints = prctile(imgRawDenoised(:),80);
+% imgRawDenoised(imgRawDenoised>highpoints) = highpoints;
 %
 imgLowPass = gaussianBlurz(single(imgRawDenoised),sigma,kernelgsize);
 rawMinusLP = single(imgRawDenoised) -single(imgLowPass);%%%%%%% key step!
@@ -55,65 +55,55 @@ subtractionThresholdScaled = (10.^subtractionThreshold).*threshFactor;
 subtracted = single(rawMinusLPScaledContrasted)-subtractionThresholdScaled;
 subzero = (subtracted<0);
 Ih = ~subzero;
-Ih = imclose(Ih,strel('disk',20));
-areaOfSegmentation = sum(Ih(:));
-%
-percentageOfImageSegmented = round(100*(areaOfSegmentation./(size(img,1)*size(img,2))));
-if percentageOfImageSegmented > 99
-    percentageOfImageSegmented = 99;
-elseif percentageOfImageSegmented == 0
-    percentageOfImageSegmented = 1;
-end
-
     
     imgW = wiener2(img,[1 20]);
     imgWW = wiener2(imgW,[20 1]);
     imgWWW = wiener2(imgWW,[5 5]);
     imgRawDenoised = imgWWW;
-    denoiseVec = single(reshape(imgRawDenoised,size(imgRawDenoised,1)^2,1));
     highpoints = prctile(imgWWW(Ih),percentSmoothed);
-%     highpoints = prctile(denoiseVec,percentageOfImageSegmented);
-    a = sum(imgRawDenoised(:)>highpoints)>(size(imgW,1)*size(imgW,2).*0.85);
-    stepup=1;
-    newperc = 1;
-    while a==1
-        newperc = newperc+stepup;
-        highpoints = prctile(imgWWW(Ih),newperc);
-        a = sum(imgRawDenoised(:)>highpoints)>(size(imgW,1)*size(imgW,2).*0.85);
-    end
     imgRawDenoised(imgRawDenoised>highpoints) = highpoints;
 
- 
-    
-
-
     If = imgRawDenoised;
-%     If = Im;
     mmIf = max(If(:)) ;
     If(If<mmIf)=0;
     If(If == mmIf)=1;
     If = logical(If);
-    arealimit = min([(100-percentageOfImageSegmented) 5]);
+    
+    areaOfSegmentation = sum(If(:));
+    percentageOfImageSegmented = round(100*(areaOfSegmentation./(size(img,1)*size(img,2))));
+    if percentageOfImageSegmented > 99
+        percentageOfImageSegmented = 99;
+    elseif percentageOfImageSegmented == 0
+        percentageOfImageSegmented = 1;
+    end
+    
+    
+    areamin = max([(100-percentageOfImageSegmented)./10 1]);
+    areamax = max([(100-percentageOfImageSegmented)./2 1]);
     imgarea = (size(If,1).*size(If,2));
 
-   a = length(If==0);
-   width = 10;
-   Ig= If;
-   while  1
+   width = 30;
+   se = strel('disk',width);
+   Ig = imdilate(If,se);
+   a = ((imgarea-sum(Ig(:)))./imgarea).*100;
+   while  a>areamax
+       width = ceil(width*1.5);
        se = strel('disk',width);
+       Ig = imdilate(If,se);
        a = ((imgarea-sum(Ig(:)))./imgarea).*100;
-       if a<arealimit
-           break
-       else
-            Ig = imdilate(Ig,se);
-       end
-
+   end
+   
+   while  a<areamin
+       width = ceil(width./2);
+       se = strel('disk',width);
+       Ig = imdilate(If,se);
+       a = ((imgarea-sum(Ig(:)))./imgarea).*100;
    end
 
    if sum(~Ig(:))>0
        If = Ig;
    else
-       %If=If;
+       If=If;
    end
    
    

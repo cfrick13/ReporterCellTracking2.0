@@ -1,5 +1,5 @@
 function uiTrackCellz(FileDate,AutoTrackStr)
-global Tracked pStruct timeVec timeSteps DivisionStruct xAxisLimits DICimgstack dfoName cfoName trackingPath background_seg bfoName nfoName sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterateToggle ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs updateContrastToggle cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes expDateStr plotSettingsToggle PlotAxes cmap refineTrackingToggle expDirPath  timeFrames frameToLoad ImageDetails MainAxes SceneList displayTrackingToggle imgsize ExpDate
+global Tracked bkgmedianmat pStruct timeVec timeSteps DivisionStruct xAxisLimits DICimgstack dfoName cfoName trackingPath background_seg bfoName nfoName sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterateToggle ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs updateContrastToggle cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes expDateStr plotSettingsToggle PlotAxes cmap refineTrackingToggle expDirPath  timeFrames frameToLoad ImageDetails MainAxes SceneList displayTrackingToggle imgsize ExpDate
 
     DivisionStruct = struct();
 %determine matfile directory
@@ -61,12 +61,12 @@ global Tracked pStruct timeVec timeSteps DivisionStruct xAxisLimits DICimgstack 
 %set colormap
     cd(parentdir)
     addpath('Colormaps')
-    cmap = colormap(gray(255));
+    cmap = colormap(gray(256));
 %         cmap = colormap(viridis(255));
     % cmap = colormap(magma(255));
     % cmap = colormap(inferno(255));
     % cmap = colormap(plasma(255));
-    cmap(255,:)=[1 0 0];
+    cmap(256,:)=[1 0 0];
     cmapper = cmap;
     close all
 
@@ -169,6 +169,7 @@ global Tracked pStruct timeVec timeSteps DivisionStruct xAxisLimits DICimgstack 
     fileObject = matfile(filename);
     dim = size(fileObject,'flatstack');
     timeFrames = dim(3);
+    bkgmedianmat = zeros(1,timeFrames);
     frameToLoad = 1;
 
 
@@ -249,7 +250,7 @@ global Tracked pStruct timeVec timeSteps DivisionStruct xAxisLimits DICimgstack 
     uicontrol('Style','pushbutton','String','AddArea [v]',...
         'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
         'Callback',@addareabutton_Callback);
-    uicontrol('Style', 'pushbutton', 'String', 'Remove area',...
+    uicontrol('Style', 'pushbutton', 'String', 'Remove area [b]',...
         'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
         'Callback',@removeArea_Callback);
        
@@ -584,6 +585,8 @@ switch key
         eliminatebutton_Callback([],[]);
     case 'v'
         addareabutton_Callback([],[]);
+    case 'b'
+        removeArea_Callback([],[]);
     case 'r'
         linkCells_Callback([],[]);  
     case 'm'
@@ -817,317 +820,109 @@ end
 %choose scenes
 function nextscenebutton_Callback(~,~) 
 global   ImageDetails SceneList  
+    if isempty(ImageDetails.Scene)
+        ImageDetails.Scene = SceneList{1};
+    end
 
+    Idx = strcmp(ImageDetails.Scene,SceneList);
+    idx = find(Idx == 1);
+    if idx == length(SceneList)
+    else
+        idx = idx + 1;
+    end
+    ImageDetails.Scene = SceneList{idx};
 
-
-
-if isempty(ImageDetails.Scene)
-    ImageDetails.Scene = SceneList{1};
-end
-
-Idx = strcmp(ImageDetails.Scene,SceneList);
-idx = find(Idx == 1);
-if idx == length(SceneList)
-else
-idx = idx + 1;
-end
-ImageDetails.Scene = SceneList{idx};
-
-
-loadTrackingFile_callback([],[])
-setSceneAndTime
+    loadTrackingFile_callback([],[])
+    setSceneAndTime
 end
 function prevscenebutton_Callback(~,~) 
 global   ImageDetails SceneList  
+    if isempty(ImageDetails.Scene)
+        ImageDetails.Scene = SceneList{1};
+    end
 
-if isempty(ImageDetails.Scene)
-    ImageDetails.Scene = SceneList{1};
-end
+    Idx = strcmp(ImageDetails.Scene,SceneList);
+    idx = find(Idx == 1);
+    if idx ==1
+    else
+        idx = idx - 1;
+    end
+    ImageDetails.Scene = SceneList{idx};
 
-Idx = strcmp(ImageDetails.Scene,SceneList);
-idx = find(Idx == 1);
-if idx ==1
-else
-idx = idx - 1;
-end
-ImageDetails.Scene = SceneList{idx};
-
-
-loadTrackingFile_callback([],[])
-setSceneAndTime
+    loadTrackingFile_callback([],[])
+    setSceneAndTime
 end
 function popup_menu_Callback(source,~) 
 global ImageDetails Tracked timeFrames
 
-Trackedz = makeTrackingFile(timeFrames);
-Tracked=Trackedz;
+    Trackedz = makeTrackingFile(timeFrames);
+    Tracked=Trackedz;
 
-% Determine the selected data set.
- str = source.String;
- val = source.Value;
- pvalue = char(str{val});
+    % Determine the selected data set.
+     str = source.String;
+     val = source.Value;
+     pvalue = char(str{val});
 
-ImageDetails.Scene = pvalue;
-setSceneAndTime
+    ImageDetails.Scene = pvalue;
+    setSceneAndTime
 
 end
 
 %add cells and link cells
 function addareabutton_Callback(~,~) 
  global  ImageDetails Tracked imgsize refineTrackingToggle
- % choose cell
-%       [cellx,celly] = ginput(1);
-       % construct a polygon to add
+    % choose cell
+    %       [cellx,celly] = ginput(1);
+    % construct a polygon to add
 
-       button=1;
-       while button==1
-      [polyx,polyy,button] = ginput();
-      button = round(mean(button));
-      
-      if button ==1
-      M = zeros(1,length(polyx)*2);
-      M(1:2:end) = polyx;
-      M(2:2:end) = polyy;
-      zeroImage = zeros(imgsize);
-      zeroImage = insertShape(zeroImage,'FilledPolygon',M,'LineWidth',6,'Color',[1 1 1]);
-      zerogray = rgb2gray(zeroImage);
+    button=1;
+    while button==1
+        [polyx,polyy,button] = ginput();
+        button = round(mean(button));
 
-      if isempty(Tracked{1}.Cellz)
-
-          
-      else  %if there exists segmenttracking already...then load that. 
-        
-      imagio = zeros(imgsize);
-      imagio(zerogray>0)=1;
-      cc = bwconncomp(imagio);
-      px = cc.PixelIdxList;
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-        %   determine the frame to load
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-t = ImageDetails.Frame;
-        %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-CC = Tracked{t}.Cellz;
-PX = CC.PixelIdxList;        
-        
-idxs = cellfun(@(x) sum(ismember(x,px{1})),PX,'UniformOutput',1);
-index = find(idxs>1);
-    if ~isempty(index)
-    newMass = vertcat(PX{index});
-    PX{min(index)} = unique(vertcat(newMass,px{1}));
-        if length(index)>1
-        index(find(index == min(index)))=[];
-        PX(index) = {NaN};
-        end
-    CC.PixelIdxList = PX;
-    else
-    CC.PixelIdxList = horzcat(PX,px);    
-    end
-CC.NumObjects = length(CC.PixelIdxList);
-    S = regionprops(CC,'Centroid');
-    Smat = vertcat(S.Centroid);
-    CC.Centroid = Smat;
-Tracked{t}.Cellz = CC;
-      end
-      
-      
-      refineTrackingToggle = 1;
-    nextbutton_callback([],[]);
-      end 
-      end
-end
-
-function [cellxx,cellyy,timingkeeper,button] = identifyCellbyClick(t,ginputnum)
-            cellxx  =    []; 
-            cellyy  =    [];
-            timingkeeper = [];
-        [xx,yy,button] = ginput(ginputnum); %record each click
         if button ==1
-            cellxx  =    xx; 
-            cellyy  =    yy;
-            timingkeeper = t;
-        else
-            return
-        end
-end
-function linkCells_Callback(~,~)
-%fast link!
-global ImageDetails Tracked refineTrackingToggle imgsize timeFrames
+            M = zeros(1,length(polyx)*2);
+            M(1:2:end) = polyx;
+            M(2:2:end) = polyy;
+            zeroImage = zeros(imgsize);
+            zeroImage = insertShape(zeroImage,'FilledPolygon',M,'LineWidth',6,'Color',[1 1 1]);
+            zerogray = rgb2gray(zeroImage);
 
+            if ~isempty(Tracked{1}.Cellz)
+                %if there exists segmenttracking already...then load that. 
+                imagio = zeros(imgsize);
+                imagio(zerogray>0)=1;
+                cc = bwconncomp(imagio);
+                px = cc.PixelIdxList;
+                
+                t = ImageDetails.Frame;
+                CC = Tracked{t}.Cellz;
+                PX = CC.PixelIdxList;        
 
-%choose the initial cell
-        refineTrackingToggle=0;
-        t = ImageDetails.Frame;
-        ginputnum=1;
-        [cellxx,cellyy,timingkeeper,button] = identifyCellbyClick(t,ginputnum);
-        if button==1
-        else
-            return
-        end
-
-%find the cell
-    cellx = round(cellxx);
-    celly = round(cellyy);
-    cellind = sub2ind(imgsize,celly,cellx);
-
-
-        t = timingkeeper;
-        CC = Tracked{t}.Cellz;
-        PX = CC.PixelIdxList;  
-        idxlog = cellfun(@(x) isempty(find(x==cellind,1)),PX,'UniformOutput',1);
-        idx = find(idxlog==0);
-        
-        a=1;
-        while a ==1
-            for t = timingkeeper:timeFrames
-            ImageDetails.Frame = t;
-            setSceneAndTime
-            pause(0.1)
-            CC = Tracked{t}.Cellz;
-            PX = CC.PixelIdxList;  
-            nanidx = isnan(PX{idx});
-            disp(nanidx)
-                if nanidx
-                    break
+                idxs = cellfun(@(x) sum(ismember(x,px{1})),PX,'UniformOutput',1);
+                index = find(idxs>1);
+                if ~isempty(index)
+                    newMass = vertcat(PX{index});
+                    PX{min(index)} = unique(vertcat(newMass,px{1}));
+                    if length(index)>1
+                        index(index == min(index))=[];
+                        PX(index) = {NaN};
+                    end
+                    CC.PixelIdxList = PX;
+                else
+                    CC.PixelIdxList = horzcat(PX,px);    
                 end
+                CC.NumObjects = length(CC.PixelIdxList);
+                S = regionprops(CC,'Centroid');
+                Smat = vertcat(S.Centroid);
+                CC.Centroid = Smat;
+                Tracked{t}.Cellz = CC;
+                Tracked{t}.If = IfPerimFunction(CC);
             end
-            
-            
-            break
-        end
-        
-   
-%find the last frame of the intial cell
-    %display movie to track to its end?
-    
-    
-
-    button=1;
-    i=1;
-    while button==1
-        refineTrackingToggle=0;
-        [xx,yy,button] = ginput(1); %record each click
-        if button ==1
-            t = ImageDetails.Frame;
-            cellxx(i)  =    xx; 
-            cellyy(i)  =    yy;
-            timingkeeper(i) = t;
-                if t==timeFrames
-                    i;
-                else
-                    i=i+1;
-                end
+            refineTrackingToggle = 1;
             nextbutton_callback([],[]);
-        end
+        end 
     end
-    
-    refineTrackingToggle=1;
-    cellx = round(cellxx);
-    celly = round(cellyy);
-    cellind = sub2ind(imgsize,celly,cellx);
-
-    idx = zeros(size(timingkeeper));
-    for i = 1:length(timingkeeper)
-        t = timingkeeper(i);
-        CC = Tracked{t}.Cellz;
-        PX = CC.PixelIdxList;  
-        idxlog = cellfun(@(x) isempty(find(x==cellind(i),1)),PX,'UniformOutput',1);
-        idx(i) = find(idxlog==0);
-    end
-
-    %set all preceeding cellIDs to be equal to first cell clicked
-    %set all subsequent cellIDs to be equal to last cell clicked
-    cellindx = 1:timeFrames;
-    cellindx(1:timingkeeper(1))=idx(1);
-    cellindx(timingkeeper(end):end) = idx(end);
-
-    %fill in the intermediate cellIDs
-    for i=timingkeeper
-        cellindx(i) = idx(i-(min(timingkeeper)-1));  
-    end
-
-
-    for i=1:timeFrames
-        CC = Tracked{i}.Cellz;
-        PX = CC.PixelIdxList;
-        PX{cellindx(1)} = PX{cellindx(i)};
-        if cellindx(1)~=cellindx(i)
-            PX{cellindx(i)} = NaN;
-        end
-        CC.PixelIdxList = PX;
-        S = regionprops(CC,'Centroid');
-        Smat = vertcat(S.Centroid);
-        CC.Centroid = Smat;
-        Tracked{i}.Cellz = CC;
-    end
-
-setSceneAndTime
-
-end
-function linkCells_CallbackOLD(~,~)
-global ImageDetails Tracked refineTrackingToggle imgsize timeFrames
-
-    button=1;
-    i=1;
-    while button==1
-        refineTrackingToggle=0;
-        [xx,yy,button] = ginput(1); %record each click
-        if button ==1
-            t = ImageDetails.Frame;
-            cellxx(i)  =    xx; 
-            cellyy(i)  =    yy;
-            timingkeeper(i) = t;
-                if t==timeFrames
-                    i;
-                else
-                    i=i+1;
-                end
-            nextbutton_callback([],[]);
-        end
-    end
-    
-    refineTrackingToggle=1;
-    cellx = round(cellxx);
-    celly = round(cellyy);
-    cellind = sub2ind(imgsize,celly,cellx);
-
-    idx = zeros(size(timingkeeper));
-    for i = 1:length(timingkeeper)
-        t = timingkeeper(i);
-        CC = Tracked{t}.Cellz;
-        PX = CC.PixelIdxList;  
-        idxlog = cellfun(@(x) isempty(find(x==cellind(i),1)),PX,'UniformOutput',1);
-        idx(i) = find(idxlog==0);
-    end
-
-    %set all preceeding cellIDs to be equal to first cell clicked
-    %set all subsequent cellIDs to be equal to last cell clicked
-    cellindx = 1:timeFrames;
-    cellindx(1:timingkeeper(1))=idx(1);
-    cellindx(timingkeeper(end):end) = idx(end);
-
-    %fill in the intermediate cellIDs
-    for i=timingkeeper
-        cellindx(i) = idx(i-(min(timingkeeper)-1));  
-    end
-
-
-    for i=1:timeFrames
-        CC = Tracked{i}.Cellz;
-        PX = CC.PixelIdxList;
-        PX{cellindx(1)} = PX{cellindx(i)};
-        if cellindx(1)~=cellindx(i)
-            PX{cellindx(i)} = NaN;
-        end
-        CC.PixelIdxList = PX;
-        S = regionprops(CC,'Centroid');
-        Smat = vertcat(S.Centroid);
-        CC.Centroid = Smat;
-        Tracked{i}.Cellz = CC;
-    end
-
-setSceneAndTime
-
 end
 %removeArea
 function removeArea_Callback(~,~)
@@ -1136,81 +931,221 @@ global  ImageDetails  Tracked imgsize  refineTrackingToggle
 %       [cellx,celly] = ginput(1);
        % construct a polygon to add
 
-       button=1;
-       while button==1
-      [polyx,polyy,button] = ginput();
-      button = round(mean(button));
-      
-      if button ==1
-          M = zeros(1,length(polyx)*2);
-          M(1:2:end) = polyx;
-          M(2:2:end) = polyy;
-          zeroImage = zeros(imgsize);
-          zeroImage = insertShape(zeroImage,'FilledPolygon',M,'LineWidth',6,'Color',[1 1 1]);
-          zerogray = rgb2gray(zeroImage);
+    button=1;
+    while button==1
+        [polyx,polyy,button] = ginput();
+        button = round(mean(button));
 
-          if isempty(Tracked{1}.Cellz)
+        if button ==1
+            M = zeros(1,length(polyx)*2);
+            M(1:2:end) = polyx;
+            M(2:2:end) = polyy;
+            zeroImage = zeros(imgsize);
+            zeroImage = insertShape(zeroImage,'FilledPolygon',M,'LineWidth',6,'Color',[1 1 1]);
+            zerogray = rgb2gray(zeroImage);
 
+            if ~isempty(Tracked{1}.Cellz)
+                imagio = zeros(imgsize);
+                imagio(zerogray>0)=1;
+                cc = bwconncomp(imagio);
+                px = cc.PixelIdxList;
 
-          else  %if there exists segmenttracking already...then load that. 
+                t = ImageDetails.Frame;
+                CC = Tracked{t}.Cellz;
+                PX = CC.PixelIdxList;        
 
-          imagio = zeros(imgsize);
-          imagio(zerogray>0)=1;
-          cc = bwconncomp(imagio);
-          px = cc.PixelIdxList;
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %   determine the frame to load
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            t = ImageDetails.Frame;
-
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-    CC = Tracked{t}.Cellz;
-    PX = CC.PixelIdxList;        
-
-    idxs = cellfun(@(x) sum(ismember(x,px{1})),PX,'UniformOutput',1);
-    index = find(idxs>1);
-        if ~isempty(index)
-            for abc = index
-            oldMass = PX{abc};
-            overlap = ismember(oldMass,px{1});
-            oldMass(overlap)=[];
-            imagio = zeros(imgsize);
-            imagio(oldMass)=1;
-            cc = bwconncomp(imagio);
-            numcells = cc.NumObjects;
-                if numcells>1
-                    splitcells = cc.PixelIdxList;
-                    PX(abc) = {NaN};
-                        for nums = 1:numcells
-                            PX{end+1} = splitcells{nums};
+                idxs = cellfun(@(x) sum(ismember(x,px{1})),PX,'UniformOutput',1);
+                index = find(idxs>1);
+                if ~isempty(index)
+                    for abc = index
+                        oldMass = PX{abc};
+                        overlap = ismember(oldMass,px{1});
+                        oldMass(overlap)=[];
+                        imagio = zeros(imgsize);
+                        imagio(oldMass)=1;
+                        cc = bwconncomp(imagio);
+                        numcells = cc.NumObjects;
+                        if numcells>1
+                            splitcells = cc.PixelIdxList;
+                            PX(abc) = {NaN};
+                            for nums = 1:numcells
+                                PX{end+1} = splitcells{nums};
+                            end
+                        else
+                            PX{abc} = oldMass;
                         end
-                else
-                    PX{abc} = oldMass;
+                    end
+                    CC.PixelIdxList = PX;
                 end
+                CC.NumObjects = length(CC.PixelIdxList);
+                S = regionprops(CC,'Centroid');
+                Smat = vertcat(S.Centroid);
+                CC.Centroid = Smat;
+                Tracked{t}.Cellz = CC;
+                Tracked{t}.If = IfPerimFunction(CC);
             end
-%             PX{min(index)} = unique(vertcat(oldMass,px{1}));
-%                 if length(index)>1
-%                 index(find(index == min(index)))=[];
-%                 PX(index) = {NaN};
-%                 end
-            CC.PixelIdxList = PX;
-%             end
-        end
-    CC.NumObjects = length(CC.PixelIdxList);
-        S = regionprops(CC,'Centroid');
-        Smat = vertcat(S.Centroid);
-        CC.Centroid = Smat;
-    Tracked{t}.Cellz = CC;
-          end
 
 
-     refineTrackingToggle = 1;
-        nextbutton_callback([],[]);
-      end 
-      end
+            refineTrackingToggle = 1;
+            nextbutton_callback([],[]);
+        end 
+    end
 
 end
+
+
+function [cellxx,cellyy,timingkeeper,button] = identifyCellbyClick(t,ginputnum)
+            cellxx  =    []; 
+            cellyy  =    [];
+            timingkeeper = [];
+        [xx,yy,button] = ginputmod(ginputnum); %record each click
+        if ~isempty(button)
+            cellxx  =    xx; 
+            cellyy  =    yy;
+            timingkeeper = t;
+        else
+            return
+        end
+end
+function [idx,idxlog,notACell] = findCellByCoordinate(Tracked,imgsize,cxx,cyy,tkeeper)
+%convert coordinates to indices
+    cellx = round(cxx);
+    celly = round(cyy);
+    cellind = sub2ind(imgsize,celly,cellx);
+    
+%find the cell
+    CC = Tracked{tkeeper}.Cellz;
+    PX = CC.PixelIdxList;  
+    idxlog = ~cellfun(@(x) sum(x==cellind)>0,PX,'UniformOutput',1);
+    idx = find(idxlog==0);
+    notACell = isempty(idx);
+end
+function linkCells_Callback(~,~)
+%fast link!
+global ImageDetails Tracked refineTrackingToggle imgsize timeFrames
+
+%set accumulating variables equal to empty
+cellxx =[];
+cellyy =[];
+timingkeeper=[];
+%choose the initial cell
+    refineTrackingToggle=0;
+    t = ImageDetails.Frame;
+    
+    notACell = true;
+    while notACell %keep running until a cell is clicked
+        ginputnum=1;
+        [cxx,cyy,tkeeper,button] = identifyCellbyClick(t,ginputnum);
+        if isempty(button)
+            return
+        end
+        %find cell
+        [idx,idxlog,notACell] = findCellByCoordinate(Tracked,imgsize,cxx,cyy,tkeeper);
+    end
+    cellxx =[cellxx(:)' cxx];
+    cellyy =[cellyy(:)' cyy];
+    timingkeeper =[timingkeeper(:)' tkeeper];
+    
+    a=1;
+    while a ==1
+        broken = false;
+        if button == 1
+            for t = tkeeper:timeFrames
+            ImageDetails.Frame = t;
+            setSceneAndTime
+            pause(0.05)
+            CC = Tracked{t}.Cellz;
+            PX = CC.PixelIdxList;  
+            nanidx = isnan(PX{idx});
+                if nanidx
+                    broken = true;
+                    break
+                end
+            end
+        elseif button ==3
+            t=t+1;
+            broken = true;
+            ImageDetails.Frame = t;
+            setSceneAndTime
+        end
+        
+        if broken %==true
+            notACell = true;
+            while notACell %keep running until a cell is clicked
+                ginputnum=1;
+                [cxx,cyy,tkeeper,button] = identifyCellbyClick(t,ginputnum);
+                if isempty(button)
+                    break
+                end
+                %find cell
+                [idx,idxlog,notACell] = findCellByCoordinate(Tracked,imgsize,cxx,cyy,tkeeper);
+            end
+            if isempty(button)
+                break
+            end
+            cellxx =[cellxx(:)' cxx];
+            cellyy =[cellyy(:)' cyy];
+            timingkeeper =[timingkeeper(:)' tkeeper];
+            [idx,idxlog] = findCellByCoordinate(Tracked,imgsize,cxx,cyy,tkeeper);
+        end
+        
+        if ~broken
+            break
+        end
+    end
+        
+   
+%find the last frame of the intial cell
+    %display movie to track to its end?
+    refineTrackingToggle=1;
+    cellx = round(cellxx);
+    celly = round(cellyy);
+    cellind = sub2ind(imgsize,celly,cellx);
+
+    idx = zeros(size(timingkeeper));
+    for i = 1:length(timingkeeper)
+        t = timingkeeper(i);
+        CC = Tracked{t}.Cellz;
+        PX = CC.PixelIdxList;  
+        idxlog = cellfun(@(x) isempty(find(x==cellind(i),1)),PX,'UniformOutput',1);
+        idx(i) = find(idxlog==0);
+    end
+
+    %set all preceeding cellIDs to be equal to first cell clicked
+    %set all subsequent cellIDs to be equal to last cell clicked
+    cellindx = 1:timeFrames;
+    cellindx(1:timingkeeper(1))=idx(1);
+    cellindx(timingkeeper(end):end) = idx(end);
+
+    %fill in the intermediate cellIDs
+    for i=1:length(timingkeeper)-1
+        trange=timingkeeper(i):timingkeeper(i+1)-1;
+        cellindx(trange) = ones(size(trange)).*idx(i);  
+    end
+
+
+    for i=1:timeFrames
+        CC = Tracked{i}.Cellz;
+        PX = CC.PixelIdxList;
+%         PX{cellindx(1)} = PX{cellindx(i)};
+        if cellindx(1)~=cellindx(i)
+            PX{cellindx(1)} = PX{cellindx(i)};
+            PX{cellindx(i)} = NaN;
+            CC.PixelIdxList = PX;
+            S = regionprops(CC,'Centroid');
+            Smat = vertcat(S.Centroid);
+            CC.Centroid = Smat;
+            Tracked{i}.Cellz = CC;
+            Tracked{i}.If = IfPerimFunction(CC);
+        else
+            %nothing needed
+        end
+    end
+
+setSceneAndTime
+
+end
+
 
 %delete cells
 function deletebutton_Callback(~,~) 
@@ -1244,6 +1179,7 @@ CC.PixelIdxList = PX;
     Smat = vertcat(S.Centroid);
     CC.Centroid = Smat;
 Tracked{t}.Cellz = CC;
+Tracked{t}.If = IfPerimFunction(CC);
     
 refineTrackingToggle = 1; 
 setSceneAndTime;
@@ -1293,6 +1229,7 @@ CC.PixelIdxList = PX;
     Smat = vertcat(S.Centroid);
     CC.Centroid = Smat;
 Tracked{t}.Cellz = CC;
+Tracked{t}.If = IfPerimFunction(CC);
 
 if button==1
     nextbutton_callback([],[])
@@ -1444,6 +1381,7 @@ CC.PixelIdxList = PX;
     Smat = vertcat(S.Centroid);
     CC.Centroid = Smat;
 Tracked{t}.Cellz = CC;
+Tracked{t}.If = IfPerimFunction(CC);
     
     refineTrackingToggle = 1; 
     setSceneAndTime;
@@ -1623,6 +1561,7 @@ CC.NumObjects = length(PX);
     Smat = vertcat(S.Centroid);
     CC.Centroid = Smat;
 Stacked{i}.Cellz = CC;
+Stacked{i}.If = IfPerimFunction(CC);
 
 end
 Trackedz=Stacked;
@@ -1713,6 +1652,7 @@ CC.NumObjects = length(PX);
     Smat = vertcat(S.Centroid);
     CC.Centroid = Smat;
 Stacked{i}.Cellz = CC;
+Stacked{i}.If = IfPerimFunction(CC);
 
 end
 Trackedz=Stacked;
@@ -1750,6 +1690,7 @@ PX(~idxs) = {NaN};
 CC.PixelIdxList = PX;
 CC.NumObjects = length(PX);
 Stacked{i}.Cellz = CC;
+Stacked{i}.If = IfPerimFunction(CC);
 end
 Trackedz=Stacked;
 end
@@ -1793,7 +1734,7 @@ toggleCFPnorm = 1;
 Plot_callback([],[]);
 end
 function Plot_callback(~,~)
-global cell_seg nucleus_seg xAxisLimits trunccmaplz SecondPlotAxes Tracked ImageDetails expDirPath timeFrames mstackPath frameToLoad PlotAxes imgsize plotSettingsToggle psettings cmaplz displayTrackingToggle cmap
+global cell_seg nucleus_seg xAxisLimits cmaplz SecondPlotAxes Tracked ImageDetails expDirPath timeFrames mstackPath frameToLoad PlotAxes imgsize plotSettingsToggle psettings  displayTrackingToggle cmap
 
     if plotSettingsToggle == 0
         psettings = PlotSettings_callback([],[]);
@@ -1848,7 +1789,7 @@ global cell_seg nucleus_seg xAxisLimits trunccmaplz SecondPlotAxes Tracked Image
     xmin = 0;
     toplot = plotMatFC;
     idx = true(size(toplot,1),1);
-    cmapl = trunccmaplz;
+    cmapl = cmaplz;
     idxa = find(idx==1);
     h = plot(SecondPlotAxes,toplot(idx,:)','LineWidth',2);
             
@@ -1908,7 +1849,7 @@ xAxisLimits = cellfun(@str2num,inputdlgOutput,'UniformOutput',1);
 Plot_callback([],[])
 end
 function Plot_SpecificCell_callback(~,~)
-global displayTrackingToggle trunccmaplz xAxisLimits ThirdPlotAxes toggleCFPnorm Tracked ImageDetails expDirPath mstackPath timeFrames frameToLoad PlotAxes imgsize plotSettingsToggle psettings
+global displayTrackingToggle cmaplz xAxisLimits ThirdPlotAxes toggleCFPnorm Tracked ImageDetails expDirPath mstackPath timeFrames frameToLoad PlotAxes imgsize plotSettingsToggle psettings
 
 if plotSettingsToggle == 0
 psettings = PlotSettings_callback([],[]);
@@ -1972,7 +1913,7 @@ ThirdPlotAxes.YGrid = 'on';
 ThirdPlotAxes.Color = [0.95 0.95 0.95];
 
 
-    cmapl = trunccmaplz;
+    cmapl = cmaplz;
             
     if displayTrackingToggle ==1
         for i=1:length(h)
@@ -3322,9 +3263,9 @@ if runIterateToggle ==0
                     'ListSize',[500 300],...
                     'ListString',trackfilelist);
         if ~isempty(Selection)
-        load(trackfilelist{Selection}); %load Tracked
+            load(trackfilelist{Selection}); %load Tracked
         else
-        Tracked = makeTrackingFile(timeFrames);
+            Tracked = makeTrackingFile(timeFrames);
         end
 
         if isempty(Tracked{1}.Cellz)
@@ -3494,6 +3435,7 @@ didxo = diff(idxo,[],2);
         
 %         CC = checkDivision()
         S.Cellz = CC;
+        S.If = IfPerimFunction(CC);
         Stacked{j} = S;
         end
     Trackedz=Stacked;
@@ -4100,6 +4042,7 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
         CC.Division = [];
         Frame.filename = filename;
         Frame.Cellz = CC;
+        Frame.If = IfPerimFunction(CC);
         Tracked{i} = Frame;
     end
     
@@ -4215,7 +4158,7 @@ end
 
 %% Image Display functions
 function setSceneAndTime
-global runIterateToggle displayTrackingToggle refineTrackingToggle DICimgstack dfoName  nucleus_seg backgroundimgstack bfoName nfoName background_seg cell_seg nucleusimgstack sfoName segmentimgstack  channelimgstack cfoName segmentPath frameToLoad ImageDetails  Tracked SceneList  trackPath imgfile mstackPath
+global bkgmedianmat runIterateToggle displayTrackingToggle refineTrackingToggle DICimgstack dfoName  nucleus_seg backgroundimgstack bfoName nfoName background_seg cell_seg nucleusimgstack sfoName segmentimgstack  channelimgstack cfoName segmentPath frameToLoad ImageDetails  Tracked SceneList imgfile mstackPath
 
 %check for empty variables
     cd(mstackPath)
@@ -4390,6 +4333,17 @@ global runIterateToggle displayTrackingToggle refineTrackingToggle DICimgstack d
                  backgroundimgstack = backgroundfileObject.IfFinal;
                  bfoName = char(backgroundfileObject.Properties.Source);%update cfoName
 %                  disp('else')
+                bkgmedianmat = zeros(1,size(backgroundimgstack,3));
+                for k = 1:size(backgroundimgstack,3)
+                    backgroundimg = backgroundimgstack(:,:,k);
+                    segimg = segmentimgstack(:,:,k);
+                    chanimg = channelimgstack(:,:,k);
+                    backgroundimg(segimg) = true;
+                    bkgpixels = chanimg(backgroundimg);
+                    bkgmedianmat(k) = nanmedian(bkgpixels);
+                end
+                clear segimg
+                clear chanimg
         end
         backgroundimg = backgroundimgstack(:,:,t);
          
@@ -4420,19 +4374,19 @@ global runIterateToggle displayTrackingToggle refineTrackingToggle DICimgstack d
         Tracked = loadTrackedStructure;
         centroidDisagreement=false;
     else  %if there exists segmenttracking already...then use that. 
-        CC = Tracked{t}.Cellz;
+        Ts = Tracked{t};
+        CC = Ts.Cellz;
         PX = CC.PixelIdxList;
         Centroids  = CC.Centroid;
         centroidDisagreement = ~(size(Centroids,2)==CC.NumObjects);
     %     makeIMG = cellfun(@(x) length(x)==1,PX,'UniformOutput',1); %choose only the cells without NAN
-        makeIMG = cellfun(@(x) length(x)<2,PX,'UniformOutput',1); %choose only the cells without NAN
-        CC.PixelIdxList = PX(~makeIMG);
-        CC.NumObjects = length(PX(~makeIMG));
-
-        segmentimgL = labelmatrix(CC);
-        segmentimgz = false(size(segmentimgL));
-        segmentimgz(segmentimgL>0)=1;
-        If = segmentimgz;
+        fnames = fieldnames(Ts);
+        if sum(strcmp(fnames,'If')>0)
+            If = Tracked{t}.If;
+        else
+            If =  IfPerimFunction(CC);
+            Tracked{t}.If = If;
+        end
     end
     
 
@@ -4471,9 +4425,8 @@ elseif strcmp(ImageDetails.Channel,'overlay')
     channelimg(:,:,3) = DICImg;
 end
 
-backgroundimg(segmentimg) = true; 
-bkgpixels = channelimg(backgroundimg);
-bkgmedian = nanmedian(bkgpixels);
+
+bkgmedian = bkgmedianmat(t);
 if runIterateToggle ==0
 displayImageFunct(If,channelimg,bkgmedian);
 end
@@ -4510,6 +4463,18 @@ end
 
 
 end
+function If = IfPerimFunction(CC)
+        PX = CC.PixelIdxList;
+        makeIMG = cellfun(@(x) length(x)<2,PX,'UniformOutput',1); %choose only the cells without NAN
+        CC.PixelIdxList = PX(~makeIMG);
+        CC.NumObjects = length(PX(~makeIMG));
+
+        segmentimgL = labelmatrix(CC);
+        segmentimgz = false(size(segmentimgL));
+        segmentimgz(segmentimgL>0)=1;
+        Ifz = segmentimgz;
+        If = bwperim(Ifz) | bwperim(imdilate(Ifz,strel('disk',1)));
+end
 function traject = trackingTrajectories(timeFrames)
 global Tracked
 
@@ -4524,7 +4489,7 @@ global Tracked
         CC = Tracked{i}.Cellz;
         Centroids  = CC.Centroid;
         xy{i} = Centroids';
-        lxy(i) = length(xy{i});
+        lxy(i) = size(xy{i},1);
     end
     
     traject = nan(max(lxy),2,t);
@@ -4534,39 +4499,39 @@ global Tracked
     end
 end
 function displayImageFunct(If,channelimg,bkgmedian)
-global expDateStr psettings plotSettingsToggle trunccmaplz timeFrames tcontrast lcontrast MainAxes displayTrackingToggle ImageDetails frameToLoad prcntl lprcntl D cmap cmaplz updateContrastToggle
+global expDateStr psettings plotSettingsToggle timeFrames tcontrast lcontrast MainAxes displayTrackingToggle ImageDetails frameToLoad prcntl lprcntl D cmap cmaplz updateContrastToggle
 
-
-%determine current time Frame
-    t = frameToLoad;
+scenestr = ImageDetails.Scene;
+tnum = ImageDetails.Frame;
 
 %delete old images to keep memory usage low
-    axes(MainAxes);
-    children = findobj(MainAxes,'Type','image');
-    delete(children);
-
+    children1 = findobj(MainAxes,'Type','image');
+    children2 = findobj(MainAxes,'Type','Line');
+    delete(children1);
+    delete(children2);
+    set(MainAxes,'NextPlot','replace')
 %constrain image axis to be square initially
-    MainAxes.Units = 'pixels';
-    pos = MainAxes.Position;
+    set(MainAxes,'Units','pixels');
+    pos = get(MainAxes,'Position');
     pos(3:4) = [min([pos(3) pos(4)]) min([pos(3) pos(4)])];
-    MainAxes.Position = pos;
-    MainAxes.Units = 'normalized'; 
-    pos = MainAxes.Position;
+    set(MainAxes,'Position',pos);
+    set(MainAxes,'Units','normalized');
+    pos = get(MainAxes,'Position');
     pos(2)= 0.5 - pos(4)/2;
-    MainAxes.Position = pos;
+    set(MainAxes,'Position',pos);
 
 % important for updating the contrast
     %update contrast if time =1
     ifCHANGEofCHANNELorSCENE=0;
-    if t==1
-    D='new';
-    ifCHANGEofCHANNELorSCENE=1;
+    if tnum==1
+        D='new';
+        ifCHANGEofCHANNELorSCENE=1;
     end
 
 %update contrast if channel has changed
     if ~strcmp(ImageDetails.Channel,D)
-    ifCHANGEofCHANNELorSCENE=1;
-    D = ImageDetails.Channel;
+        ifCHANGEofCHANNELorSCENE=1;
+        D = ImageDetails.Channel;
     end
 
 %update contrast if contrast values are updated
@@ -4613,7 +4578,6 @@ global expDateStr psettings plotSettingsToggle trunccmaplz timeFrames tcontrast 
                     disprgb(:,:,j) = cimg;
                 end
             end
-            colormap(cmap);
         end
         
         dispimg = disprgb;
@@ -4630,33 +4594,26 @@ global expDateStr psettings plotSettingsToggle trunccmaplz timeFrames tcontrast 
         dispimg = channelimg.*scaleFactor;
         dispimg = dispimg-(lprcntl.*scaleFactor);
         dispimg(dispimg> 255) =254;
-        colormap(cmap);
-        If = bwperim(If) | bwperim(imdilate(If,strel('disk',1)));
-%         If = bwperim(If);
         dispimg(If>0)=255;
     end
 
 %title the displayed image
-    himg = imagesc(uint8(dispimg));
-    himgax = get(himg,'Parent');
-    himgax.CLim = [0 256];
-    ttl = get(himgax,'Title');
-    t = ImageDetails.Frame;
+    image(MainAxes,uint8(dispimg));
+    colormap(MainAxes,cmap);
+
     expDateTitleStr = expDateStr;
     [a,~] = regexp(expDateTitleStr,'_');expDateTitleStr(a) = '-';
-    set(ttl,'String',[expDateTitleStr ' ' ImageDetails.Scene ' frame ' num2str(t) ' out of ' num2str(timeFrames)]);
-    set(ttl,'FontSize',12);
-    
-    if plotSettingsToggle == 0
-        psettings = PlotSettings_callback([],[]);
-        plotSettingsToggle=1;
-    end
-    framesThatMustBeTracked = psettings.framesThatMustBeTracked;
 
-    if ~(t==1)
+    ttl = get(MainAxes,'Title');
+    set(ttl,'String',[expDateTitleStr ' ' scenestr ' frame ' num2str(tnum) ' out of ' num2str(timeFrames)]);
+    set(ttl,'FontSize',12);
+    set(MainAxes,'NextPlot','add')
+
+    %plot cell tracking "tails"
+    if ~(tnum==1)
         if displayTrackingToggle==1
             trajectForPlot = trackingTrajectories(timeFrames);
-            himgax.NextPlot = 'add';
+            set(MainAxes,'NextPlot','add');
             mainplotX = squeeze(trajectForPlot(:,1,:)); %28x22 means 28 cells on frame 22;
             mainplotY = squeeze(trajectForPlot(:,2,:));
 
@@ -4665,57 +4622,89 @@ global expDateStr psettings plotSettingsToggle trunccmaplz timeFrames tcontrast 
                 mainplotX=mainplotX';
             end
             %only plot if the cell is currently tracked/segmented in this frame
-                idx = ~isnan(mainplotY(:,t));
-%                 h = plot(mainplotX(idx,1:t)',mainplotY(idx,1:t)','LineWidth',1,'Marker','s','MarkerSize',8);
-                h = plot(mainplotX(idx,1:t)',mainplotY(idx,1:t)','LineWidth',2);
-
-            %generate colormap based on number of cells tracked
-                cnew=[];
-%                 ccc = vertcat(colormap('summer'),colormap('autumn'),colormap('winter'),colormap('spring'));
-%                 ccc = vertcat(colormap('hsv'),colormap('hot'));
-                ccc = colormap('colorcube');
-                cccyc = 0;
-                for k = 1:size(ccc,1)
-                    cvec = ccc(k,:);
-                    if sum(cvec)>0.5 && sum(abs(diff(cvec)))>0.2 && sum(cvec)<2
-                        cccyc = cccyc+1;
-                        cnew(cccyc,:) = cvec;
-                    end
-                end
-                ccnew = zeros(size(mainplotX,1),size(cnew,2));
-                for j = 1:size(cnew,2)
-                    x = linspace(0,1,size(cnew,1));
-                    v = cnew(:,j);
-                    xq = linspace(0,1,size(mainplotX,1));
-                    ccnew(1:length(xq),j) = interp1(x,v,xq);
-                end
-                
-                cmaplz = ccnew;
+            idx = ~isnan(mainplotY(:,tnum));
+            idxa = find(idx==1);
+            if ~isempty(idxa)
+                cmaplz = colorcubemodified(length(idx),'colorcube');
                 cmapl = cmaplz;
-                idxa = find(idx==1);
-                trunccmaplz = cmaplz;
-                
                 plotcmap = zeros(length(idxa),3);
-                for i=1:length(h)
-%                     h(i).Color = cmapl(idxa(i),:);
+                for i=1:length(idxa)
                     plotcmap(i,:) =  cmapl(idxa(i),:);
-%                     h(i).MarkerFaceColor = cmapl(idxa(i),:);
-%                     h(i).MarkerEdgeColor = cmapl(idxa(i),:)./1.2;
                 end
-                if ~isempty(h)
+
+                x = mainplotX(idx,:);
+                y = mainplotY(idx,:);
+                t0 =max([1 tnum-20]);
+                h = plot(MainAxes,x(:,t0:tnum)',y(:,t0:tnum)','LineWidth',2);
                 set(h, {'color'}, num2cell(plotcmap,2));
-                hax = h.Parent;
-                hax.Color = 'none';
-                himgax.CLim = [0 256];
-                himgax.NextPlot = 'replace';
-                end
-                colormap(himgax,cmap);%return colormap so images display properly
+            end
         end
     end
-    himgax.YTick = [];
-    himgax.XTick = [];
+    set(MainAxes,'Color','none');
+    set(MainAxes,'CLim',[0 256]);
+    set(MainAxes,'YTick',[]);
+    set(MainAxes,'XTick',[]);
+
 end
 
+function cmaplz = colorcubemodified(cmaplength,cmapstr)
+    %default darkmin = 0.2
+    %default brightmax = 2
+    darkmin = 0.3;
+    colorationmin = 0.4;
+    brightmax = 2.4;
+    
+    %generate colormap based on number of cells tracked
+    cnew=[];
+%                 ccc = vertcat(colormap('summer'),colormap('autumn'),colormap('winter'),colormap('spring'));
+%                 ccc = vertcat(colormap('hsv'),colormap('hot'));
+%     cmapccc = colorcube();
+    
+    numunique = floor(cmaplength^(1/3));
+    a = linspace(0,1,numunique);
+    cycle=0;
+    la = length(a);
+    ccc = zeros(la*la*la,3);
+    for i=1:la
+        for j=1:la
+            for k=1:la
+                cycle=cycle+1;
+                ccc(cycle,:) = [a(i) a(j) a(k)];
+            end
+        end
+    end
+    cmapccc = ccc;
+%     cmapccc = zeros(1000,3);
+%     for j = 1:size(cmapccc,2)
+%         x = linspace(0,1,size(ccc,1));
+%         v = ccc(:,j);
+%         xq = linspace(0,1,1000);
+%         cmapccc(1:length(xq),j) = interp1(x,v,xq);
+%     end
+    
+%                 ccc = colormap(jet(1000));
+    cccyc = 0;
+    for k = 1:size(cmapccc,1)
+        cvec = cmapccc(k,:);
+        colortest = abs([cvec(1)-cvec(2) cvec(2)-cvec(3) cvec(3)-cvec(1)]);
+        if sum(cvec)>darkmin && max(colortest)>colorationmin && sum(cvec)<brightmax
+            cccyc = cccyc+1;
+            cnew(cccyc,:) = cvec;
+        end
+    end
+    
+%     [~,cnewidx] = sort(cnew(:,1));
+%     cnew = cnew(cnewidx,:);
+    ccnew = zeros(cmaplength,3);
+    for j = 1:size(ccnew,2)
+        x = linspace(0,1,size(cnew,1));
+        v = cnew(:,j);
+        xq = linspace(0,1,cmaplength);
+        ccnew(1:length(xq),j) = interp1(x,v,xq);
+    end
+
+    cmaplz = ccnew;
+end
 
 %% functions for determining variables
 function ImageDetails = InitializeImageDetails
@@ -4738,5 +4727,300 @@ function channelinputs =channelregexpmaker(channelstoinput)
     end
 end
 
+%% ginput modified function
+function [out1,out2,out3] = ginputmod(arg1)
+%GINPUT Graphical input from mouse.
+%   [X,Y] = GINPUT(N) gets N points from the current axes and returns
+%   the X- and Y-coordinates in length N vectors X and Y.  The cursor
+%   can be positioned using a mouse.  Data points are entered by pressing
+%   a mouse button or any key on the keyboard except carriage return,
+%   which terminates the input before N points are entered.
+%
+%   [X,Y] = GINPUT gathers an unlimited number of points until the
+%   return key is pressed.
+%
+%   [X,Y,BUTTON] = GINPUT(N) returns a third result, BUTTON, that
+%   contains a vector of integers specifying which mouse button was
+%   used (1,2,3 from left) or ASCII numbers if a key on the keyboard
+%   was used.
+%
+%   Examples:
+%       [x,y] = ginput;
+%
+%       [x,y] = ginput(5);
+%
+%       [x, y, button] = ginput(1);
+%
+%   See also GTEXT, WAITFORBUTTONPRESS.
 
+%   Copyright 1984-2015 The MathWorks, Inc.
+
+out1 = []; out2 = []; out3 = []; y = [];
+
+if ~matlab.ui.internal.isFigureShowEnabled
+    error(message('MATLAB:hg:NoDisplayNoFigureSupport', 'ginput'))
+end
+    
+    % Check Inputs
+    if nargin == 0
+        how_many = -1;
+        b = [];
+    else
+        how_many = arg1;
+        b = [];
+        if  ~isPositiveScalarIntegerNumber(how_many) 
+            error(message('MATLAB:ginput:NeedPositiveInt'))
+        end
+        if how_many == 0
+            % If input argument is equal to zero points,
+            % give a warning and return empty for the outputs.            
+            warning (message('MATLAB:ginput:InputArgumentZero'));
+        end
+    end
+    
+    % Get figure
+    fig = gcf;
+    figure(gcf);
+    
+    % Make sure the figure has an axes
+    gca(fig);
+    
+    % Setup the figure to disable interactive modes and activate pointers. 
+    initialState = setupFcn(fig);
+    
+    % onCleanup object to restore everything to original state in event of
+    % completion, closing of figure errors or ctrl+c. 
+    c = onCleanup(@() restoreFcn(initialState));
+    
+    drawnow
+    char = 0;
+    
+    while how_many ~= 0
+        waserr = 0;
+        try
+            keydown = wfbp;
+        catch %#ok<CTCH>
+            waserr = 1;
+        end
+        if(waserr == 1)
+            if(ishghandle(fig))
+                cleanup(c);
+                error(message('MATLAB:ginput:Interrupted'));
+            else
+                cleanup(c);
+                error(message('MATLAB:ginput:FigureDeletionPause'));
+            end
+        end
+        % g467403 - ginput failed to discern clicks/keypresses on the figure it was
+        % registered to operate on and any other open figures whose handle
+        % visibility were set to off
+        figchildren = allchild(0);
+        if ~isempty(figchildren)
+            ptr_fig = figchildren(1);
+        else
+            error(message('MATLAB:ginput:FigureUnavailable'));
+        end
+        %         old code -> ptr_fig = get(0,'CurrentFigure'); Fails when the
+        %         clicked figure has handlevisibility set to callback
+        if(ptr_fig == fig)
+            if keydown
+                char = get(fig, 'CurrentCharacter');
+                button = abs(get(fig, 'CurrentCharacter'));
+            else
+                button = get(fig, 'SelectionType');
+                if strcmp(button,'open')
+                    button = 1;
+                elseif strcmp(button,'normal')
+                    button = 1;
+                elseif strcmp(button,'extend')
+                    button = 2;
+                elseif strcmp(button,'alt')
+                    button = 3;
+                else
+                    error(message('MATLAB:ginput:InvalidSelection'))
+                end
+            end
+            axes_handle = gca;
+            drawnow;
+            pt = get(axes_handle, 'CurrentPoint');
+            
+            how_many = how_many - 1;
+            
+            if(char == 13) % & how_many ~= 0)
+                % if the return key was pressed, char will == 13,
+                % and that's our signal to break out of here whether
+                % or not we have collected all the requested data
+                % points.
+                % If this was an early breakout, don't include
+                % the <Return> key info in the return arrays.
+                % We will no longer count it if it's the last input.
+                break;
+            end
+            
+            out1 = [out1;pt(1,1)]; %#ok<AGROW>
+            y = [y;pt(1,2)]; %#ok<AGROW>
+            b = [b;button]; %#ok<AGROW>
+        end
+    end
+    
+    % Cleanup and Restore 
+    cleanup(c);
+    
+    if nargout > 1
+        out2 = y;
+        if nargout > 2
+            out3 = b;
+        end
+    else
+        out1 = [out1 y];
+    end
+    
+end
+
+function valid = isPositiveScalarIntegerNumber(how_many) 
+valid = ~ischar(how_many) && ...            % is numeric
+        isscalar(how_many) && ...           % is scalar
+        (fix(how_many) == how_many) && ...  % is integer in value
+        how_many >= 0;                      % is positive
+end
+
+function key = wfbp
+%WFBP   Replacement for WAITFORBUTTONPRESS that has no side effects.
+
+fig = gcf;
+current_char = []; %#ok<NASGU>
+
+% Now wait for that buttonpress, and check for error conditions
+waserr = 0;
+try
+    h=findall(fig,'Type','uimenu','Accelerator','C');   % Disabling ^C for edit menu so the only ^C is for
+    set(h,'Accelerator','');                            % interrupting the function.
+    keydown = waitforbuttonpress;
+    current_char = double(get(fig,'CurrentCharacter')); % Capturing the character.
+    if~isempty(current_char) && (keydown == 1)          % If the character was generated by the
+        if(current_char == 3)                           % current keypress AND is ^C, set 'waserr'to 1
+            waserr = 1;                                 % so that it errors out.
+        end
+    end
+    
+    set(h,'Accelerator','C');                           % Set back the accelerator for edit menu.
+catch %#ok<CTCH>
+    waserr = 1;
+end
+drawnow;
+if(waserr == 1)
+    set(h,'Accelerator','C');                          % Set back the accelerator if it errored out.
+    error(message('MATLAB:ginput:Interrupted'));
+end
+
+if nargout>0, key = keydown; end
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+end
+
+function initialState = setupFcn(fig)
+
+% Store Figure Handle. 
+initialState.figureHandle = fig; 
+
+% Suspend figure functions
+initialState.uisuspendState = uisuspend(fig);
+
+% Disable Plottools Buttons
+initialState.toolbar = findobj(allchild(fig),'flat','Type','uitoolbar');
+if ~isempty(initialState.toolbar)
+    initialState.ptButtons = [uigettool(initialState.toolbar,'Plottools.PlottoolsOff'), ...
+        uigettool(initialState.toolbar,'Plottools.PlottoolsOn')];
+    initialState.ptState = get (initialState.ptButtons,'Enable');
+    set (initialState.ptButtons,'Enable','off');
+end
+
+%Setup empty pointer
+cdata = NaN(16,16);
+% cdata = ones(16,16)*2;
+hotspot = [8,8];
+set(gcf,'Pointer','custom','PointerShapeCData',cdata,'PointerShapeHotSpot',hotspot)
+
+
+
+% Adding this to enable automatic updating of currentpoint on the figure 
+% This function is also used to update the display of the fullcrosshair
+% pointer and make them track the currentpoint.
+set(fig,'WindowButtonMotionFcn',@(o,e) dummy()); % Add dummy so that the CurrentPoint is constantly updated
+% Create uicontrols to simulate fullcrosshair pointer.
+initialState.CrossHair = createCrossHair(fig);
+updateCrossHair(fig,initialState.CrossHair)
+initialState.MouseListener = addlistener(fig,'WindowMouseMotion', @(o,e) updateCrossHair(o,initialState.CrossHair));
+
+% Get the initial Figure Units
+initialState.fig_units = get(fig,'Units');
+end
+
+function restoreFcn(initialState)
+if ishghandle(initialState.figureHandle)
+    delete(initialState.CrossHair);
+    
+    % Figure Units
+    set(initialState.figureHandle,'Units',initialState.fig_units);
+    
+    set(initialState.figureHandle,'WindowButtonMotionFcn','');
+    delete(initialState.MouseListener);
+    
+    % Plottools Icons
+    if ~isempty(initialState.toolbar) && ~isempty(initialState.ptButtons)
+        set (initialState.ptButtons(1),'Enable',initialState.ptState{1});
+        set (initialState.ptButtons(2),'Enable',initialState.ptState{2});
+    end
+    
+    % UISUSPEND
+    uirestore(initialState.uisuspendState);    
+end
+end
+
+function updateCrossHair(fig, crossHair)
+% update cross hair for figure.
+gap = 5; % 3 pixel view port between the crosshairs
+cp = hgconvertunits(fig, [fig.CurrentPoint 0 0], fig.Units, 'pixels', fig);
+cp = cp(1:2);
+figPos = hgconvertunits(fig, fig.Position, fig.Units, 'pixels', fig.Parent);
+figWidth = figPos(3);
+figHeight = figPos(4);
+
+% Early return if point is outside the figure
+if cp(1) < gap || cp(2) < gap || cp(1)>figWidth-gap || cp(2)>figHeight-gap
+    return
+end
+
+set(crossHair, 'Visible', 'on');
+thickness = 2; % 1 Pixel thin lines. 
+set(crossHair(1), 'Position', [0 cp(2) cp(1)-gap thickness]);
+set(crossHair(2), 'Position', [cp(1)+gap cp(2) figWidth-cp(1)-gap thickness]);
+set(crossHair(3), 'Position', [cp(1) 0 thickness cp(2)-gap]);
+set(crossHair(4), 'Position', [cp(1) cp(2)+gap thickness figHeight-cp(2)-gap]);
+
+offset = 50;
+boxpoint = 4;
+set(crossHair(1), 'Position', [cp(1)-offset cp(2) offset-gap thickness]);
+set(crossHair(2), 'Position', [cp(1)+gap cp(2) offset-gap thickness]);
+set(crossHair(3), 'Position', [cp(1) cp(2)-offset thickness offset-gap]);
+set(crossHair(4), 'Position', [cp(1) cp(2)+gap thickness offset-gap]);
+set(crossHair(5), 'Position', [cp(1)-1 cp(2)-1 boxpoint boxpoint]);
+end
+
+function crossHair = createCrossHair(fig)
+% Create thin uicontrols with black backgrounds to simulate fullcrosshair pointer.
+% 1: horizontal left, 2: horizontal right, 3: vertical bottom, 4: vertical top
+cmapz=jet(4);
+for k = 1:5
+    crossHair(k) = uicontrol(fig, 'Style', 'text', 'Visible', 'off', 'Units', 'pixels', 'BackgroundColor', [0.2 0.9 0], 'HandleVisibility', 'off', 'HitTest', 'off'); %#ok<AGROW>
+end
+end
+
+function cleanup(c)
+if isvalid(c)
+    delete(c);
+end
+end
+
+function dummy(~,~) 
+end
 

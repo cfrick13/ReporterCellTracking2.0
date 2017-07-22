@@ -48,6 +48,11 @@ reader = loci.formats.Memoizer(bfGetReader(), 0);
 reader.setId(FileName);
 omeMeta = reader.getMetadataStore();
 
+
+
+maxjava = java.lang.Runtime.getRuntime.maxMemory;
+freejava = java.lang.Runtime.getRuntime.freeMemory;
+percentJavaMemFree = round(freejava./maxjava,1,'decimals');
 disp(strcat('% java mem free=',num2str(percentJavaMemFree)))
 % data = bfopen(FileName);
 % seriesCount = size(data, 1); %number of scenes
@@ -116,7 +121,9 @@ clear reader omeMeta
 
 %determine amount of memory required to load one stack
 memoryrequired = stackSizeX*stackSizeY*planeCount;
+totalmemorysize = memoryrequired*imageCount;
 disp(strcat('memory required for one set =',num2str(round(memoryrequired./(1e6),1,'decimals')),'MegaBytes'))
+disp(strcat('memory required for full set =',num2str(round(totalmemorysize./(1e6),1,'decimals')),'MegaBytes'))
 detWorkers = 7./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
 nWorkers = floor(detWorkers);
 possibleWorkers = feature('numcores');
