@@ -4007,7 +4007,7 @@ function [ Tracked ] = FrickTrackCellsYeah(pathStruct,pvalue,segStruct,h,nucleiD
         Frame.filename = filename;
         Frame.Cellz = CC;
         Frame.If = IfPerimFunction(CC);
-        Frame.Arrayz = ArrayStruct{i};
+%         Frame.Arrayz = ArrayStruct{i};
         Tracked{i} = Frame;
     end
     
