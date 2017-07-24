@@ -1,21 +1,31 @@
 function uiTrackCellz(FileDate,AutoTrackStr)
-global Tracked bkgmedianmat pStruct timeVec timeSteps DivisionStruct xAxisLimits DICimgstack dfoName cfoName trackingPath background_seg bfoName nfoName sfoName cell_seg nucleus_seg segmentimgstack channelimgstack segmentPath mstackPath runIterateToggle ExportNameKey ExportName exportdir plottingTotalOrMedian channelinputs updateContrastToggle cmapper tcontrast lcontrast ThirdPlotAxes SecondPlotAxes expDateStr plotSettingsToggle PlotAxes cmap refineTrackingToggle expDirPath  timeFrames frameToLoad ImageDetails MainAxes SceneList displayTrackingToggle imgsize ExpDate
+global Tracked bkgmedianmat pStruct timeVec expDetailsStruct dirStruct timeSteps DivisionStruct segStruct foStruct xAxisLimits DICimgstack pathStruct segmentimgstack channelimgstack ExportNameKey ExportName plottingTotalOrMedian channelinputs tcontrast lcontrast ThirdPlotAxes SecondPlotAxes togStruct PlotAxes cmap  timeFrames frameToLoad ImageDetails MainAxes SceneList 
 
+close all
+
+    pathStruct = struct();
     DivisionStruct = struct();
+    segStruct = struct();
+    foStruct = struct();
+    dirStruct = struct();
+    expDetailsStruct = struct();
+    ImageDetails = struct();
+    togStruct = struct();
+    
 %determine matfile directory
     mdir = mfilename('fullpath');
     [~,b ] = regexp(mdir,'/');
     if isempty(b)
         [~,b] = regexp(mdir,'\');
     end
-    parentdir = mdir(1:b(end)); %folder in which matfile exists
-    exportdir = strcat(parentdir,'Export/');
+    dirStruct.parentdir = mdir(1:b(end)); %folder in which matfile exists
+    dirStruct.exportdir = strcat(dirStruct.parentdir,'Export/');
 
-    [~,b ] = regexp(parentdir,'/');
+    [~,b ] = regexp(dirStruct.parentdir,'/');
     if isempty(b)
-        [~,b] = regexp(parentdir,'\');
+        [~,b] = regexp(dirStruct.parentdir,'\');
     end
-    gparentdir = parentdir(1:b(end-1)); %folder in which matfile parentdir exists
+    dirStruct.gparentdir = dirStruct.parentdir(1:b(end-1)); %folder in which matfile dirStruct.parentdir exists
     
     
 %specify important directory names
@@ -25,16 +35,16 @@ global Tracked bkgmedianmat pStruct timeVec timeSteps DivisionStruct xAxisLimits
     
 
 %set contrast and plotting details
-    updateContrastToggle=0;
+    togStruct.updateContrast=0;
+    togStruct.runIterateToggle =0;
+    togStruct.refineTrackingToggle = 1;
+    togStruct.plotSettingsToggle =0;
+    togStruct.displayTrackingToggle = 0;
+
+    xAxisLimits = [0 50];
     plottingTotalOrMedian = 'median';
     tcontrast = 99;
     lcontrast = 1;
-    runIterateToggle =0;
-    refineTrackingToggle = 1;
-    ImageDetails = InitializeImageDetails;
-    displayTrackingToggle = 0;
-    plotSettingsToggle =0;
-    xAxisLimits = [0 50];
     
     
 %determine export details
@@ -48,45 +58,44 @@ global Tracked bkgmedianmat pStruct timeVec timeSteps DivisionStruct xAxisLimits
 %initialize global variables  
     channelimgstack =[];
     segmentimgstack =[];
-    cfoName = [];
-    sfoName =[];
-    bfoName = [];
-    nfoName = [];
-    dfoName=[];
     DICimgstack=[];
+    foStruct.cfoName = [];
+    foStruct.sfoName =[];
+    foStruct.bfoName = [];
+    foStruct.nfoName = [];
+    foStruct.dfoName=[];
+    
 
 
 
 
 %set colormap
-    cd(parentdir)
+    cd(dirStruct.parentdir)
     addpath('Colormaps')
-    cmap = colormap(gray(256));
+    cmap = gray(256);
 %         cmap = colormap(viridis(255));
     % cmap = colormap(magma(255));
     % cmap = colormap(inferno(255));
     % cmap = colormap(plasma(255));
     cmap(256,:)=[1 0 0];
-    cmapper = cmap;
-    close all
 
         
 % user selects experiment directory to be analyzed
-    cd(gparentdir)
+    cd(dirStruct.gparentdir)
     if isempty(FileDate)
-    expDirPath = uigetdir;
+    pathStruct.expDirPath = uigetdir;
     else
-    cd(gparentdir)
-    expdir = strcat(gparentdir,'/',FileDate);
+    cd(dirStruct.gparentdir)
+    expdir = strcat(dirStruct.gparentdir,'/',FileDate);
     cd(expdir)
-    expDirPath = pwd;
+    pathStruct.expDirPath = pwd;
     end
 
-    cd(expDirPath)
-    experimentdir = expDirPath;
-    mstackPath = strcat(experimentdir,'/',mstackName);
-    segmentPath = strcat(experimentdir,'/',segmentName);
-    trackingPath = strcat(experimentdir,'/',trackName);
+    cd(pathStruct.expDirPath)
+    experimentdir = pathStruct.expDirPath;
+    pathStruct.mstackPath = strcat(experimentdir,'/',mstackName);
+    pathStruct.segmentPath = strcat(experimentdir,'/',segmentName);
+    pathStruct.trackingPath = strcat(experimentdir,'/',trackName);
 
 %make tracking file folder if it does not exist
     cd(experimentdir)
@@ -96,10 +105,10 @@ global Tracked bkgmedianmat pStruct timeVec timeSteps DivisionStruct xAxisLimits
     end
 
 %determine date of experiment
-    [a,b] = regexp(expDirPath,'201[0-9]');
-    [~,d] = regexp(expDirPath,'exp[0-9]');
-    ExpDate = expDirPath(a:b+6);expDateStr = expDirPath(a:d); 
-    [a,~] = regexp(ExpDate,'_');ExpDate(a) = '-';
+    [a,b] = regexp(pathStruct.expDirPath,'201[0-9]');
+    [~,d] = regexp(pathStruct.expDirPath,'exp[0-9]');
+    expDetailsStruct.expDate = pathStruct.expDirPath(a:b+6); expDetailsStruct.expDateStr = pathStruct.expDirPath(a:d); 
+    [a,~] = regexp(expDetailsStruct.expDate,'_');expDetailsStruct.expDate(a) = '-';
 
 
 %subdirectories should include
@@ -110,10 +119,10 @@ global Tracked bkgmedianmat pStruct timeVec timeSteps DivisionStruct xAxisLimits
 
 
 %load helpful metadata
-    cd(exportdir)
-    FileName = expDateStr;
+    cd(dirStruct.exportdir)
+    FileName = expDetailsStruct.expDateStr;
     datequery = strcat(FileName,'*DoseAndScene*');
-    cd(exportdir)
+    cd(dirStruct.exportdir)
     filelist = dir(datequery);
         if isempty(filelist)
             error(strcat('need to run ExtractMetadata for-',FileName));
@@ -124,13 +133,13 @@ global Tracked bkgmedianmat pStruct timeVec timeSteps DivisionStruct xAxisLimits
         end
         segInstruct = dosestructstruct.segInstruct;
 
-    nucleus_seg = segInstruct.nucleus;
-    cell_seg = segInstruct.cell;
-    background_seg = segInstruct.background;
+    segStruct.nucleus_seg = segInstruct.nucleus;
+    segStruct.cell_seg = segInstruct.cell;
+    segStruct.background_seg = segInstruct.background;
     channelstoinput = dosestructstruct.channelNames;
     channelinputs =channelregexpmaker(channelstoinput);
     bkg = dosestructstruct.BACKGROUND;
-    imgsize = dosestructstruct.dimensions;
+    ImageDetails.ImgSize = dosestructstruct.dimensions;
 
     BACKGROUND = bkg{1};
     bkarray = cell(1,length(BACKGROUND));
@@ -149,7 +158,7 @@ global Tracked bkgmedianmat pStruct timeVec timeSteps DivisionStruct xAxisLimits
 
 
 %determine how many scenes are present
-    dirlist = dir(mstackPath);
+    dirlist = dir(pathStruct.mstackPath);
     [~,~,~,d] = regexp({dirlist.name},'s[0-9]+');
     dlog = ~cellfun(@isempty,d,'UniformOutput',1); 
     dcell = d(dlog);
@@ -162,7 +171,7 @@ global Tracked bkgmedianmat pStruct timeVec timeSteps DivisionStruct xAxisLimits
 
 
 %determine the number of frames per scene
-    cd(mstackPath)
+    cd(pathStruct.mstackPath)
     dirlist = dir('*.mat');
     filearray = {dirlist.name};
     filename = filearray{1};
@@ -341,7 +350,7 @@ h=    uicontrol('Style','pushbutton',...
         'Position',[xP(mmm),yP(mmm),bW,bH],...
         'Callback',@contrast_Callback);
     uicontrol('Style','pushbutton',...
-        'String','displayTrackingToggle [m]',...
+        'String','togStruct.displayTrackingToggle [m]',...
         'Position',[xP(mmm),yP(mmm)-bH./2,bW,bH./1.5],...
         'Callback',@displayTrackingButton_Callback);
         
@@ -480,8 +489,8 @@ h=    uicontrol('Style','pushbutton',...
     set(f,'KeyPressFcn',@keypress);
     
     
-    pStruct = loadSegmentParameters([],FileName,exportdir); %loads saved value of pStruct
-    timeMat = loadMetadata(FileName,exportdir);
+    pStruct = loadSegmentParameters([],FileName,dirStruct.exportdir); %loads saved value of pStruct
+    timeMat = loadMetadata(FileName,dirStruct.exportdir);
     rtimeMat = round(timeMat);
     stimulationFrame = dosestruct(1).tgfFrame + 1;
     timeVec = rtimeMat(1,:)-rtimeMat(1,stimulationFrame);
@@ -502,8 +511,9 @@ h=    uicontrol('Style','pushbutton',...
     else
         Tracked = makeTrackingFile(timeFrames);
         ImageDetails.Scene = SceneList{1};
-        ImageDetails.Channel = nucleus_seg;
+        ImageDetails.Channel = segStruct.nucleus_seg;
         ImageDetails.Frame = 1;
+        ImageDetails.ImgSize = ImageDetails.ImgSize;
         setSceneAndTime
     end
 
@@ -526,10 +536,10 @@ function timeVec = loadMetadata(FileName,loaddir)
     timeVec = round(timeVec);
     
 end
-function pStruct = loadSegmentParameters(pStruct,datename,exportdir)
+function pStruct = loadSegmentParameters(pStruct,datename,loaddir)
 
 
-cd(exportdir)
+cd(loaddir)
 filename = strcat('*',datename,'*segmentParameters*');
 
 filelist = dir(filename);
@@ -546,15 +556,15 @@ end
 end
 %% uifunctions
 function keypress(fig_obj,~)
-global  ImageDetails displaycomments nucleus_seg cell_seg
+global  ImageDetails displaycomments segStruct segStruct
 key = get(fig_obj,'CurrentKey');
 
 switch key
     case '1'
-        ImageDetails.Channel = cell_seg;
+        ImageDetails.Channel = segStruct.cell_seg;
         setSceneAndTime
     case '2'
-        ImageDetails.Channel = nucleus_seg;
+        ImageDetails.Channel = segStruct.nucleus_seg;
         setSceneAndTime    
     case '3'
         ImageDetails.Channel = 'DIC';
@@ -634,7 +644,7 @@ end
 
 %% division functions
 function divisionTrack_Callback(~,~)
-global imgsize ImageDetails Tracked MainAxes DivisionStruct
+global ImageDetails Tracked MainAxes DivisionStruct
 
 t = ImageDetails.Frame;
 CC = Tracked{t}.Cellz;
@@ -649,7 +659,7 @@ PX = CC.PixelIdxList;
     cellx = round(cellxx);
     celly = round(cellyy);
     
-    mothercellind = sub2ind(imgsize,celly,cellx);
+    mothercellind = sub2ind(ImageDetails.ImgSize,celly,cellx);
     
     for j = 1:length(cellxx)
     if j==1
@@ -670,7 +680,7 @@ PX = CC.PixelIdxList;
     cellx = round(cellxx);
     celly = round(cellyy);
     
-    daughtercellinds = sub2ind(imgsize,celly,cellx);
+    daughtercellinds = sub2ind(ImageDetails.ImgSize,celly,cellx);
     
     for j = 1:length(cellxx)
     if j==1
@@ -694,7 +704,7 @@ PX = CC.PixelIdxList;
     setSceneAndTime;
 end
 function ds = checkDivision(divStruct)
-    global  ImageDetails Tracked DivisionStruct 
+    global Tracked DivisionStruct 
 
     %open the pixels from the scene of the recently selected dividing cell
     t = divStruct.frame;
@@ -870,7 +880,7 @@ end
 
 %add cells and link cells
 function addareabutton_Callback(~,~) 
- global  ImageDetails Tracked imgsize refineTrackingToggle
+ global  ImageDetails Tracked togStruct
     % choose cell
     %       [cellx,celly] = ginput(1);
     % construct a polygon to add
@@ -884,13 +894,13 @@ function addareabutton_Callback(~,~)
             M = zeros(1,length(polyx)*2);
             M(1:2:end) = polyx;
             M(2:2:end) = polyy;
-            zeroImage = zeros(imgsize);
+            zeroImage = zeros(ImageDetails.ImgSize);
             zeroImage = insertShape(zeroImage,'FilledPolygon',M,'LineWidth',6,'Color',[1 1 1]);
             zerogray = rgb2gray(zeroImage);
 
             if ~isempty(Tracked{1}.Cellz)
                 %if there exists segmenttracking already...then load that. 
-                imagio = zeros(imgsize);
+                imagio = zeros(ImageDetails.ImgSize);
                 imagio(zerogray>0)=1;
                 cc = bwconncomp(imagio);
                 px = cc.PixelIdxList;
@@ -919,14 +929,14 @@ function addareabutton_Callback(~,~)
                 Tracked{t}.Cellz = CC;
                 Tracked{t}.If = IfPerimFunction(CC);
             end
-            refineTrackingToggle = 1;
+            togStruct.refineTrackingToggle = 1;
             nextbutton_callback([],[]);
         end 
     end
 end
 %removeArea
 function removeArea_Callback(~,~)
-global  ImageDetails  Tracked imgsize  refineTrackingToggle
+global  ImageDetails Tracked togStruct
  % choose cell
 %       [cellx,celly] = ginput(1);
        % construct a polygon to add
@@ -940,12 +950,12 @@ global  ImageDetails  Tracked imgsize  refineTrackingToggle
             M = zeros(1,length(polyx)*2);
             M(1:2:end) = polyx;
             M(2:2:end) = polyy;
-            zeroImage = zeros(imgsize);
+            zeroImage = zeros(ImageDetails.ImgSize);
             zeroImage = insertShape(zeroImage,'FilledPolygon',M,'LineWidth',6,'Color',[1 1 1]);
             zerogray = rgb2gray(zeroImage);
 
             if ~isempty(Tracked{1}.Cellz)
-                imagio = zeros(imgsize);
+                imagio = zeros(ImageDetails.ImgSize);
                 imagio(zerogray>0)=1;
                 cc = bwconncomp(imagio);
                 px = cc.PixelIdxList;
@@ -961,7 +971,7 @@ global  ImageDetails  Tracked imgsize  refineTrackingToggle
                         oldMass = PX{abc};
                         overlap = ismember(oldMass,px{1});
                         oldMass(overlap)=[];
-                        imagio = zeros(imgsize);
+                        imagio = zeros(ImageDetails.ImgSize);
                         imagio(oldMass)=1;
                         cc = bwconncomp(imagio);
                         numcells = cc.NumObjects;
@@ -986,7 +996,7 @@ global  ImageDetails  Tracked imgsize  refineTrackingToggle
             end
 
 
-            refineTrackingToggle = 1;
+            togStruct.refineTrackingToggle = 1;
             nextbutton_callback([],[]);
         end 
     end
@@ -1007,11 +1017,11 @@ function [cellxx,cellyy,timingkeeper,button] = identifyCellbyClick(t,ginputnum)
             return
         end
 end
-function [idx,idxlog,notACell] = findCellByCoordinate(Tracked,imgsize,cxx,cyy,tkeeper)
+function [idx,idxlog,notACell] = findCellByCoordinate(Tracked,ImgSize,cxx,cyy,tkeeper)
 %convert coordinates to indices
     cellx = round(cxx);
     celly = round(cyy);
-    cellind = sub2ind(imgsize,celly,cellx);
+    cellind = sub2ind(ImgSize,celly,cellx);
     
 %find the cell
     CC = Tracked{tkeeper}.Cellz;
@@ -1022,14 +1032,14 @@ function [idx,idxlog,notACell] = findCellByCoordinate(Tracked,imgsize,cxx,cyy,tk
 end
 function linkCells_Callback(~,~)
 %fast link!
-global ImageDetails Tracked refineTrackingToggle imgsize timeFrames
+global ImageDetails Tracked togStruct timeFrames
 
 %set accumulating variables equal to empty
 cellxx =[];
 cellyy =[];
 timingkeeper=[];
 %choose the initial cell
-    refineTrackingToggle=0;
+    togStruct.refineTrackingToggle=0;
     t = ImageDetails.Frame;
     
     notACell = true;
@@ -1040,7 +1050,7 @@ timingkeeper=[];
             return
         end
         %find cell
-        [idx,idxlog,notACell] = findCellByCoordinate(Tracked,imgsize,cxx,cyy,tkeeper);
+        [idx,idxlog,notACell] = findCellByCoordinate(Tracked,ImageDetails.ImgSize,cxx,cyy,tkeeper);
     end
     cellxx =[cellxx(:)' cxx];
     cellyy =[cellyy(:)' cyy];
@@ -1078,7 +1088,7 @@ timingkeeper=[];
                     break
                 end
                 %find cell
-                [idx,idxlog,notACell] = findCellByCoordinate(Tracked,imgsize,cxx,cyy,tkeeper);
+                [idx,idxlog,notACell] = findCellByCoordinate(Tracked,ImageDetails.ImgSize,cxx,cyy,tkeeper);
             end
             if isempty(button)
                 break
@@ -1086,7 +1096,7 @@ timingkeeper=[];
             cellxx =[cellxx(:)' cxx];
             cellyy =[cellyy(:)' cyy];
             timingkeeper =[timingkeeper(:)' tkeeper];
-            [idx,idxlog] = findCellByCoordinate(Tracked,imgsize,cxx,cyy,tkeeper);
+            [idx,idxlog] = findCellByCoordinate(Tracked,ImageDetails.ImgSize,cxx,cyy,tkeeper);
         end
         
         if ~broken
@@ -1097,10 +1107,10 @@ timingkeeper=[];
    
 %find the last frame of the intial cell
     %display movie to track to its end?
-    refineTrackingToggle=1;
+    togStruct.refineTrackingToggle=1;
     cellx = round(cellxx);
     celly = round(cellyy);
-    cellind = sub2ind(imgsize,celly,cellx);
+    cellind = sub2ind(ImageDetails.ImgSize,celly,cellx);
 
     idx = zeros(size(timingkeeper));
     for i = 1:length(timingkeeper)
@@ -1149,7 +1159,7 @@ end
 
 %delete cells
 function deletebutton_Callback(~,~) 
-    global imgsize ImageDetails  Tracked refineTrackingToggle
+    global ImageDetails  Tracked togStruct
     
 
 t = ImageDetails.Frame;
@@ -1163,7 +1173,7 @@ PX = CC.PixelIdxList;
     cellx = round(cellxx);
     celly = round(cellyy);
     
-    cellind = sub2ind(imgsize,celly,cellx);
+    cellind = sub2ind(ImageDetails.ImgSize,celly,cellx);
     
     for j = 1:length(cellxx)
     if j==1
@@ -1181,13 +1191,13 @@ CC.PixelIdxList = PX;
 Tracked{t}.Cellz = CC;
 Tracked{t}.If = IfPerimFunction(CC);
     
-refineTrackingToggle = 1; 
+togStruct.refineTrackingToggle = 1; 
 setSceneAndTime;
    
 end
 function eliminatebutton_Callback(~,~)
 
-global ImageDetails Tracked imgsize refineTrackingToggle
+global ImageDetails Tracked togStruct
 
 button=1;
 while button == 1
@@ -1213,7 +1223,7 @@ PX = CC.PixelIdxList;
     cellx = round(cellxx);
     celly = round(cellyy);
     
-    cellind = sub2ind(imgsize,celly,cellx);
+    cellind = sub2ind(ImageDetails.ImgSize,celly,cellx);
     
     for j = 1:length(cellxx)
     if j==1
@@ -1236,7 +1246,7 @@ if button==1
 elseif button == 3
     prevbutton_callback([],[])
 else 
-   refineTrackingToggle = 1; 
+   togStruct.refineTrackingToggle = 1; 
     setSceneAndTime;
 end
 
@@ -1246,7 +1256,7 @@ end
 %destroy and chosen ones
 function destroyAllFramePrevious_Callback(~,~)
 %delete a cell from all frames
-global ImageDetails Tracked refineTrackingToggle
+global ImageDetails Tracked togStruct
 
 %   determine the frame to load
     t = ImageDetails.Frame;
@@ -1256,13 +1266,13 @@ global ImageDetails Tracked refineTrackingToggle
     idxs = false(size(PX));   %choose all cells on frame
     Trackedz = crushThem(Tracked,idxs,[],t); %delete from t=t backwar
     Tracked = Trackedz;
-    refineTrackingToggle = 1; 
+    togStruct.refineTrackingToggle = 1; 
     setSceneAndTime;
 
 end
 function destroyAllFrameSubsequent_Callback(~,~)
 %delete a cell from all frames
-global ImageDetails Tracked  refineTrackingToggle
+global ImageDetails Tracked  togStruct
 
 %   determine the frame to load
     t = ImageDetails.Frame;
@@ -1272,12 +1282,12 @@ global ImageDetails Tracked  refineTrackingToggle
     idxs = false(size(PX));   %choose all cells on frame
     Trackedz = crushThem(Tracked,idxs,t,[]); %delete from t=t onward
     Tracked = Trackedz;
-    refineTrackingToggle = 1; 
+    togStruct.refineTrackingToggle = 1; 
     setSceneAndTime;
 end
 function destroybuttonAllPrevious_Callback(~,~)
 %delete a cell from all frames
-global ImageDetails Tracked imgsize refineTrackingToggle
+global ImageDetails Tracked togStruct
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   determine the frame to load
@@ -1293,7 +1303,7 @@ PX = CC.PixelIdxList;
     cellx = round(cellxx);
     celly = round(cellyy);
     
-      cellind = sub2ind(imgsize,celly,cellx);
+      cellind = sub2ind(ImageDetails.ImgSize,celly,cellx);
       
       for j=1:length(cellxx)
       if j==1
@@ -1307,7 +1317,7 @@ Trackedz = crushThem(Tracked,idxs,[],t);
 Tracked = Trackedz;
 
 
-    refineTrackingToggle = 1; 
+    togStruct.refineTrackingToggle = 1; 
     setSceneAndTime;
 
 
@@ -1315,7 +1325,7 @@ Tracked = Trackedz;
 end
 function destroybuttonAllSubsequent_Callback(~,~)
 %delete a cell from all frames
-global ImageDetails Tracked imgsize refineTrackingToggle
+global ImageDetails Tracked  togStruct
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   determine the frame to load
@@ -1331,7 +1341,7 @@ PX = CC.PixelIdxList;
     cellx = round(cellxx);
     celly = round(cellyy);
     
-      cellind = sub2ind(imgsize,celly,cellx);
+      cellind = sub2ind(ImageDetails.ImgSize,celly,cellx);
       
       for j=1:length(cellxx)
       if j==1
@@ -1345,7 +1355,7 @@ Trackedz = crushThem(Tracked,idxs,t,[]);
 Tracked = Trackedz;
 
 
-    refineTrackingToggle = 1; 
+    togStruct.refineTrackingToggle = 1; 
     setSceneAndTime;
 
 
@@ -1353,7 +1363,7 @@ Tracked = Trackedz;
 end
 function deleteAllonFrame_Callback(~,~)
 %delete all cells from one frame
-  global  ImageDetails  Tracked refineTrackingToggle
+  global  ImageDetails Tracked togStruct
     
     
     
@@ -1383,19 +1393,15 @@ CC.PixelIdxList = PX;
 Tracked{t}.Cellz = CC;
 Tracked{t}.If = IfPerimFunction(CC);
     
-    refineTrackingToggle = 1; 
+    togStruct.refineTrackingToggle = 1; 
     setSceneAndTime;
 
 end
 function destroybutton_Callback(~,~)
 %delete a cell from all frames
-global ImageDetails Tracked imgsize refineTrackingToggle
+global ImageDetails Tracked togStruct
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   determine the frame to load
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 t = ImageDetails.Frame;
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 CC = Tracked{t}.Cellz;
 PX = CC.PixelIdxList;   
     
@@ -1405,7 +1411,7 @@ PX = CC.PixelIdxList;
     cellx = round(cellxx);
     celly = round(cellyy);
     
-      cellind = sub2ind(imgsize,celly,cellx);
+      cellind = sub2ind(ImageDetails.ImgSize,celly,cellx);
       
       for j=1:length(cellxx)
       if j==1
@@ -1419,7 +1425,7 @@ Trackedz = crushThem(Tracked,idxs,[],[]);
 Tracked = Trackedz;
 
 
-    refineTrackingToggle = 1; 
+    togStruct.refineTrackingToggle = 1; 
     setSceneAndTime;
 
 
@@ -1427,7 +1433,7 @@ end
 %choose the cells you want
 function chosenOnes_Callback(~,~)
 %choose the cells you want
-global ImageDetails Tracked imgsize refineTrackingToggle
+global ImageDetails Tracked togStruct
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   determine the frame to load
@@ -1443,7 +1449,7 @@ PX = CC.PixelIdxList;
     cellx = round(cellxx);
     celly = round(cellyy);
     
-      cellind = sub2ind(imgsize,celly,cellx);
+      cellind = sub2ind(ImageDetails.ImgSize,celly,cellx);
       
       for j=1:length(cellxx)
       if j==1
@@ -1460,14 +1466,15 @@ Trackedz = crushThem(Tracked,~idxs,1,length(Tracked));
 Tracked = Trackedz;
 
 
-    refineTrackingToggle = 1; 
+
+    togStruct.refineTrackingToggle = 1; 
     setSceneAndTime;
 
 
 end
 function chosenOnesAllOnFrame_Callback(~,~)
 %choose the cells you want
-global ImageDetails Tracked refineTrackingToggle
+global ImageDetails Tracked togStruct
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   determine the frame to load
@@ -1485,14 +1492,14 @@ Trackedz = crushThem(Tracked,~idxs,1,length(Tracked));
 Tracked = Trackedz;
 
 
-    refineTrackingToggle = 1; 
+    togStruct.refineTrackingToggle = 1; 
     setSceneAndTime;
 
 
 end
 function erodeOnes_Callback(~,~)
 %choose the cells you want
-global ImageDetails Tracked imgsize refineTrackingToggle
+global ImageDetails Tracked togStruct
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   determine the frame to load
@@ -1508,7 +1515,7 @@ PX = CC.PixelIdxList;
     cellx = round(cellxx);
     celly = round(cellyy);
     
-      cellind = sub2ind(imgsize,celly,cellx);
+      cellind = sub2ind(ImageDetails.ImgSize,celly,cellx);
       
       for j=1:length(cellxx)
       if j==1
@@ -1544,7 +1551,7 @@ PX = CC.PixelIdxList;
     for jim = idxf
     pixxies = PX{jim};
         if ~isnan(pixxies)
-        imdub = zeros(imgsize);
+        imdub = zeros(ImageDetails.ImgSize);
         imdub(pixxies) = 1;
         imdub = imerode(imdub,se);
         pxtwo = find(imdub==1);
@@ -1575,14 +1582,14 @@ Trackedz=Stacked;
 
 Tracked = Trackedz;
 
-    refineTrackingToggle = 1; 
+    togStruct.refineTrackingToggle = 1; 
     setSceneAndTime;
 
 
 end
 function dilateOnes_Callback(~,~)
 %choose the cells you want
-global ImageDetails Tracked imgsize refineTrackingToggle
+global ImageDetails Tracked togStruct
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   determine the frame to load
@@ -1598,7 +1605,7 @@ PX = CC.PixelIdxList;
     cellx = round(cellxx);
     celly = round(cellyy);
     
-      cellind = sub2ind(imgsize,celly,cellx);
+      cellind = sub2ind(ImageDetails.ImgSize,celly,cellx);
       
       for j=1:length(cellxx)
       if j==1
@@ -1635,7 +1642,7 @@ PX = CC.PixelIdxList;
     pixxies = PX{jim};
 %     disp(pixxies)
         if ~isnan(pixxies)
-        imdub = zeros(imgsize);
+        imdub = zeros(ImageDetails.ImgSize);
         imdub(pixxies) = 1;
         imdub = imdilate(imdub,se);
         pxtwo = find(imdub==1);
@@ -1667,7 +1674,7 @@ Trackedz=Stacked;
 Tracked = Trackedz;
 
 
-    refineTrackingToggle = 1; 
+    togStruct.refineTrackingToggle = 1; 
     setSceneAndTime;
 
 end
@@ -1698,10 +1705,10 @@ end
 
 %plot your cells!
 function psettings = PlotSettings_callback(~,~)
-global exportdir expDateStr frameToLoad
-cd(exportdir)
+global dirStruct expDetailsStruct frameToLoad
+cd(dirStruct.exportdir)
 
-queryName = strcat(expDateStr,'*DoseAndScene*.mat');
+queryName = strcat(expDetailsStruct.expDateStr,'*DoseAndScene*.mat');
 filelist = dir(queryName);
 if isempty(queryName)
 prompt = {'tgfbeta frame','last frame'};
@@ -1720,25 +1727,25 @@ end
 psettings.framesThatMustBeTracked = framesThatMustBeTracked;
 end
 function PlotCFPnotnorm_callback(~,~)
-global toggleCFPnorm
+global togStruct
 % tcontrast =99;
 % lcontrast =1;
-toggleCFPnorm = 0;
+togStruct.cfpNorm = 0;
 Plot_callback([],[]);
 end
 function PlotCFPnorm_callback(~,~)
-global toggleCFPnorm
+global togStruct
 % tcontrast =99;
 % lcontrast =1;
-toggleCFPnorm = 1;
+togStruct.cfpNorm = 1;
 Plot_callback([],[]);
 end
 function Plot_callback(~,~)
-global cell_seg nucleus_seg xAxisLimits cmaplz SecondPlotAxes Tracked ImageDetails expDirPath timeFrames mstackPath frameToLoad PlotAxes imgsize plotSettingsToggle psettings  displayTrackingToggle cmap
+global segStruct xAxisLimits cmaplz SecondPlotAxes Tracked ImageDetails pathStruct timeFrames frameToLoad PlotAxes togStruct psettings cmap
 
-    if plotSettingsToggle == 0
+    if togStruct.plotSettingsToggle == 0
         psettings = PlotSettings_callback([],[]);
-        plotSettingsToggle=1;
+        togStruct.plotSettingsToggle=1;
     end
     framesThatMustBeTracked = psettings.framesThatMustBeTracked;
 
@@ -1758,7 +1765,7 @@ global cell_seg nucleus_seg xAxisLimits cmaplz SecondPlotAxes Tracked ImageDetai
 
 
     smooththat=0;
-    [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat);
+    [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,pathStruct.expDirPath,ImageDetails,pathStruct.mstackPath,timeFrames,frameToLoad,PlotAxes,ImageDetails.ImgSize,togStruct.plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat);
 
     % plotStructUI.EGFP = Smad;
     % plotStructUI.mKate = mkate;
@@ -1770,11 +1777,11 @@ global cell_seg nucleus_seg xAxisLimits cmaplz SecondPlotAxes Tracked ImageDetai
     % plotStructUI.Cfpbkg = Cfpbkg;
     % plotStructUI.mkatebkg = mkatebkg;
 
-    if strcmp(ImageDetails.Channel,cell_seg)
+    if strcmp(ImageDetails.Channel,segStruct.cell_seg)
         plotMat = plotStructUI.Smad;
         plotMatFC = plotStructUI.SmadFC;
         ylimit =[0 6];
-    elseif strcmp(ImageDetails.Channel,nucleus_seg)
+    elseif strcmp(ImageDetails.Channel,segStruct.nucleus_seg)
 %         plotMat = plotStructUI.mkatetotal;
 %         plotMatFC = plotStructUI.mkateFCtotal;
         plotMat = plotStructUI.mkate;
@@ -1793,7 +1800,7 @@ global cell_seg nucleus_seg xAxisLimits cmaplz SecondPlotAxes Tracked ImageDetai
     idxa = find(idx==1);
     h = plot(SecondPlotAxes,toplot(idx,:)','LineWidth',2);
             
-    if displayTrackingToggle ==1
+    if togStruct.displayTrackingToggle ==1
         for i=1:length(h)
             h(i).Color = cmapl(idxa(i),:);
         end
@@ -1816,7 +1823,7 @@ global cell_seg nucleus_seg xAxisLimits cmaplz SecondPlotAxes Tracked ImageDetai
     toplot = plotMat;
     h = plot(PlotAxes,toplot(idx,:)','LineWidth',2);
     
-    if displayTrackingToggle ==1
+    if togStruct.displayTrackingToggle ==1
         for i=1:length(h)
             h(i).Color = cmapl(i,:);
         end
@@ -1849,11 +1856,11 @@ xAxisLimits = cellfun(@str2num,inputdlgOutput,'UniformOutput',1);
 Plot_callback([],[])
 end
 function Plot_SpecificCell_callback(~,~)
-global displayTrackingToggle cmaplz xAxisLimits ThirdPlotAxes toggleCFPnorm Tracked ImageDetails expDirPath mstackPath timeFrames frameToLoad PlotAxes imgsize plotSettingsToggle psettings
+global togStruct cmaplz xAxisLimits ThirdPlotAxes Tracked ImageDetails pathStruct timeFrames frameToLoad PlotAxes psettings
 
-if plotSettingsToggle == 0
+if togStruct.plotSettingsToggle == 0
 psettings = PlotSettings_callback([],[]);
-plotSettingsToggle=1;
+togStruct.plotSettingsToggle=1;
 end
 
 
@@ -1874,7 +1881,7 @@ PX = CC.PixelIdxList;
     [cellxx,cellyy] = ginput();
     cellx = round(cellxx);
     celly = round(cellyy);
-    cellind = sub2ind(imgsize,celly,cellx);
+    cellind = sub2ind(ImageDetails.ImgSize,celly,cellx);
         for j = 1:length(cellxx)
             if j==1
                 idxs = cellfun(@(x) isempty(find(x==cellind(j),1)),PX,'UniformOutput',1);
@@ -1887,7 +1894,7 @@ makeIMGidx = find(makeIMG==1);
 
 
 smooththat=0;
-[plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat);
+[plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,pathStruct.expDirPath,ImageDetails,pathStruct.mstackPath,timeFrames,frameToLoad,PlotAxes,ImageDetails.ImgSize,togStruct.plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat);
     
     if strcmp(ImageDetails.Channel,'EGFP')
         plotMat = plotStructUI.Smad;
@@ -1915,15 +1922,15 @@ ThirdPlotAxes.Color = [0.95 0.95 0.95];
 
     cmapl = cmaplz;
             
-    if displayTrackingToggle ==1
+    if togStruct.displayTrackingToggle ==1
         for i=1:length(h)
             h(i).Color = cmapl(makeIMGidx(i),:);
         end 
     end
 
 end
-function [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,imgsize,plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat)
-global cell_seg nucleus_seg background_seg segmentPath
+function [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,ImgSize,plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat)
+global segStruct pathStruct
 
 PXX = Tracked{1}.Cellz.PixelIdxList;
 plotTracesCell = cell(length(PXX),length(Tracked));
@@ -1933,32 +1940,32 @@ plotTracesCell = cell(length(PXX),length(Tracked));
     end
     
 
-cd(mstackPath)
+cd(pathStruct.mstackPath)
 %no bleach correction option yet
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %%%%%%%%   open the image files   %%%%%%%
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                      %  open smad img  %
-            cd(mstackPath)         
-            ff = dir(strcat('*',ImageDetails.Scene,'*',cell_seg,'*'));
+            cd(pathStruct.mstackPath)         
+            ff = dir(strcat('*',ImageDetails.Scene,'*',segStruct.cell_seg,'*'));
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
             channelfileObject = matfile(filename);
             cellQ_imgstack = channelfileObject.flatstack;
             
                    %    open cfp img  %
-            cd(mstackPath)         
-            ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*'));
+            cd(pathStruct.mstackPath)         
+            ff = dir(strcat('*',ImageDetails.Scene,'*',segStruct.nucleus_seg,'*'));
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
             channelfileObject = matfile(filename);
             nuc_imgstack = channelfileObject.flatstack;
             
                     % open background Logical img  %
-            cd(segmentPath)         
-            ff = dir(strcat('*',ImageDetails.Scene,'*',background_seg,'*'));
+            cd(pathStruct.segmentPath)         
+            ff = dir(strcat('*',ImageDetails.Scene,'*',segStruct.background_seg,'*'));
             if length(ff)>1
-                ff = dir(strcat('*',ImageDetails.Scene,'*',background_seg,'*background*'));
+                ff = dir(strcat('*',ImageDetails.Scene,'*',segStruct.background_seg,'*background*'));
             end
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
@@ -1966,10 +1973,10 @@ cd(mstackPath)
             bkglogimgstack = channelfileObject.IfFinal;
             
                     % open nuclear Logical img  %
-            cd(segmentPath)         
-            ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*'));
+            cd(pathStruct.segmentPath)         
+            ff = dir(strcat('*',ImageDetails.Scene,'*',segStruct.nucleus_seg,'*'));
             if length(ff)>1
-                ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*nucleus*'));
+                ff = dir(strcat('*',ImageDetails.Scene,'*',segStruct.nucleus_seg,'*nucleus*'));
             end
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
@@ -2079,7 +2086,7 @@ plotStructUI.Smadbkg = Smadbkg;
 plotStructUI.mkatebkg = Nucbkg;
     
 end
-function plotStruct = plotthemfunctionToStructure(Tracked,idScene,mstackPath,timeFrames,makeIMG,makeIMGidx,cell_seg,nucleus_seg,background_seg,segmentPath)
+function plotStruct = plotthemfunctionToStructure(Tracked,idScene,pathStruct,timeFrames,makeIMG,makeIMGidx,segStruct) 
 
 plotStruct = struct();
 
@@ -2097,32 +2104,32 @@ centroidarray = cell(length(makeIMGidx),length(Tracked));
     end
     
 
-cd(mstackPath)
+cd(pathStruct.mstackPath)
 %no bleach correction option yet
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
             %%%%%%%%   open the image files   %%%%%%%
             %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                      %  open smad img  %
-            cd(mstackPath)         
-            ff = dir(strcat('*',idScene,'*',cell_seg,'*'));
+            cd(pathStruct.mstackPath)         
+            ff = dir(strcat('*',idScene,'*',segStruct.cell_seg,'*'));
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
             channelfileObject = matfile(filename);
             cellQ_imgstack = channelfileObject.flatstack;
 
                    %    open cfp img  %
-            cd(mstackPath)         
-            ff = dir(strcat('*',idScene,'*',nucleus_seg,'*'));
+            cd(pathStruct.mstackPath)         
+            ff = dir(strcat('*',idScene,'*',segStruct.nucleus_seg,'*'));
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
             channelfileObject = matfile(filename);
             nuc_imgstack = channelfileObject.flatstack;
             
                     % open background Logical img  %
-            cd(segmentPath)         
-            ff = dir(strcat('*',idScene,'*',background_seg,'*'));
+            cd(pathStruct.segmentPath)         
+            ff = dir(strcat('*',idScene,'*',segStruct.background_seg,'*'));
             if length(ff)>1
-                ff = dir(strcat('*',idScene,'*',background_seg,'*background*'));
+                ff = dir(strcat('*',idScene,'*',segStruct.background_seg,'*background*'));
             end
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
@@ -2130,10 +2137,10 @@ cd(mstackPath)
             bkglogimgstack = channelfileObject.IfFinal;
             
                     % open nuclear Logical img  %
-            cd(segmentPath)         
-            ff = dir(strcat('*',idScene,'*',nucleus_seg,'*'));
+            cd(pathStruct.segmentPath)         
+            ff = dir(strcat('*',idScene,'*',segStruct.nucleus_seg,'*'));
             if length(ff)>1
-                ff = dir(strcat('*',idScene,'*',nucleus_seg,'*nucleus*'));
+                ff = dir(strcat('*',idScene,'*',segStruct.nucleus_seg,'*nucleus*'));
             end
     %         ff = dir(strcat(ImageDetails.Channel,'*'));
             filename = char(ff.name);
@@ -2244,10 +2251,10 @@ end
 
 %%%%comments!!!
 function xy = getxy(~,~)
-global Tracked plotSettingsToggle psettings imgsize ImageDetails     
-    if plotSettingsToggle == 0
+global Tracked togStruct psettings ImageDetails     
+    if togStruct.plotSettingsToggle == 0
     psettings = PlotSettings_callback([],[]);
-    plotSettingsToggle=1;
+    togStruct.plotSettingsToggle=1;
     end
     
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2275,8 +2282,8 @@ framesThatMustBeTracked = psettings.framesThatMustBeTracked;
     my = nan(1,length(PX));
         for j = 1:length(PX)
         px = PX{j};
-        y = rem(px-1,imgsize(1))+1; %these two lines replace ind2sub
-        x = (px-y)/imgsize(2) + 1;  %these two lines replace ind2sub
+        y = rem(px-1,ImageDetails.ImgSize(1))+1; %these two lines replace ind2sub
+        x = (px-y)/ImageDetails.ImgSize(2) + 1;  %these two lines replace ind2sub
         %%%% sort and select middle index is faster than median %%%
         sx = sort(x);   
         sy = sort(y);
@@ -2429,8 +2436,7 @@ Tracked{t}.commentpos = commentpos;
 end
 function [cellnums,comments,commentpos,cellidx]=updatecomments(xy)
 %choose the cells you want to comment on
-global ImageDetails  Tracked imgsize 
-
+global ImageDetails Tracked 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %   determine the frame to load
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2464,7 +2470,7 @@ comments = cell(1,size(xy,1));
 commentpos = zeros(1,size(xy,1));
 cellidx =zeros(1,size(xy,1));
 
-indies = sub2ind([imgsize],xy(:,2),xy(:,1));
+indies = sub2ind([ImageDetails.ImgSize],xy(:,2),xy(:,1));
 
 if ~isempty(oldcommentpos)
     for jim = idx
@@ -2578,18 +2584,18 @@ end
 
 end
 function comment_CallbackJ(~,~)
-global ExportNameKey ExportName  displaycomments SceneList Tracked   trackPath     plotSettingsToggle psettings
+global ExportNameKey ExportName  displaycomments SceneList Tracked pathStruct togStruct psettings
 
-    if plotSettingsToggle == 0
+    if togStruct.plotSettingsToggle == 0
     psettings = PlotSettings_callback([],[]);
-    plotSettingsToggle=1;
+    togStruct.plotSettingsToggle=1;
     end
     
 framesThatMustBeTracked = psettings.framesThatMustBeTracked;
-cd(trackPath)
+cd(pathStruct.trackingPath)
 cd ..
     for scenenumber = 1:length(SceneList)
-        cd(trackPath)
+        cd(pathStruct.trackingPath)
         cd ..
         sceneN = char(SceneList{scenenumber});
         disp(sceneN)
@@ -2627,16 +2633,16 @@ end
 function xy = labelCells(~,~)
 
 
-global ExportNameKey ExportName displaycomments   Tracked ImageDetails  trackPath  frameToLoad  imgsize plotSettingsToggle psettings
+global ExportNameKey ExportName displaycomments Tracked ImageDetails pathStruct frameToLoad togStruct psettings
 
-    if plotSettingsToggle == 0
+    if togStruct.plotSettingsToggle == 0
     psettings = PlotSettings_callback([],[]);
-    plotSettingsToggle=1;
+    togStruct.plotSettingsToggle=1;
     end
     
 t = ImageDetails.Frame;
 framesThatMustBeTracked = psettings.framesThatMustBeTracked;
-cd(trackPath)
+cd(pathStruct.trackingPath)
 cd ..
 
 sceneN = char(ImageDetails.Scene);
@@ -2671,8 +2677,8 @@ trackfilename = char({trackfile.name});
     my = nan(1,length(PX));
         for j = 1:length(PX)
         px = PX{j};
-        y = rem(px-1,imgsize(1))+1; %these two lines replace ind2sub
-        x = (px-y)/imgsize(2) + 1;  %these two lines replace ind2sub
+        y = rem(px-1,ImageDetails.ImgSize(1))+1; %these two lines replace ind2sub
+        x = (px-y)/ImageDetails.ImgSize(2) + 1;  %these two lines replace ind2sub
         %%%% sort and select middle index is faster than median %%%
         sx = sort(x);   
         sy = sort(y);
@@ -2724,26 +2730,23 @@ end
 
 
 function exportTrackedCells(~,~)
-global cell_seg nucleus_seg background_seg segmentPath ExportNameKey ExportName exportdir mstackPath expDateStr SceneList  trackingPath timeFrames plotSettingsToggle psettings
+global segStruct pathStruct ExportNameKey ExportName dirStruct expDetailsStruct SceneList timeFrames togStruct psettings
 exportStruct = struct();
 
-    if plotSettingsToggle == 0
+    if togStruct.plotSettingsToggle == 0
         psettings = PlotSettings_callback([],[]);
-        plotSettingsToggle=1;
+        togStruct.plotSettingsToggle=1;
     end
     
 %remove all global variables before parfor loop
     framesThatMustBeTracked = psettings.framesThatMustBeTracked;
     eNameKey = ExportNameKey;
     eName = ExportName;
-    tPath = trackingPath;
-    mPath = mstackPath;
+    paStruct = pathStruct;
+    sStruct = segStruct;
+    tPath = pathStruct.trackingPath;
     sList = SceneList;
     tFrames = timeFrames;
-    cSeg = cell_seg;
-    nSeg = nucleus_seg;
-    bSeg = background_seg;
-    sPath = segmentPath;
     cd(tPath)
     cd ..
     
@@ -2772,7 +2775,7 @@ exportStruct = struct();
                     makeIMG = true(size(makeIMG));
                     makeIMGidx = find(makeIMG==1);
 
-                    plotStruct = plotthemfunctionToStructure(trackedArray,idScene,mPath,tFrames,makeIMG,makeIMGidx,cSeg,nSeg,bSeg,sPath);
+                    plotStruct = plotthemfunctionToStructure(trackedArray,idScene,paStruct,tFrames,makeIMG,makeIMGidx,sStruct);
                     plotStructArray{scenenumber} = plotStruct;
                 end
         end
@@ -2812,8 +2815,8 @@ exportStruct = struct();
         end
         
         %save the exportStruct
-            cd(exportdir)
-            filename = strcat(expDateStr,'_tracking_export.mat'); 
+            cd(dirStruct.exportdir)
+            filename = strcat(expDetailsStruct.expDateStr,'_tracking_export.mat'); 
             save(filename,'exportStruct','-v6');
 end
 function trackedArray = loadTrackedArray(trackfilename)
@@ -2821,19 +2824,19 @@ load(trackfilename)
 trackedArray = Tracked;
 end
 function exportSegmentedCells(~,~)
-global cell_seg nucleus_seg background_seg segmentPath   exportdir mstackPath expDateStr SceneList  trackingPath timeFrames
+global segStruct pathStruct dirStruct expDetailsStruct SceneList timeFrames
 
 
     exportNucleiStruct=struct();
     %remove all global variables before parfor loop
-        tPath = trackingPath;
-        mPath = mstackPath;
+        tPath = pathStruct.trackingPath;
+        mPath = pathStruct.mstackPath;
         sList = SceneList;
         tFrames = timeFrames;
-        cSeg = cell_seg;
-        nSeg = nucleus_seg;
-        bSeg = background_seg;
-        sPath = segmentPath;
+        cSeg = segStruct.cell_seg;
+        nSeg = segStruct.nucleus_seg;
+        bSeg = segStruct.background_seg;
+        sPath = pathStruct.segmentPath;
         cd(tPath)
         cd ..
     
@@ -2877,39 +2880,39 @@ global cell_seg nucleus_seg background_seg segmentPath   exportdir mstackPath ex
         end
         
         %save the exportStruct
-            cd(exportdir)
-            filename = strcat(expDateStr,'_nuclei_export.mat'); 
+            cd(dirStruct.exportdir)
+            filename = strcat(expDetailsStruct.expDateStr,'_nuclei_export.mat'); 
             save(filename,'exportNucleiStruct');
             
 
 end
 function exportNucleiStruct = nucleiToStructure(idScene,mstackPath,timeFrames,cell_seg,nucleus_seg,background_seg,segmentPath)
-cd(mstackPath)
+cd(pathStruct.mstackPath)
 %no bleach correction option yet
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
         %%%%%%%%   open the image files   %%%%%%%
         %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
                  %  open smad img  %
-        cd(mstackPath)         
-        ff = dir(strcat('*',idScene,'*',cell_seg,'*'));
+        cd(pathStruct.mstackPath)         
+        ff = dir(strcat('*',idScene,'*',segStruct.cell_seg,'*'));
 %         ff = dir(strcat(ImageDetails.Channel,'*'));
         filename = char(ff.name);
         channelfileObject = matfile(filename);
         cellQ_imgstack = channelfileObject.flatstack;
 
                %    open cfp img  %
-        cd(mstackPath)         
-        ff = dir(strcat('*',idScene,'*',nucleus_seg,'*'));
+        cd(pathStruct.mstackPath)         
+        ff = dir(strcat('*',idScene,'*',segStruct.nucleus_seg,'*'));
 %         ff = dir(strcat(ImageDetails.Channel,'*'));
         filename = char(ff.name);
         channelfileObject = matfile(filename);
         nuc_imgstack = channelfileObject.flatstack;
 
                 % open background Logical img  %
-        cd(segmentPath)         
-        ff = dir(strcat('*',idScene,'*',background_seg,'*'));
+        cd(pathStruct.segmentPath)         
+        ff = dir(strcat('*',idScene,'*',segStruct.background_seg,'*'));
         if length(ff)>1
-            ff = dir(strcat('*',idScene,'*',background_seg,'*background*'));
+            ff = dir(strcat('*',idScene,'*',segStruct.background_seg,'*background*'));
         end
 %         ff = dir(strcat(ImageDetails.Channel,'*'));
         filename = char(ff.name);
@@ -2917,10 +2920,10 @@ cd(mstackPath)
         bkglogimgstack = channelfileObject.IfFinal;
 
                 % open nuclear Logical img  %
-        cd(segmentPath)         
-        ff = dir(strcat('*',idScene,'*',nucleus_seg,'*'));
+        cd(pathStruct.segmentPath)         
+        ff = dir(strcat('*',idScene,'*',segStruct.nucleus_seg,'*'));
         if length(ff)>1
-            ff = dir(strcat('*',idScene,'*',nucleus_seg,'*nucleus*'));
+            ff = dir(strcat('*',idScene,'*',segStruct.nucleus_seg,'*nucleus*'));
         end
 %         ff = dir(strcat(ImageDetails.Channel,'*'));
         filename = char(ff.name);
@@ -2992,26 +2995,26 @@ exportNucleiStruct(size(cellQ_imgstack,3)).medianReporter = [];
     end
 end
 function exportAllCells(~,~)
-global ExportNameKey ExportName exportdir  cell_seg nucleus_seg background_seg segmentPath expDateStr SceneList   mstackPath timeFrames trackingPath    plotSettingsToggle psettings
+global ExportNameKey ExportName dirStruct segStruct  pathStruct expDetailsStruct SceneList timeFrames togStruct psettings
 exportStruct = struct();
 
-    if plotSettingsToggle == 0
-    psettings = PlotSettings_callback([],[]);
-    plotSettingsToggle=1;
+    if togStruct.plotSettingsToggle == 0
+        psettings = PlotSettings_callback([],[]);
+        togStruct.plotSettingsToggle=1;
     end
         
 %remove all global variables before parfor loop
     framesThatMustBeTracked = psettings.framesThatMustBeTracked;
     eNameKey = ExportNameKey;
     eName = ExportName;
-    tPath = trackingPath;
-    mPath = mstackPath;
+    tPath = pathStruct.trackingPath;
+    mPath = pathStruct.mstackPath;
     sList = SceneList;
     tFrames = timeFrames;
-    cSeg = cell_seg;
-    nSeg = nucleus_seg;
-    bSeg = background_seg;
-    sPath = segmentPath;
+    cSeg = segStruct.cell_seg;
+    nSeg = segStruct.nucleus_seg;
+    bSeg = segStruct.background_seg;
+    sPath = pathStruct.segmentPath;
     cd(tPath)
     cd ..
 
@@ -3036,8 +3039,9 @@ exportStruct = struct();
                 makeIMG = true(size(makeIMG));
                 makeIMGidx = find(makeIMG==1);
                 smooththat=0;
-%                 [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,SceneDirPath,timeFrames,frameToLoad,PlotAxes,imgsize,plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat);
-                plotStruct = plotthemfunctionToStructure(trackedArray,idScene,mPath,tFrames,makeIMG,makeIMGidx);
+%                 [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,pathStruct.expDirPath,ImageDetails,SceneDirPath,timeFrames,frameToLoad,PlotAxes,ImageDetails.ImgSize,togStruct.plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat);
+%                 plotStruct = plotthemfunctionToStructure(trackedArray,idScene,mPath,tFrames,makeIMG,makeIMGidx);
+                plotStruct = plotthemfunctionToStructure(Tracked,idScene,pathStruct,timeFrames,makeIMG,makeIMGidx,segStruct); 
                 
                 fnames = fieldnames(plotStruct);
                 if isempty(fieldnames(exportStruct)) %if exportStruct is empty 
@@ -3061,18 +3065,18 @@ exportStruct = struct();
                 end
             end
     end
-        cd(exportdir)
-        filename = strcat(expDateStr,'_tracking_allcells_export.mat'); 
+        cd(dirStruct.exportdir)
+        filename = strcat(expDetailsStruct.expDateStr,'_tracking_allcells_export.mat'); 
         save(filename,'exportStruct');
 end
 
 
 function exportFrames(~,~)
-global ExportNameKey ExportName  displayTrackingToggle   ImageDetails  trackPath  frameToLoad   plotSettingsToggle psettings
+global ExportNameKey ExportName togStruct ImageDetails pathStruct frameToLoad psettings
 
-    if plotSettingsToggle == 0
+    if togStruct.plotSettingsToggle == 0
     psettings = PlotSettings_callback([],[]);
-    plotSettingsToggle=1;
+    togStruct.plotSettingsToggle=1;
     end
     
     
@@ -3081,11 +3085,11 @@ t = ImageDetails.Frame;
 
 
 framesThatMustBeTracked = psettings.framesThatMustBeTracked;
-cd(trackPath)
+cd(pathStruct.trackingPath)
 cd ..
 CENTROID = struct();
     
-        cd(trackPath)
+        cd(pathStruct.trackingPath)
         cd ..
 %         sceneN = char(SceneList{scenenumber});
 %         disp(sceneN)
@@ -3102,7 +3106,7 @@ CENTROID = struct();
         if ~isempty(trackfilename)
             load(trackfilename)
             setSceneAndTime;
-            displayTrackingToggle =1;
+            togStruct.displayTrackingToggle =1;
 %             finalbutton_callback([],[]);
             for i=1:length(frameToLoad)
                 if i==1
@@ -3119,7 +3123,7 @@ CENTROID = struct();
             [X,Map] = frame2im(F);
             set(gcf,'Units','normalized');
             set(gca,'Units','normalized');
-            cd(trackPath)
+            cd(pathStruct.trackingPath)
             cd ..
             cd ..
             cd('ANNOTATIONS')
@@ -3128,7 +3132,7 @@ CENTROID = struct();
             cd('CENTROIDS')
             cd ..
             
-%             CENTROIDS.imgsize = imgsize;
+%             CENTROIDS.ImageDetails.ImgSize = ImageDetails.ImgSize;
 %             CENTROIDS.centroids = xy;
 %             CENTROIDS.scene = sceneN;
 %             save(strcat('CENTROIDS-',sceneN,'.mat'),'CENTROIDS'); %save CENTROIDS
@@ -3143,20 +3147,20 @@ CENTROID = struct();
  
 end
 function exportLabels(~,~)
-global ExportNameKey ExportName  imgsize displayTrackingToggle SceneList  ImageDetails  trackPath  plotSettingsToggle psettings updateContrastToggle
+global ExportNameKey ExportName ImageDetails togStruct SceneList pathStruct psettings
 
-    if plotSettingsToggle == 0
+    if togStruct.plotSettingsToggle == 0
     psettings = PlotSettings_callback([],[]);
-    plotSettingsToggle=1;
+    togStruct.plotSettingsToggle=1;
     end
     
 framesThatMustBeTracked = psettings.framesThatMustBeTracked;
-cd(trackPath)
+cd(pathStruct.trackingPath)
 cd ..
 CENTROID = struct();
     for scenenumber = 1:length(SceneList)
-        updateContrastToggle=1;
-        cd(trackPath)
+        togStruct.updateContrast=1;
+        cd(pathStruct.trackingPath)
         cd ..
         sceneN = char(SceneList{scenenumber});
         disp(sceneN)
@@ -3173,7 +3177,7 @@ CENTROID = struct();
         if ~isempty(trackfilename)
             load(trackfilename)
             setSceneAndTime;
-            displayTrackingToggle =1;
+            togStruct.displayTrackingToggle =1;
             finalbutton_callback([],[]);
        xy = labelCells([],[]);
             set(gcf,'Units','Pixels');
@@ -3183,7 +3187,7 @@ CENTROID = struct();
             [X,Map] = frame2im(F);
             set(gcf,'Units','normalized');
             set(gca,'Units','normalized');
-            cd(trackPath)
+            cd(pathStruct.trackingPath)
             cd ..
             cd ..
             cd('ANNOTATIONS')
@@ -3191,7 +3195,7 @@ CENTROID = struct();
             cd .. 
             cd('CENTROIDS')
             
-            CENTROIDS.imgsize = imgsize;
+            CENTROIDS.ImageDetails.ImgSize = ImageDetails.ImgSize;
             CENTROIDS.centroids = xy;
             CENTROIDS.scene = sceneN;
             save(strcat('CENTROIDS-',sceneN,'.mat'),'CENTROIDS'); %save CENTROIDS
@@ -3203,7 +3207,7 @@ CENTROID = struct();
         
         
     end
-    updateContrastToggle=0;
+    togStruct.updateContrast=0;
 end
 
 
@@ -3215,7 +3219,7 @@ function Tracked = makeTrackingFile(timeFrames)
 Tracked = cell(1,length(timeFrames));
 Framez = struct();
 Framez.Cellz =[];
-Framez.imgsize=[];
+Framez.ImageDetails.ImgSize=[];
 Framez.filename=[];
 
 
@@ -3225,7 +3229,7 @@ end
 
 end
 function trackbutton_Callback(~,~)
-global  pStruct timeSteps Tracked ImageDetails refineTrackingToggle segmentPath nucleus_seg mstackPath cell_seg background_seg
+global  pStruct timeSteps Tracked ImageDetails togStruct pathStruct segStruct
 pvalue = ImageDetails.Scene;
 
     nucleiDist = pStruct.nucleus.nucDiameter;
@@ -3240,20 +3244,20 @@ pvalue = ImageDetails.Scene;
             
             if S==1
                 h=waitbar(0,'running tracking algorithm...');
-                Tracked = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,h,nucleiDist,tsteps);
+                Tracked = FrickTrackCellsYeah(pathStruct,pvalue,segStruct,h,nucleiDist,tsteps);
             else
             end
 
-            refineTrackingToggle =1;
+            togStruct.refineTrackingToggle =1;
             close(h);
 setSceneAndTime;
     toc
 end
 
 function Tracked = loadTrackedStructure
-global trackingPath timeFrames refineTrackingToggle runIterateToggle ImageDetails
-if runIterateToggle ==0
-    cd(trackingPath)
+global pathStruct timeFrames togStruct ImageDetails
+if togStruct.runIterateToggle ==0
+    cd(pathStruct.trackingPath)
     trackfile = dir(strcat('*',ImageDetails.Scene,'*.mat'));
     if ~isempty(trackfile)
         trackfilelist = {trackfile.name};
@@ -3269,9 +3273,9 @@ if runIterateToggle ==0
         end
 
         if isempty(Tracked{1}.Cellz)
-        refineTrackingToggle=0;
+        togStruct.refineTrackingToggle=0;
         else
-        refineTrackingToggle =1;
+        togStruct.refineTrackingToggle =1;
         end
 
     else
@@ -3284,10 +3288,10 @@ end
 
 end
 function loadTrackingFile_callback(~,~)
-global  Tracked refineTrackingToggle
+global  Tracked togStruct
 
 Tracked = loadTrackedStructure;
-refineTrackingToggle =1;
+togStruct.refineTrackingToggle =1;
 end
 
 %make trajectories for overlay of tracking
@@ -3307,8 +3311,7 @@ function trt = calculateTrackingLogical(Stacked)
         trt(:,i) = logx;
     end
 end
-function Trackedz = trackingCosmetics(Stacked)
-global displayTrackingToggle
+function Trackedz = trackingCosmetics(Stacked,togStruct)
 %this identifies the maximum length to identify the total number of cells
 %MARlength contains the number of cells in each frame
     MARlength = zeros(1,length(Stacked));
@@ -3410,7 +3413,7 @@ didxo = diff(idxo,[],2);
     pxidx(pxidxremove) = [];
     %update the fields of Stacked.Cellz to be accurate
     connectivity = Stacked{1}.Cellz.Connectivity;
-    imgsize = Stacked{1}.Cellz.ImageSize;
+    ImageDetails.ImgSize = Stacked{1}.Cellz.ImageSize;
         for j=1:length(Stacked)
         S = Stacked{j};
         CC = S.Cellz;
@@ -3419,11 +3422,11 @@ didxo = diff(idxo,[],2);
         px = PX(pxidx);
 %         CC = Stacked{j}.Cellz;
         CC.Connectivity = connectivity;
-        CC.ImageSize = imgsize;
+        CC.ImageSize = ImageDetails.ImgSize;
         CC.NumObjects = length(px);
         CC.PixelIdxList = px;
         
-        if displayTrackingToggle==1
+        if togStruct.displayTrackingToggle==1
             stats = regionprops(CC,'Centroid');
             centroidarray = {stats.Centroid};
             Centroid = zeros(2,length(centroidarray));
@@ -3443,13 +3446,13 @@ didxo = diff(idxo,[],2);
 
 end
 function trackSaveIterate_callback(~,~)
-global parellelToggle pStruct timeSteps runIterateToggle SceneList ImageDetails refineTrackingToggle   Tracked trackingPath ExportName timeFrames segmentPath nucleus_seg mstackPath cell_seg background_seg
+global togStruct pStruct timeSteps SceneList ImageDetails Tracked pathStruct ExportName timeFrames segStruct
 
     nucleiDist = pStruct.nucleus.nucDiameter;
     tsteps = timeSteps;
     
-runIterateToggle =1;
-parellelToggle = 1;
+togStruct.runIterateToggle =1;
+togStruct.parallel = 1;
     if isempty(h) % Enter parallel loop
         poolobj = gcp('nocreate');
         if isempty(poolobj)
@@ -3480,26 +3483,26 @@ parellelToggle = 1;
         %run tracking
             pvalue = ImageDetails.Scene;
             
-            Tracked = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,[],nucleiDist,tsteps);
-%             Tracked = FrickTrackCellsYeah(expDirPath,frameToLoad,pvalue,[]);
-            refineTrackingToggle =1;
+            Tracked = FrickTrackCellsYeah(pathStruct,pvalue,segStruct,[],nucleiDist,tsteps);
+%             Tracked = FrickTrackCellsYeah(pathStruct.expDirPath,frameToLoad,pvalue,[]);
+            togStruct.refineTrackingToggle =1;
             setSceneAndTime;
 
 
         %save
             % saveTrackingFileAs_callback([],[])
-            cd(trackingPath)
+            cd(pathStruct.trackingPath)
             filename = 'initial';
             save(strcat(filename,'_',ImageDetails.Scene,'_',ExportName,'.mat'),'Tracked')
 %             save(strcat(filename,ExportName,'.mat'),'Tracked')
             
     end
-runIterateToggle =0;
-parellelToggle = 0;
+togStruct.runIterateToggle =0;
+togStruct.parallel = 0;
 
 end
 function trackSaveIterateChosen_callback(~,~)
-global   SceneList trackingPath ExportName segmentPath nucleus_seg mstackPath cell_seg background_seg timeFrames pStruct timeSteps
+global SceneList pathStruct ExportName segStruct timeFrames pStruct timeSteps togStruct
     
     %initialize this structure outside of the parfor loop
     psettings = PlotSettings_callback([],[]);
@@ -3509,14 +3512,12 @@ global   SceneList trackingPath ExportName segmentPath nucleus_seg mstackPath ce
     tsteps = timeSteps;
     
     %remove all global variables before parfor loop
-        tPath = trackingPath;
-        mPath = mstackPath;
+        paStruct = pathStruct;
+        sStruct = segStruct;
+        tPath = pathStruct.trackingPath;
         sList = SceneList;
-        cSeg = cell_seg;
-        nSeg = nucleus_seg;
-        bSeg = background_seg;
-        sPath = segmentPath;
         eName = ExportName;
+        toggleS = togStruct;
         
     possibleWorkers = feature('numcores');
     nWorkers = possibleWorkers;
@@ -3550,7 +3551,7 @@ global   SceneList trackingPath ExportName segmentPath nucleus_seg mstackPath ce
     end
     
     
-
+%     for iNW=1:nWorkers
     parfor iNW=1:nWorkers
         sceneArrayVec = sceneArray{iNW};
         sub_sList = sList(sceneArrayVec);
@@ -3559,37 +3560,29 @@ global   SceneList trackingPath ExportName segmentPath nucleus_seg mstackPath ce
             scenestr = char(sub_sList{i});
 
             %run tracking
-%             tictime=tic;
-            Tracked1 = FrickTrackCellsYeah(sPath,mPath,scenestr,nSeg,cSeg,bSeg,[],nucleiDist,tsteps);
+            Tracked1 = FrickTrackCellsYeah(paStruct,scenestr,sStruct,[],nucleiDist,tsteps);
 
             %refine tracking if necessary
-            Tracked2 = trackingCosmetics(Tracked1);
+            Tracked = trackingCosmetics(Tracked1,toggleS);
             
             %display time it takes to track and refine
-%             tval = toc(tictime);
-%             disp([scenestr ' took ' num2str(round(tval,1,'decimal')) ' s to segment'])
             disp(scenestr)
             
-            
-            Tracked = Tracked1;
             cd(tPath)
             filename = 'tsi';
             saveTrackingIteratively(filename,scenestr,eName,Tracked)
-            %save(strcat(filename,'_',imgDetails.Scene,'_',ExportName,'.mat'),'Tracked')
             
 
             %run chosen at two specific frames
             for ftmbt = framesThatMustBeTracked
                 frame = ftmbt;
-                Tracked3 = specialchosenOnesAllOnFrame_Callback(frame,Tracked2);
-                Tracked4 = trackingCosmetics(Tracked3);
+                Tracked1 = specialchosenOnesAllOnFrame_Callback(frame,Tracked);
+                Tracked = trackingCosmetics(Tracked1,toggleS);
             end
 
-            Tracked = Tracked4;
             cd(tPath)
             filename = 'tsichosen';
             saveTrackingIteratively(filename,scenestr,eName,Tracked)
-%             save(strcat(filename,'_',imgDetails.Scene,'_',eName,'.mat'),'Tracked')
         end
     end
 end
@@ -3621,23 +3614,19 @@ save(strcat('commentfinalfricktrack.mat'),'Tracked')
 end
 
 %% functions for tracking cells
-function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus_seg,cell_seg,background_seg,h,nucleiDist,tsteps)
-
-%function for tracking cells
-%   Detailed explanation goes here
-
-
+function [ Tracked ] = FrickTrackCellsYeah(pathStruct,pvalue,segStruct,h,nucleiDist,tsteps)
+%% intialize
     %set details for opening images necessary for tracking
     imgstruct = struct();
-    imgstruct(1).path = segmentPath;
-    imgstruct(2).path = segmentPath;
-    imgstruct(3).path = mstackPath;
-    imgstruct(4).path = mstackPath;
+    imgstruct(1).path = pathStruct.segmentPath;
+    imgstruct(2).path = pathStruct.segmentPath;
+    imgstruct(3).path = pathStruct.mstackPath;
+    imgstruct(4).path = pathStruct.mstackPath;
     
-    imgstruct(1).seginstruct = nucleus_seg;
-    imgstruct(2).seginstruct = background_seg;
-    imgstruct(3).seginstruct = nucleus_seg;
-    imgstruct(4).seginstruct = cell_seg;
+    imgstruct(1).seginstruct = segStruct.nucleus_seg;
+    imgstruct(2).seginstruct = segStruct.background_seg;
+    imgstruct(3).seginstruct = segStruct.nucleus_seg;
+    imgstruct(4).seginstruct = segStruct.cell_seg;
     
     imgstruct(1).segstr = 'nucleus';
     imgstruct(2).segstr = 'background';
@@ -3652,21 +3641,6 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
     imgstruct(1).image =[];
     imgstruct(1).filename =[];
 
-%parfor is slower with only 4 images    
-%     possibleWorkers = feature('numcores');
-%     nWorkers = min([length(imgstruct) possibleWorkers]);
-%     %create parallel pool
-%     poolobj = gcp('nocreate');
-%     if isempty(poolobj)
-%         poolobj = parpool(nWorkers);
-%     else
-%         nw = poolobj.NumWorkers;
-%         if ~(nw==nWorkers)
-%            delete(poolobj)
-%             poolobj = parpool(nWorkers);
-%         end
-%     end
-    
     %load nucleus segmentation binary as segmentimgstack
     for i = 1:length(imgstruct) %parfor is slower with only 4 images
         pathstr = imgstruct(i).path;
@@ -3740,8 +3714,23 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
             segment_Centroid_array{i} = centroidMat;
             segment_Pixels_array{i} = PX;
             segment_Cellnum_array{i} = (1:length(PX))';
+            
         end
         
+        
+%         ArrayStruct.area     =   segment_Area_array;
+%         ArrayStruct.ellipt     =   segment_Ellipt_array;
+%         ArrayStruct.nucFluor     =   segment_nucFluor_array;
+%         ArrayStruct.cellFluor     =   segment_cellFluor_array;
+%         ArrayStruct.stdev     =   segment_Stdev_array;
+%         ArrayStruct.centroid     =   segment_Centroid_array;
+%         ArrayStruct.pixels     =   segment_Pixels_array;
+%         ArrayStruct.cellnum     =   segment_Cellnum_array;
+%         Frame.Arrayz = ArrayStruct;
+%         Tracked{i} = Frame;
+%         
+%% tracking
+
     %track based on assigning probabilities determined by minimizing changes to measured parameters
     segmentsequence = 2:size(segmentimgstack,3); %track from first frame to last frame
     birtharray = cell(1,size(segmentimgstack,3));
@@ -3751,17 +3740,6 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
                
     possibleWorkers = feature('numcores');
     nWorkers = possibleWorkers;
-%     %create parallel pool
-%     poolobj = gcp('nocreate');
-%     if isempty(poolobj)
-%         poolobj = parpool(nWorkers);
-%     else
-%         nw = poolobj.NumWorkers;
-%         if ~(nw==nWorkers)
-%            delete(poolobj)
-%             poolobj = parpool(nWorkers);
-%         end
-%     end
 
     %split scenes across workers as evenly as possible
     sceneVector = segmentsequence;
@@ -3783,7 +3761,6 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
     nidxarrayz = cell(1,nWorkers);
     
     for iNW = 1:nWorkers
-%     parfor iNW = 1:nWorkers
         sceneArrayVec = sceneArray{iNW};
         birtharraypre = cell(size(sceneArrayVec));
         nidxarraypre = cell(size(sceneArrayVec));
@@ -3792,6 +3769,7 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
                 if ~isempty(h)
                     waitbar(i./max(segmentsequence),h)
                 end
+                
             a=i-1;
             b=i;
             centroids = segment_Centroid_array{b};
@@ -3804,14 +3782,9 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
             cellfluorPrev = segment_cellFluor_array{a};            
             pixels = segment_Pixels_array{b};
             pixelsPrev = segment_Pixels_array{a};
-            %ellipt = segment_Ellipt_array{b};
-            %elliptPrev = segment_Ellipt_array{a};
 
             displacementCutoff = (nucleiDist)*(tsteps(i-1)./10);
 
-            if i==11
-                ssso=1;
-            end
             if ~(isempty(pixels) || isempty(pixelsPrev))
                %nearest neighbor distances to determine probability that
                %two cells are the same
@@ -3823,21 +3796,10 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
                newProb = distProb.*areaProbette.*nucFluorProbette.*cellFluorProbette;     
                %distProb dimesionas are length(centroidsPrev) x length(centroids)
                
-               
-
-               
-               
-
-               
-
-              %you should assign weights to the probilities as well
 
                %centroids [37x2] centroidPrev[34x2] idx[34x3] distProb[34x37];
-               %idx(1,:) = [1 5 9] means that centroids(1,:)  centroids(5,:)and centroids(9.:) are closest to centroidPrev(1,:)
-               %now you need to build a probability matrix that has rows
-               % for all cells in centroidsPrev (size(CentroidsPrev,1) and columns for all cells in centroids (size(centroids,1))
-                trackProb = distProb;
-                trackProb(distcut|nuccut)=0;
+               trackProb = distProb;
+               trackProb(distcut|nuccut)=0;
                [maxvals,idx] = max(trackProb,[],2); %idx is index of input that matches to inputPrev such that input(idx) = inputPrev;
                %idx has length(idx) = length(inputPrev);
                %idx has max(idx) = length(input);
@@ -3856,9 +3818,8 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
 %                    stophere=1;
 %                end
 
-                %now some cells are assigned twice. Correct this based on highest probabilities
-                %num_cells_set should be = the size of the current NOT the prev
-                num_cells_currentFrame = 1:size(trackProb,2); %size(trackProb,2) = length(input)
+                %now some cells are likely to be assigned twice. Correct this based on highest probabilities
+                num_cells_currentFrame = 1:size(trackProb,2); %size(trackProb,2) = length(input); %num_cells_set should be = the size of the current NOT the prev
                 %num_cells_prevFrame = 1:size(trackProb,1); %size(trackProb,1) = length(inputPrev)
 
                 arbitrateProb = newProb;
@@ -3915,7 +3876,7 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
                 updatemissers = find(nn<1);
                 newidx = [nidx(:)' missers(:)' updatemissers(:)']';
 
-            elseif isempty(pixelsPrev)
+            elseif isempty(pixelsPrev) %no cells in the previous frame
                 idx = nan(1);
                 nidx = idx;
                 missers = [];
@@ -3942,25 +3903,26 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
         birtharrayz{iNW} = birtharraypre;
         nidxarrayz{iNW} = nidxarraypre;
     end
-
     birtharray(2:end) = horzcat(birtharrayz{:});
     nidxarray(2:end) = horzcat(nidxarrayz{:}) ;
-  
+%THIS ENDS THE TRACKING PORTION
 
-    %determine the number of births (new tracks) to determine the dimensions of
-    %the track vector
+%% assemby portion
+
+    %determine the number of births (new tracks) to determine the dimensions of the track vector
     numbirths = zeros(1,length(birtharray));
     birthdistmat = zeros(1,length(birtharray));
     for i = 1:length(nidxarray)
         births = birtharray{i};
         numbirths(i) = length(births);
         if i>1
-        birthdistmat(i) = sum(numbirths(1:i-1));
+            birthdistmat(i) = sum(numbirths(1:i-1));
         else
             birthdistmat(i) = 0;
         end
     end
 
+    %now move tracks so that they each involve their own row in a matrix
     number_of_tracks = sum(numbirths);
     trackmatrix = nan(size(segmentimgstack,3),number_of_tracks);
     for i = 1:size(segmentimgstack,3)
@@ -4019,10 +3981,12 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
         centroids = segment_Centroid_array{a};
         centnew = nan(length(trackidx),size(centroids,2));
         if ~isempty(px)
+            %first pixels
             pxpx = newpx(i,:);
             pxpx(trackidx) = px(tracknums);
             newpx(i,:) = pxpx;
 
+            %then centroids
             centnew(trackidx,:) = centroids(tracknums,:);
         end
         
@@ -4043,6 +4007,7 @@ function [ Tracked ] = FrickTrackCellsYeah(segmentPath,mstackPath,pvalue,nucleus
         Frame.filename = filename;
         Frame.Cellz = CC;
         Frame.If = IfPerimFunction(CC);
+        Frame.Arrayz = ArrayStruct{i};
         Tracked{i} = Frame;
     end
     
@@ -4148,8 +4113,8 @@ function [distProb,idx,cutoffidx] = probSpitter(input,inputPrev,knnnum,displacem
     
 end
 function saveTrackingFileAs_callback(~,~)
-global  trackingPath Tracked ExportName ImageDetails
-cd(trackingPath)
+global  pathStruct Tracked ExportName ImageDetails
+cd(pathStruct.trackingPath)
 prompt = 'filename of tracking structure to be saved?';
 dlg_title = 'save tracking structure as...specific filename';
 filename = char(inputdlg(prompt,dlg_title));
@@ -4158,18 +4123,18 @@ end
 
 %% Image Display functions
 function setSceneAndTime
-global bkgmedianmat runIterateToggle displayTrackingToggle refineTrackingToggle DICimgstack dfoName  nucleus_seg backgroundimgstack bfoName nfoName background_seg cell_seg nucleusimgstack sfoName segmentimgstack  channelimgstack cfoName segmentPath frameToLoad ImageDetails  Tracked SceneList imgfile mstackPath
+global bkgmedianmat togStruct DICimgstack foStruct backgroundimgstack segStruct nucleusimgstack segmentimgstack channelimgstack pathStruct frameToLoad ImageDetails Tracked SceneList imgfile 
 
-%check for empty variables
-    cd(mstackPath)
+    %check for empty variables
+    cd(pathStruct.mstackPath)
     if isempty(ImageDetails.Scene)
         ImageDetails.Scene = SceneList{1};
     end
     if isempty(ImageDetails.Channel)
-        ImageDetails.Channel = nucleus_seg;
+        ImageDetails.Channel = segStruct.nucleus_seg;
     end
     
-%determine the frame to load
+    %determine the frame to load
     if isempty(ImageDetails.Frame)
        ImageDetails.Frame = frameToLoad;
        t = ImageDetails.Frame;
@@ -4178,161 +4143,138 @@ global bkgmedianmat runIterateToggle displayTrackingToggle refineTrackingToggle 
     end
 
 
-%choose the channel image
-        cd(mstackPath)
-        ff = dir(strcat('*',ImageDetails.Scene,'*',cell_seg,'*'));
+    %choose the channel image
+        cd(pathStruct.mstackPath)
+        ff = dir(strcat('*',ImageDetails.Scene,'*',segStruct.cell_seg,'*'));
         filename = char(ff.name);
-        if ~isempty(cfoName) %if channelfileObject has been made, check to see if the scene has changed. 
-            [a,~] = regexp(cfoName,ImageDetails.Scene);
+        if ~isempty(foStruct.cfoName) %if channelfileObject has been made, check to see if the scene has changed. 
+            [a,~] = regexp(foStruct.cfoName,ImageDetails.Scene);
             if isempty(a) %if the scene has changed load the new channelimgstack
                  channelfileObject = matfile(filename);
                  channelimgstack = channelfileObject.flatstack;
-                 cfoName = char(channelfileObject.Properties.Source);%update cfoName
+                 foStruct.cfoName = char(channelfileObject.Properties.Source);%update foStruct.cfoName
             elseif ~isempty(a) && isempty(channelimgstack)  %if the scene is same but unloaded
                  channelfileObject = matfile(filename);
                  channelimgstack = channelfileObject.flatstack;
-                 cfoName = char(channelfileObject.Properties.Source);%update cfoName
+                 foStruct.cfoName = char(channelfileObject.Properties.Source);%update foStruct.cfoName
             else
             end
-        else %if no cfoName, then 
+        else %if no foStruct.cfoName, then 
                  channelfileObject = matfile(filename);
                  channelimgstack = channelfileObject.flatstack;
-                 cfoName = char(channelfileObject.Properties.Source);%update cfoName
+                 foStruct.cfoName = char(channelfileObject.Properties.Source);%update foStruct.cfoName
         end
-        
-        
         cellImg = channelimgstack(:,:,t);
         
-
-        cd(mstackPath)
-        ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*'));
-%         ff = dir(strcat(ImageDetails.Channel,'*'));
+    %choose the nucleus image
+        cd(pathStruct.mstackPath)
+        ff = dir(strcat('*',ImageDetails.Scene,'*',segStruct.nucleus_seg,'*'));
         filename = char(ff.name);
-        if ~isempty(nfoName) %if channelfileObject has been made, check to see if the scene has changed. 
-            [a,~] = regexp(nfoName,ImageDetails.Scene);
+        if ~isempty(foStruct.nfoName) %if channelfileObject has been made, check to see if the scene has changed. 
+            [a,~] = regexp(foStruct.nfoName,ImageDetails.Scene);
             if isempty(a) %if the scene has changed load the new channelimgstack
                  nucleusfileObject = matfile(filename);
                  nucleusimgstack = nucleusfileObject.flatstack;
-                 nfoName = char(nucleusfileObject.Properties.Source);%update cfoName
-%                  disp('if -> if')
+                 foStruct.nfoName = char(nucleusfileObject.Properties.Source);%update foStruct.cfoName
             elseif ~isempty(a) && isempty(nucleusimgstack)  %if the scene is same but unloaded
                  nucleusfileObject = matfile(filename);
                  nucleusimgstack = nucleusfileObject.flatstack;
-                 nfoName = char(nucleusfileObject.Properties.Source);%update cfoName
-%                  disp('if -> elseif')
+                 foStruct.nfoName = char(nucleusfileObject.Properties.Source);%update foStruct.cfoName
             else
-%                 disp('if -> else')
                 %dont do anything
             end
-        else %if no cfoName, then 
+        else %if no foStruct.cfoName, then 
                  nucleusfileObject = matfile(filename);
                  nucleusimgstack = nucleusfileObject.flatstack;
-                 nfoName = char(nucleusfileObject.Properties.Source);%update cfoName
-%                  disp('else')
+                 foStruct.nfoName = char(nucleusfileObject.Properties.Source);%update foStruct.cfoName
         end
         nucleusImg = nucleusimgstack(:,:,t);
         
         
-        
-         cd(mstackPath)
+    %choose the DIC image
+        cd(pathStruct.mstackPath)
         ff = dir(strcat('*',ImageDetails.Scene,'*','DIC','*'));
-%         ff = dir(strcat(ImageDetails.Channel,'*'));
         filename = char(ff.name);
-        if ~isempty(dfoName) %if channelfileObject has been made, check to see if the scene has changed. 
-            [a,~] = regexp(dfoName,ImageDetails.Scene);
+        if ~isempty(foStruct.dfoName) %if channelfileObject has been made, check to see if the scene has changed. 
+            [a,~] = regexp(foStruct.dfoName,ImageDetails.Scene);
             if isempty(a) %if the scene has changed load the new channelimgstack
                  DICfileObject = matfile(filename);
                  DICimgstack = DICfileObject.flatstack;
-                 dfoName = char(DICfileObject.Properties.Source);%update cfoName
-%                  disp('if -> if')
+                 foStruct.dfoName = char(DICfileObject.Properties.Source);%update foStruct.cfoName
             elseif ~isempty(a) && isempty(DICimgstack)  %if the scene is same but unloaded
                  DICfileObject = matfile(filename);
                  DICimgstack = DICfileObject.flatstack;
-                 dfoName = char(DICfileObject.Properties.Source);%update cfoName
-%                  disp('if -> elseif')
+                 foStruct.dfoName = char(DICfileObject.Properties.Source);%update foStruct.cfoName
             else
-%                 disp('if -> else')
                 %dont do anything
             end
-        else %if no cfoName, then 
+        else %if no foStruct.cfoName, then 
             flist = dir(filename);
             if ~isempty(flist)
                  DICfileObject = matfile(filename);
                  DICimgstack = DICfileObject.flatstack;
-                 dfoName = char(DICfileObject.Properties.Source);%update cfoName
-%                  disp('else')
+                 foStruct.dfoName = char(DICfileObject.Properties.Source);%update foStruct.cfoName
             else
                 DICimgstack = false(size(nucleusimgstack));
-                dfoName = filename;
+                foStruct.dfoName = filename;
             end
         end
         DICImg = DICimgstack(:,:,t);
         
          
-       %load nucleus segmented image
-        cd(segmentPath)
-        ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*'));
-%         ff = dir(strcat(ImageDetails.Channel,'*'));
+    %load nucleus segmented image
+        cd(pathStruct.segmentPath)
+        ff = dir(strcat('*',ImageDetails.Scene,'*',segStruct.nucleus_seg,'*'));
         if length(ff)>1
-           ff = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*nucleus*'));
+           ff = dir(strcat('*',ImageDetails.Scene,'*',segStruct.nucleus_seg,'*nucleus*'));
         end
         filename = char(ff.name);
-        
-        if ~isempty(sfoName) %if channelfileObject has been made, check to see if the scene has changed. 
-            [a,~] = regexp(sfoName,ImageDetails.Scene);
+        if ~isempty(foStruct.sfoName) %if channelfileObject has been made, check to see if the scene has changed. 
+            [a,~] = regexp(foStruct.sfoName,ImageDetails.Scene);
             if isempty(a) %if the scene has changed load the new channelimgstack
                  segmentfileObject = matfile(filename);
                  segmentimgstack = segmentfileObject.IfFinal;
-                 sfoName = char(segmentfileObject.Properties.Source);%update cfoName
-%                  disp('if -> if')
+                 foStruct.sfoName = char(segmentfileObject.Properties.Source);%update foStruct.cfoName
             elseif ~isempty(a) && isempty(segmentimgstack)  %if the scene is same but unloaded
                  segmentfileObject = matfile(filename);
                  segmentimgstack = segmentfileObject.IfFinal;
-                 sfoName = char(segmentfileObject.Properties.Source);%update cfoName
-%                  disp('if -> elseif')
+                 foStruct.sfoName = char(segmentfileObject.Properties.Source);%update foStruct.cfoName
             else
-%                 disp('if -> else')
                 %dont do anything
             end
-        else %if no cfoName, then 
+        else %if no foStruct.cfoName, then 
                  segmentfileObject = matfile(filename);
                  segmentimgstack = segmentfileObject.IfFinal;
-                 sfoName = char(segmentfileObject.Properties.Source);%update cfoName
-%                  disp('else')
+                 foStruct.sfoName = char(segmentfileObject.Properties.Source);%update foStruct.cfoName
         end
         segmentimg = segmentimgstack(:,:,t);
         
         
         
-        %load background segmented image
-        cd(segmentPath)
-        ff = dir(strcat('*',ImageDetails.Scene,'*',background_seg,'*'));
-%         ff = dir(strcat(ImageDetails.Channel,'*'));
+    %load background segmented image
+        cd(pathStruct.segmentPath)
+        ff = dir(strcat('*',ImageDetails.Scene,'*',segStruct.background_seg,'*'));
         if length(ff)>1
-            ff = dir(strcat('*',ImageDetails.Scene,'*',background_seg,'*background*'));
+            ff = dir(strcat('*',ImageDetails.Scene,'*',segStruct.background_seg,'*background*'));
         end
         filename = char(ff.name);
-        if ~isempty(bfoName) %if channelfileObject has been made, check to see if the scene has changed. 
-            [a,~] = regexp(bfoName,ImageDetails.Scene);
+        if ~isempty(foStruct.bfoName) %if channelfileObject has been made, check to see if the scene has changed. 
+            [a,~] = regexp(foStruct.bfoName,ImageDetails.Scene);
             if isempty(a) %if the scene has changed load the new channelimgstack
                  backgroundfileObject = matfile(filename);
                  backgroundimgstack = backgroundfileObject.IfFinal;
-                 bfoName = char(backgroundfileObject.Properties.Source);%update cfoName
-%                  disp('if -> if')
+                 foStruct.bfoName = char(backgroundfileObject.Properties.Source);%update foStruct.cfoName
             elseif ~isempty(a) && isempty(backgroundimgstack)  %if the scene is same but unloaded
                  backgroundfileObject = matfile(filename);
                  backgroundimgstack = backgroundfileObject.IfFinal;
-                 bfoName = char(backgroundfileObject.Properties.Source);%update cfoName
-%                  disp('if -> elseif')
+                 foStruct.bfoName = char(backgroundfileObject.Properties.Source);%update foStruct.cfoName
             else
-%                 disp('if -> else')
                 %dont do anything
             end
-        else %if no cfoName, then 
+        else %if no foStruct.cfoName, then 
                  backgroundfileObject = matfile(filename);
                  backgroundimgstack = backgroundfileObject.IfFinal;
-                 bfoName = char(backgroundfileObject.Properties.Source);%update cfoName
-%                  disp('else')
+                 foStruct.bfoName = char(backgroundfileObject.Properties.Source);%update foStruct.cfoName
                 bkgmedianmat = zeros(1,size(backgroundimgstack,3));
                 for k = 1:size(backgroundimgstack,3)
                     backgroundimg = backgroundimgstack(:,:,k);
@@ -4348,92 +4290,77 @@ global bkgmedianmat runIterateToggle displayTrackingToggle refineTrackingToggle 
         backgroundimg = backgroundimgstack(:,:,t);
          
         
-        
-        
-        
-        
-        
-        
-        
-        
-%         channelimg = double(loadUpTiffStackFrame(char(ff.name),t));
-    %     channelimg = double(imread(char(imgfile.name)));    %load normal image
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   choose the segmentation image
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-
+%choose the segmentation image
     if isempty(Tracked{1}.Cellz) %Tracked is empty try to load tracking or make new tracking structure
-        refineTrackingToggle = 0;
-        cd(segmentPath)
-        imgfile = dir(strcat('*',ImageDetails.Scene,'*',nucleus_seg,'*'));
+        togStruct.refineTrackingToggle = 0;
+        cd(pathStruct.segmentPath)
+        imgfile = dir(strcat('*',ImageDetails.Scene,'*',segStruct.nucleus_seg,'*'));
         If = segmentimg;
         Tracked = loadTrackedStructure;
         centroidDisagreement=false;
+        Ts = Tracked{t};
+        CC = Ts.Cellz;
     else  %if there exists segmenttracking already...then use that. 
         Ts = Tracked{t};
         CC = Ts.Cellz;
         PX = CC.PixelIdxList;
         Centroids  = CC.Centroid;
         centroidDisagreement = ~(size(Centroids,2)==CC.NumObjects);
-    %     makeIMG = cellfun(@(x) length(x)==1,PX,'UniformOutput',1); %choose only the cells without NAN
-        fnames = fieldnames(Ts);
-        if sum(strcmp(fnames,'If')>0)
-            If = Tracked{t}.If;
-        else
-            If =  IfPerimFunction(CC);
-            Tracked{t}.If = If;
-        end
     end
     
-
-
-if displayTrackingToggle==1
-    if centroidDisagreement      
-        refineTrackingToggle = 1;
+    fnames = fieldnames(Ts);
+    if sum(strcmp(fnames,'If')>0)
+        If = Tracked{t}.If;
+    else
+        If =  IfPerimFunction(CC);
+        Tracked{t}.If = If;
     end
-end
-% disp(refineTrackingToggle)
-if refineTrackingToggle == 1
-Tracked = trackingCosmetics(Tracked);
-end
-refineTrackingToggle=0;
 
 
-if strcmp(ImageDetails.Channel,nucleus_seg)
-    channelimg = nucleusImg;
-elseif strcmp(ImageDetails.Channel,cell_seg)
-    channelimg = cellImg;
-elseif strcmp(ImageDetails.Channel,'EGFP')
-    channelimg = cellImg;
-elseif strcmp(ImageDetails.Channel,'DIC')
-    channelimg = DICImg;
-elseif strcmp(ImageDetails.Channel,'BKGbinary')
-     channelimg = cellImg;
-     backgroundimg(segmentimg) = true; 
-     prim = imdilate(bwperim(~logical(backgroundimg)),strel('square',1));
-     channelimg(prim) = max(max(channelimg));
-     channelimg(~backgroundimg) = channelimg(~backgroundimg)+1000;
-elseif strcmp(ImageDetails.Channel,'reporter_quantify')
-elseif strcmp(ImageDetails.Channel,'overlay')
-    channelimg = zeros(size(cellImg,1),size(cellImg,2),3);
-    channelimg(:,:,1) = nucleusImg;
-    channelimg(:,:,2) = cellImg;
-    channelimg(:,:,3) = DICImg;
-end
+
+    if togStruct.displayTrackingToggle==1
+        if centroidDisagreement      
+            togStruct.refineTrackingToggle = 1;
+        end
+    end
+    % disp(togStruct.refineTrackingToggle)
+    if togStruct.refineTrackingToggle == 1
+        Tracked = trackingCosmetics(Tracked,togStruct);
+    end
+    togStruct.refineTrackingToggle=0;
 
 
-bkgmedian = bkgmedianmat(t);
-if runIterateToggle ==0
-displayImageFunct(If,channelimg,bkgmedian);
-end
+    if strcmp(ImageDetails.Channel,segStruct.nucleus_seg)
+        channelimg = nucleusImg;
+    elseif strcmp(ImageDetails.Channel,segStruct.cell_seg)
+        channelimg = cellImg;
+    elseif strcmp(ImageDetails.Channel,'EGFP')
+        channelimg = cellImg;
+    elseif strcmp(ImageDetails.Channel,'DIC')
+        channelimg = DICImg;
+    elseif strcmp(ImageDetails.Channel,'BKGbinary')
+         channelimg = cellImg;
+         backgroundimg(segmentimg) = true; 
+         prim = imdilate(bwperim(~logical(backgroundimg)),strel('square',1));
+         channelimg(prim) = max(max(channelimg));
+         channelimg(~backgroundimg) = channelimg(~backgroundimg)+1000;
+    elseif strcmp(ImageDetails.Channel,'reporter_quantify')
+    elseif strcmp(ImageDetails.Channel,'overlay')
+        channelimg = zeros(size(cellImg,1),size(cellImg,2),3);
+        channelimg(:,:,1) = nucleusImg;
+        channelimg(:,:,2) = cellImg;
+        channelimg(:,:,3) = DICImg;
+    end
+
+
+    bkgmedian = bkgmedianmat(t);
+    if togStruct.runIterateToggle ==0
+        displayImageFunct(If,channelimg,bkgmedian);
+    end
 
 end
 function contrast_Callback(~,~)
-global tcontrast lcontrast updateContrastToggle
+global tcontrast lcontrast togStruct
 prompt = {'High Contrast Percent Limit','Low Contrast Percent Limit'};
 dlg_title = 'Contrast limits from 0 to 100';
 num_lines = 1;
@@ -4442,21 +4369,21 @@ answer = inputdlg(prompt,dlg_title,num_lines,defaultans);
 tcontrast = str2double(answer{1});
 lcontrast = str2double(answer{2});
 
-updateContrastToggle =1;
+togStruct.updateContrast =1;
 setSceneAndTime
-updateContrastToggle =0;
+togStruct.updateContrast =0;
 end
 function displayTrackingButton_Callback(~,~)
-global    displayTrackingToggle Tracked
+global togStruct Tracked
 
 
 if isempty(Tracked{1}.Cellz)
     disp('need to run tracking!!!')
 else
-    if displayTrackingToggle == 0
-    displayTrackingToggle = 1;
+    if togStruct.displayTrackingToggle == 0
+    togStruct.displayTrackingToggle = 1;
     else
-    displayTrackingToggle =0;
+    togStruct.displayTrackingToggle =0;
     end
     setSceneAndTime
 end
@@ -4499,7 +4426,7 @@ global Tracked
     end
 end
 function displayImageFunct(If,channelimg,bkgmedian)
-global expDateStr psettings plotSettingsToggle timeFrames tcontrast lcontrast MainAxes displayTrackingToggle ImageDetails frameToLoad prcntl lprcntl D cmap cmaplz updateContrastToggle
+global oldscenename expDetailsStruct togStruct timeFrames tcontrast lcontrast MainAxes ImageDetails prcntl lprcntl cmap cmaplz
 
 scenestr = ImageDetails.Scene;
 tnum = ImageDetails.Frame;
@@ -4520,25 +4447,27 @@ tnum = ImageDetails.Frame;
     pos(2)= 0.5 - pos(4)/2;
     set(MainAxes,'Position',pos);
 
-% important for updating the contrast
+    
+    
+    % important for updating the contrast
     %update contrast if time =1
-    ifCHANGEofCHANNELorSCENE=0;
+    togStruct.changeSceneOrChannel=0;
     if tnum==1
-        D='new';
-        ifCHANGEofCHANNELorSCENE=1;
+    oldscenename='new';
+    togStruct.changeSceneOrChannel=1;
     end
 
 %update contrast if channel has changed
-    if ~strcmp(ImageDetails.Channel,D)
-        ifCHANGEofCHANNELorSCENE=1;
-        D = ImageDetails.Channel;
+    if ~strcmp(ImageDetails.Channel,oldscenename)
+    togStruct.changeSceneOrChannel=1;
+    oldscenename = ImageDetails.Channel;
     end
 
-%update contrast if contrast values are updated
-    if updateContrastToggle ==1
-        ifCHANGEofCHANNELorSCENE = 1;
-        D = ImageDetails.Channel;
-    end
+% %update contrast if contrast values are updated
+%     if togStruct.contrastAdjust ==1
+%         togStruct.changeSceneOrChannel = 1;
+%         oldscenename = ImageDetails.Channel;
+%     end
 
 %scripts for displaying contrasted image
     if strcmp(ImageDetails.Channel,'overlay') %when overlay display is desired
@@ -4583,11 +4512,9 @@ tnum = ImageDetails.Frame;
         dispimg = disprgb;
         
     else  %under normal circumstances
-        if ifCHANGEofCHANNELorSCENE==1
-            lprcntl = prctile(channelimg(:),lcontrast);
+        if togStruct.changeSceneOrChannel ==1
             prcntl = prctile(channelimg(:),tcontrast);
-            scaleFactor = 255./(prcntl - lprcntl);
-            ifCHANGEofCHANNELorSCENE=0;
+            togStruct.changeSceneOrChannel =0;
         end
         lprcntl = bkgmedian.*0.90;
         scaleFactor = 255./(prcntl - lprcntl);
@@ -4601,17 +4528,17 @@ tnum = ImageDetails.Frame;
     image(MainAxes,uint8(dispimg));
     colormap(MainAxes,cmap);
 
-    expDateTitleStr = expDateStr;
-    [a,~] = regexp(expDateTitleStr,'_');expDateTitleStr(a) = '-';
+    expDetailsStruct.expDateTitleStr = expDetailsStruct.expDateStr;
+    [a,~] = regexp(expDetailsStruct.expDateTitleStr,'_');expDetailsStruct.expDateTitleStr(a) = '-';
 
     ttl = get(MainAxes,'Title');
-    set(ttl,'String',[expDateTitleStr ' ' scenestr ' frame ' num2str(tnum) ' out of ' num2str(timeFrames)]);
+    set(ttl,'String',[expDetailsStruct.expDateTitleStr ' ' scenestr ' frame ' num2str(tnum) ' out of ' num2str(timeFrames)]);
     set(ttl,'FontSize',12);
     set(MainAxes,'NextPlot','add')
 
     %plot cell tracking "tails"
     if ~(tnum==1)
-        if displayTrackingToggle==1
+        if togStruct.displayTrackingToggle==1
             trajectForPlot = trackingTrajectories(timeFrames);
             set(MainAxes,'NextPlot','add');
             mainplotX = squeeze(trajectForPlot(:,1,:)); %28x22 means 28 cells on frame 22;
@@ -4660,7 +4587,7 @@ function cmaplz = colorcubemodified(cmaplength,cmapstr)
 %                 ccc = vertcat(colormap('hsv'),colormap('hot'));
 %     cmapccc = colorcube();
     
-    numunique = floor(cmaplength^(1/3));
+    numunique = max([floor(cmaplength^(1/3)) 3]);
     a = linspace(0,1,numunique);
     cycle=0;
     la = length(a);
