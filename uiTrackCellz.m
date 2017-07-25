@@ -2089,71 +2089,97 @@ plotStructUI.Smadbkg = Smadbkg;
 plotStructUI.mkatebkg = Nucbkg;
     
 end
-function plotStruct = plotthemfunctionToStructure(Tracked,idScene,pathStruct,timeFrames,makeIMG,makeIMGidx,segStruct) 
+function plotStruct = plotthemfunctionToStructure(Tracked,idScene,pathStruct,timeFrames,segStruct) 
 
 plotStruct = struct();
+trackmatrix = Tracked.trackmatrix;
+ArrayStruct = Tracked.arrayStruct;
 
-
-
-plotTracesCell = cell(length(makeIMGidx),length(Tracked));
-centroidarray = cell(length(makeIMGidx),length(Tracked));
-    for i = 1:length(Tracked)
-        CC = Tracked{i}.Cellz;
-        stats = regionprops(CC,'Centroid');
-        centroids = {stats.Centroid};
-        centroidarray(:,i) = centroids(makeIMG);
-        PXX = Tracked{i}.Cellz.PixelIdxList;
-        plotTracesCell(:,i) = PXX(makeIMG);
-    end
+%extract pixel intensities
+segment_Pixels_array = ArrayStruct.pixels;
+segment_cellFluor_array = ArrayStruct.cellFluor;
+segment_nucFluor_array = ArrayStruct.nucFluor;
+segment_Centroid_array = ArrayStruct.centroid;
+centroids = segment_Centroid_array{1};
+%now update all the fields
+plotTracesCell = cell(size(trackmatrix));
+plotTracesCell(:) = {NaN};
+nucFluorMatrix = nan(size(trackmatrix,2),timeFrames);
+cellFluorMatrix = nan(size(trackmatrix,2),timeFrames);
+centnew = nan(size(trackmatrix,2),size(centroids,2),timeFrames);
+for i = 1:timeFrames
+    a=i;
+    trackvals=trackmatrix(i,:);
+    trackidx = ~isnan(trackvals);
+    tracknums = trackvals(trackidx);
     
+    px = segment_Pixels_array{a};
+    nucFluor = segment_nucFluor_array{a};
+    cellFluor = segment_cellFluor_array{a};
+    centroids = segment_Centroid_array{a};
+    if ~isempty(px)
+        %first pixels
+        pxpx = plotTracesCell(i,:);
+        pxpx(trackidx) = px(tracknums);
+        plotTracesCell(i,:) = pxpx;
+        nucFluorMatrix(trackidx,i) = nucFluor(tracknums,:);
+        cellFluorMatrix(trackidx,i) = cellFluor(tracknums,:);
+        centnew(trackidx,:,i) = centroids(tracknums,:);
+    end
+end
+
+
+plotTracesCell = plotTracesCell';
+
+
 
 cd(pathStruct.mstackPath)
 %no bleach correction option yet
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %%%%%%%%   open the image files   %%%%%%%
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-                     %  open smad img  %
-            cd(pathStruct.mstackPath)         
-            ff = dir(strcat('*',idScene,'*',segStruct.cell_seg,'*'));
-    %         ff = dir(strcat(ImageDetails.Channel,'*'));
-            filename = char(ff.name);
-            channelfileObject = matfile(filename);
-            cellQ_imgstack = channelfileObject.flatstack;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%   open the image files   %%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%  open smad img  %
+cd(pathStruct.mstackPath)
+ff = dir(strcat('*',idScene,'*',segStruct.cell_seg,'*'));
+%         ff = dir(strcat(ImageDetails.Channel,'*'));
+filename = char(ff.name);
+channelfileObject = matfile(filename);
+cellQ_imgstack = channelfileObject.flatstack;
 
-                   %    open cfp img  %
-            cd(pathStruct.mstackPath)         
-            ff = dir(strcat('*',idScene,'*',segStruct.nucleus_seg,'*'));
-    %         ff = dir(strcat(ImageDetails.Channel,'*'));
-            filename = char(ff.name);
-            channelfileObject = matfile(filename);
-            nuc_imgstack = channelfileObject.flatstack;
-            
-                    % open background Logical img  %
-            cd(pathStruct.segmentPath)         
-            ff = dir(strcat('*',idScene,'*',segStruct.background_seg,'*'));
-            if length(ff)>1
-                ff = dir(strcat('*',idScene,'*',segStruct.background_seg,'*background*'));
-            end
-    %         ff = dir(strcat(ImageDetails.Channel,'*'));
-            filename = char(ff.name);
-            channelfileObject = matfile(filename);
-            bkglogimgstack = channelfileObject.IfFinal;
-            
-                    % open nuclear Logical img  %
-            cd(pathStruct.segmentPath)         
-            ff = dir(strcat('*',idScene,'*',segStruct.nucleus_seg,'*'));
-            if length(ff)>1
-                ff = dir(strcat('*',idScene,'*',segStruct.nucleus_seg,'*nucleus*'));
-            end
-    %         ff = dir(strcat(ImageDetails.Channel,'*'));
-            filename = char(ff.name);
-            channelfileObject = matfile(filename);
-            nuclogimgstack = channelfileObject.IfFinal;
-            bkglogimgstack(nuclogimgstack) = true; 
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-            %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-           
+%    open cfp img  %
+cd(pathStruct.mstackPath)
+ff = dir(strcat('*',idScene,'*',segStruct.nucleus_seg,'*'));
+%         ff = dir(strcat(ImageDetails.Channel,'*'));
+filename = char(ff.name);
+channelfileObject = matfile(filename);
+nuc_imgstack = channelfileObject.flatstack;
+
+% open background Logical img  %
+cd(pathStruct.segmentPath)
+ff = dir(strcat('*',idScene,'*',segStruct.background_seg,'*'));
+if length(ff)>1
+    ff = dir(strcat('*',idScene,'*',segStruct.background_seg,'*background*'));
+end
+%         ff = dir(strcat(ImageDetails.Channel,'*'));
+filename = char(ff.name);
+channelfileObject = matfile(filename);
+bkglogimgstack = channelfileObject.IfFinal;
+
+% open nuclear Logical img  %
+cd(pathStruct.segmentPath)
+ff = dir(strcat('*',idScene,'*',segStruct.nucleus_seg,'*'));
+if length(ff)>1
+    ff = dir(strcat('*',idScene,'*',segStruct.nucleus_seg,'*nucleus*'));
+end
+%         ff = dir(strcat(ImageDetails.Channel,'*'));
+filename = char(ff.name);
+channelfileObject = matfile(filename);
+nuclogimgstack = channelfileObject.IfFinal;
+bkglogimgstack(nuclogimgstack) = true;
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
 
 %perform bkg subtraction
 cellBKG = zeros(1,timeFrames,'single');
@@ -2170,10 +2196,10 @@ for k=1:timeFrames
     nuc_imgstack(:,:,k) = nuc_img-nucBKG(k);
     
     %background subtraction is subtraction with an interpolated image
-%     smadbkgimg = regionfill(cellQ_img,~bkglog);
-%     cfpbkgimg = regionfill(nuc_img,~bkglog); %fill in the regions where bkglog is 0
-%     cellQ_imgstack(:,:,k) = cellQ_imgstack(:,:,k)-smadbkgimg;
-%     nuc_imgstack(:,:,k) = nuc_imgstack(:,:,k)-cfpbkgimg;
+    %     smadbkgimg = regionfill(cellQ_img,~bkglog);
+    %     cfpbkgimg = regionfill(nuc_img,~bkglog); %fill in the regions where bkglog is 0
+    %     cellQ_imgstack(:,:,k) = cellQ_imgstack(:,:,k)-smadbkgimg;
+    %     nuc_imgstack(:,:,k) = nuc_imgstack(:,:,k)-cfpbkgimg;
 end
 
 
@@ -2185,42 +2211,42 @@ for i = 1:size(plotTracesCell,2)
     cellQ_img = single(squeeze(cellQ_imgstack(:,:,i)));
     nuc_img = single(squeeze(nuc_imgstack(:,:,i)));
     for j=1:size(plotTracesCell,1)
-    pxidx = plotTracesCell{j,i};
+        pxidx = plotTracesCell{j,i};
         if ~isnan(pxidx)
-        cellQ_pxls(j,i) = {cellQ_img(pxidx)};
-        nuc_pxls(j,i) = {nuc_img(pxidx)};
+            cellQ_pxls(j,i) = {cellQ_img(pxidx)};
+            nuc_pxls(j,i) = {nuc_img(pxidx)};
         else
-        cellQ_pxls(j,i) = {single(13579)};
-        nuc_pxls(j,i) = {single(13579)};
+            cellQ_pxls(j,i) = {single(13579)};
+            nuc_pxls(j,i) = {single(13579)};
         end
     end
 end
 
 %determine median pxl intensities
-    cellQ = cellfun(@nanmedian,cellQ_pxls,'UniformOutput',1);
-        cellQ(cellQ==single(13579)) = NaN;
-    nucQ = cellfun(@nanmedian,nuc_pxls,'UniformOutput',1);
-        nucQ(nucQ==single(13579)) = NaN;
+cellQ = cellfun(@nanmedian,cellQ_pxls,'UniformOutput',1);
+cellQ(cellQ==single(13579)) = NaN;
+nucQ = cellfun(@nanmedian,nuc_pxls,'UniformOutput',1);
+nucQ(nucQ==single(13579)) = NaN;
 for i = 1:size(cellQ_pxls,1)
     plotStruct(i).medianNucEGFP = cellQ(i,:);
     plotStruct(i).medianNucRFP = nucQ(i,:);
 end
 
 %determine total pxl intensities
-    cellQ = cellfun(@nansum,cellQ_pxls,'UniformOutput',1);
-        cellQ(cellQ==single(13579)) = NaN;
-    nucQ = cellfun(@nansum,nuc_pxls,'UniformOutput',1);
-        nucQ(nucQ==single(13579)) = NaN;
+cellQ = cellfun(@nansum,cellQ_pxls,'UniformOutput',1);
+cellQ(cellQ==single(13579)) = NaN;
+nucQ = cellfun(@nansum,nuc_pxls,'UniformOutput',1);
+nucQ(nucQ==single(13579)) = NaN;
 for i = 1:size(cellQ_pxls,1)
     plotStruct(i).totalNucEGFP = cellQ(i,:);
     plotStruct(i).totalNucRFP = nucQ(i,:);
 end
 
 %determine mean pxl intensities
-    cellQ = cellfun(@nanmean,cellQ_pxls,'UniformOutput',1);
-    cellQ(cellQ==single(13579)) = NaN;
-    nucQ = cellfun(@nanmean,nuc_pxls,'UniformOutput',1);
-    nucQ(nucQ==single(13579)) = NaN;
+cellQ = cellfun(@nanmean,cellQ_pxls,'UniformOutput',1);
+cellQ(cellQ==single(13579)) = NaN;
+nucQ = cellfun(@nanmean,nuc_pxls,'UniformOutput',1);
+nucQ(nucQ==single(13579)) = NaN;
 for i = 1:size(cellQ_pxls,1)
     plotStruct(i).meanNucEGFP = cellQ(i,:);
     plotStruct(i).meanNucRFP = nucQ(i,:);
@@ -2230,10 +2256,10 @@ end
 
 
 %determine mean pxl intensities
-    cellQ = cellfun(@nanmean,cellQ_pxls,'UniformOutput',1);
-    cellQ(cellQ==single(13579)) = NaN;
-    nucQ = cellfun(@nanmean,nuc_pxls,'UniformOutput',1);
-    nucQ(nucQ==single(13579)) = NaN;
+cellQ = cellfun(@nanmean,cellQ_pxls,'UniformOutput',1);
+cellQ(cellQ==single(13579)) = NaN;
+nucQ = cellfun(@nanmean,nuc_pxls,'UniformOutput',1);
+nucQ(nucQ==single(13579)) = NaN;
 for i = 1:size(cellQ_pxls,1)
     plotStruct(i).meanNucEGFP = cellQ(i,:);
     plotStruct(i).meanNucRFP = nucQ(i,:);
@@ -2241,12 +2267,10 @@ for i = 1:size(cellQ_pxls,1)
     plotStruct(i).medianSmadbkg = cellBKG;
 end
 
-for i = 1:size(centroidarray,1)
-    plotStruct(i).Centroid = centroidarray(i,:);
+for i = 1:size(cellQ_pxls,1)
+    plotStruct(i).Centroid = centnew(i,:,:);
+    %     plotStruct(i).Centroid = centroidarray(i,:);
 end
-
-
-
 
 
 end
@@ -2736,6 +2760,8 @@ function exportTrackedCells(~,~)
 global segStruct pathStruct ExportNameKey ExportName dirStruct expDetailsStruct SceneList timeFrames togStruct psettings
 exportStruct = struct();
 
+
+
     if togStruct.plotSettingsToggle == 0
         psettings = PlotSettings_callback([],[]);
         togStruct.plotSettingsToggle=1;
@@ -2764,25 +2790,13 @@ exportStruct = struct();
             trackfile = dir(strcat(eNameKey,'*',sceneN,'*',eName,'.mat'));
             trackfilename = char({trackfile.name});
 
-                if ~isempty(trackfilename)
-                    trackedArray = loadTrackedArray(trackfilename); %trackedArray = Tracked
-                    PX = trackedArray{framesThatMustBeTracked(1)}.Cellz.PixelIdxList;
-                    makeIMG = false(length(framesThatMustBeTracked),length(PX));
-
-                        for jy = 1:length(framesThatMustBeTracked)
-                        PX = trackedArray{framesThatMustBeTracked(jy)}.Cellz.PixelIdxList;
-                        makeIMG(jy,:) = ~logical(cellfun(@(x) length(x)<2,PX,'UniformOutput',1)); %choose only the cells without NAN
-                        end
-
-                    makeIMG = makeIMG(1,:)&makeIMG(2,:);
-                    makeIMG = true(size(makeIMG));
-                    makeIMGidx = find(makeIMG==1);
-
-                    plotStruct = plotthemfunctionToStructure(trackedArray,idScene,paStruct,tFrames,makeIMG,makeIMGidx,sStruct);
-                    plotStructArray{scenenumber} = plotStruct;
-                end
+            if ~isempty(trackfilename)
+                trackedArray = loadTrackedArray(trackfilename); %trackedArray = Tracked
+                plotStruct = plotthemfunctionToStructure(trackedArray,idScene,paStruct,tFrames,sStruct);
+                plotStructArray{scenenumber} = plotStruct;
+            end
         end
-        
+
         idx = ~cellfun(@isempty,plotStructArray,'UniformOutput',1);
         idxa = find(idx==1);
         
@@ -3499,12 +3513,9 @@ togStruct.parallel = 0;
 
 end
 function trackSaveIterateChosen_callback(~,~)
-global SceneList pathStruct ExportName segStruct timeFrames pStruct timeSteps togStruct
+global SceneList pathStruct ExportName segStruct pStruct timeSteps togStruct
     
     %initialize this structure outside of the parfor loop
-    psettings = PlotSettings_callback([],[]);
-    framesThatMustBeTracked = psettings.framesThatMustBeTracked;
-    framesThatMustBeTracked(2) =  min([timeFrames framesThatMustBeTracked(2)+10]);
     nucleiDist = pStruct.nucleus.nucDiameter;
     tsteps = timeSteps;
     
