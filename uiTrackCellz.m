@@ -52,7 +52,7 @@ close all
     if ~strcmp(ExportNameKey,'final')
         disp(strcat('Export name key is "',ExportNameKey,'" not FINAL'))
     end
-    ExportName = 'fricktrack';
+    ExportName = 'fricktrack_num';
    
     
 %initialize global variables  
@@ -772,11 +772,10 @@ end
 frameToLoad = ImageDetails.Frame + 1;
 
 if frameToLoad>timeFrames
-    frameToLoad = timeFrames; 
+    frameToLoad = timeFrames;
 end
 
 ImageDetails.Frame = frameToLoad;
-% disp(frameToLoad)
 setSceneAndTime
 end
 function prevbutton_callback(~,~) 
@@ -791,7 +790,6 @@ frameToLoad = ImageDetails.Frame - 1;
 if frameToLoad<1
     frameToLoad = 1;
 end
-% disp(frameToLoad)
 ImageDetails.Frame = frameToLoad;
 setSceneAndTime
 end
@@ -878,130 +876,214 @@ global ImageDetails Tracked timeFrames
 
 end
 
+%% these functions alter segmented cell areas/pixels
 %add cells and link cells
 function addareabutton_Callback(~,~) 
- global  ImageDetails Tracked togStruct
-    % choose cell
-    %       [cellx,celly] = ginput(1);
-    % construct a polygon to add
+global  ImageDetails Tracked togStruct
 
-    button=1;
-    while button==1
-        [polyx,polyy,button] = ginput();
-        button = round(mean(button));
+ArrayStruct = Tracked.arrayStruct;
+trackmatrix = Tracked.trackmatrix;
+segment_Pixels_array = ArrayStruct.pixels;
+PXarray = [];
+tvec = [];
+dropArray = [];
+newArray = [];
+keepArray=[];
 
-        if button ==1
-            M = zeros(1,length(polyx)*2);
-            M(1:2:end) = polyx;
-            M(2:2:end) = polyy;
-            zeroImage = zeros(ImageDetails.ImgSize);
-            zeroImage = insertShape(zeroImage,'FilledPolygon',M,'LineWidth',6,'Color',[1 1 1]);
-            zerogray = rgb2gray(zeroImage);
-
-            if ~isempty(Tracked{1}.Cellz)
-                %if there exists segmenttracking already...then load that. 
-                imagio = zeros(ImageDetails.ImgSize);
-                imagio(zerogray>0)=1;
-                cc = bwconncomp(imagio);
-                px = cc.PixelIdxList;
-                
-                t = ImageDetails.Frame;
-                CC = Tracked{t}.Cellz;
-                PX = CC.PixelIdxList;        
-
-                idxs = cellfun(@(x) sum(ismember(x,px{1})),PX,'UniformOutput',1);
-                index = find(idxs>1);
-                if ~isempty(index)
-                    newMass = vertcat(PX{index});
-                    PX{min(index)} = unique(vertcat(newMass,px{1}));
-                    if length(index)>1
-                        index(index == min(index))=[];
-                        PX(index) = {NaN};
-                    end
-                    CC.PixelIdxList = PX;
-                else
-                    CC.PixelIdxList = horzcat(PX,px);    
+button=1;
+while button==1
+    [polyx,polyy,button] = ginput();
+    button = round(mean(button));
+    
+    if button ==1
+        M = zeros(1,length(polyx)*2);
+        M(1:2:end) = polyx;
+        M(2:2:end) = polyy;
+        zeroImage = zeros(ImageDetails.ImgSize);
+        zeroImage = insertShape(zeroImage,'FilledPolygon',M,'LineWidth',6,'Color',[1 1 1]);
+        zerogray = rgb2gray(zeroImage);
+        
+        if ~isempty(segment_Pixels_array)
+            %if there exists segmenttracking already...then load that.
+            %                 imagio = zeros(ImageDetails.ImgSize);
+            %                 imagio(zerogray>0)=1;
+            %                 cc = bwconncomp(imagio);
+            px = find((zerogray>0)==1);
+            %                 cc.ImageSize = ImageDetails.ImgSize;
+            %                 cc.Connectivity = 8;
+            %                 cc.PixelIdxList = px;
+            %                 cc.NumObjects = 1;
+            %                 px = cc.PixelIdxList;
+            
+            t = ImageDetails.Frame;
+            PX = segment_Pixels_array{t};
+            
+            idxs = cellfun(@(x) sum(ismember(x,px)),PX,'UniformOutput',1);
+            index = find(idxs>1);
+            
+            if ~isempty(index)
+                %find location in trackmatrix [trackmatrix(frame,tracknum)]
+                trackmatrixframe = trackmatrix(t,:);
+                trackidx = zeros(size(index));
+                tracklength = zeros(size(index));
+                for j = 1:length(index)
+                    indexnum = index(j);
+                    trackidx(j) = find(trackmatrixframe == indexnum);
+                    tracklength(j) = sum(~isnan(trackmatrix(:,j)));
                 end
-                CC.NumObjects = length(CC.PixelIdxList);
-                S = regionprops(CC,'Centroid');
-                Smat = vertcat(S.Centroid);
-                CC.Centroid = Smat;
-                Tracked{t}.Cellz = CC;
-                Tracked{t}.If = IfPerimFunction(CC);
+                
+                [~,maxtrackidxnum] = max(tracklength);
+                maxtrackidx = false(size(index));
+                maxtrackidx(maxtrackidxnum) = true;
+                
+                keepidx = index(maxtrackidx);
+                dropidx = index(~maxtrackidx);
+                newidx = [];
+                
+                pxGroup = vertcat(PX{index}); %join pixel values from all overlapping cells
+                pxnew = unique(vertcat(pxGroup,px)); %combine all pixel values into set
+                %PX{keepidx} = pxnew;
+                
+                %if length(index)>1 %if more than one cell is joined, then delete the other cells
+                %PX(dropidx) = []; %remove those pixels
+                %end
+            else
+                keepidx = [];
+                dropidx = [];
+                newidx = length(PX)+1;
+                %PX = horzcat(PX,px);
+                pxnew = px;
             end
-            togStruct.refineTrackingToggle = 1;
-            nextbutton_callback([],[]);
-        end 
+            
+            trackmatrix = updateTrackMatrix(trackmatrix,t,dropidx,keepidx,newidx);
+            dropArray = horzcat(dropArray,{dropidx});
+            keepArray = horzcat(keepArray,{keepidx});
+            newArray = horzcat(newArray,{newidx});
+            PXarray = horzcat(PXarray,{pxnew});
+            tvec = horzcat(tvec,t);
+        end
+        togStruct.refineTrackingToggle = 1;
+        nextbutton_callback([],[]);
     end
+   %array struct does not work here because it runs twice!
+end
+ArrayStruct = updateArrayStruct(ArrayStruct,PXarray,tvec,dropArray,newArray,keepArray,trackmatrix,ImageDetails.ImgSize); %this is not ideal for updating trackmatrix or removing 
+Tracked.arrayStruct = ArrayStruct;
+Tracked.trackmatrix = trackmatrix;
+setSceneAndTime;
 end
 %removeArea
 function removeArea_Callback(~,~)
 global  ImageDetails Tracked togStruct
- % choose cell
-%       [cellx,celly] = ginput(1);
-       % construct a polygon to add
 
-    button=1;
-    while button==1
-        [polyx,polyy,button] = ginput();
-        button = round(mean(button));
+ArrayStruct = Tracked.arrayStruct;
+trackmatrix = Tracked.trackmatrix;
+segment_Pixels_array = ArrayStruct.pixels;
+PXarray = [];
+tvec = [];
+dropArray = [];
+newArray = [];
+keepArray=[];
 
-        if button ==1
-            M = zeros(1,length(polyx)*2);
-            M(1:2:end) = polyx;
-            M(2:2:end) = polyy;
-            zeroImage = zeros(ImageDetails.ImgSize);
-            zeroImage = insertShape(zeroImage,'FilledPolygon',M,'LineWidth',6,'Color',[1 1 1]);
-            zerogray = rgb2gray(zeroImage);
-
-            if ~isempty(Tracked{1}.Cellz)
+button=1;
+while button==1
+    [polyx,polyy,button] = ginput();
+    button = round(mean(button));
+    
+    if button ==1
+        M = zeros(1,length(polyx)*2);
+        M(1:2:end) = polyx;
+        M(2:2:end) = polyy;
+        zeroImage = zeros(ImageDetails.ImgSize);
+        zeroImage = insertShape(zeroImage,'FilledPolygon',M,'LineWidth',6,'Color',[1 1 1]);
+        zerogray = rgb2gray(zeroImage);
+        
+        if ~isempty(segment_Pixels_array)
+            px = (zerogray>0);
+            t = ImageDetails.Frame;
+            PX = segment_Pixels_array{t};
+            
+            idxs = cellfun(@(x) sum(ismember(x,px)),PX,'UniformOutput',1);
+            index = find(idxs>1);
+            if ~isempty(index)
+                oldMass = [PX{index}];
+                overlap = ismember(oldMass,px);
+                oldMass(overlap)=[];
                 imagio = zeros(ImageDetails.ImgSize);
-                imagio(zerogray>0)=1;
+                imagio(oldMass)=1;
                 cc = bwconncomp(imagio);
-                px = cc.PixelIdxList;
-
-                t = ImageDetails.Frame;
-                CC = Tracked{t}.Cellz;
-                PX = CC.PixelIdxList;        
-
-                idxs = cellfun(@(x) sum(ismember(x,px{1})),PX,'UniformOutput',1);
-                index = find(idxs>1);
-                if ~isempty(index)
-                    for abc = index
-                        oldMass = PX{abc};
-                        overlap = ismember(oldMass,px{1});
-                        oldMass(overlap)=[];
-                        imagio = zeros(ImageDetails.ImgSize);
-                        imagio(oldMass)=1;
-                        cc = bwconncomp(imagio);
-                        numcells = cc.NumObjects;
-                        if numcells>1
-                            splitcells = cc.PixelIdxList;
-                            PX(abc) = {NaN};
-                            for nums = 1:numcells
-                                PX{end+1} = splitcells{nums};
-                            end
-                        else
-                            PX{abc} = oldMass;
-                        end
-                    end
-                    CC.PixelIdxList = PX;
+                numcells = cc.NumObjects;
+                if numcells>1
+                    splitcells = cc.PixelIdxList;
+                    dropidx = index; %drop all old cells
+                    newidx = (1:numcells)+length(PX); %add all new cells
+                    keepidx = [];
+                    pxnew = splitcells;
+                else
+                    dropidx = [];
+                    newidx = [];
+                    keepidx = abs;
+                    pxnew = oldMass;
                 end
-                CC.NumObjects = length(CC.PixelIdxList);
-                S = regionprops(CC,'Centroid');
-                Smat = vertcat(S.Centroid);
-                CC.Centroid = Smat;
-                Tracked{t}.Cellz = CC;
-                Tracked{t}.If = IfPerimFunction(CC);
             end
-
-
-            togStruct.refineTrackingToggle = 1;
-            nextbutton_callback([],[]);
-        end 
+            
+            trackmatrix = updateTrackMatrix(trackmatrix,t,dropidx,keepidx,newidx);
+            dropArray = horzcat(dropArray,{dropidx});
+            keepArray = horzcat(keepArray,{keepidx});
+            newArray = horzcat(newArray,{newidx});
+            PXarray = horzcat(PXarray,pxnew);
+            tvec = horzcat(tvec,t);
+        end
+        togStruct.refineTrackingToggle = 1;
+        nextbutton_callback([],[]);
     end
-
+    ArrayStruct = updateArrayStruct(ArrayStruct,PXarray,tvec,dropArray,newArray,keepArray,trackmatrix,ImageDetails.ImgSize); %this is not ideal for updating trackmatrix or removing
 end
+Tracked.arrayStruct = ArrayStruct;
+Tracked.trackmatrix = trackmatrix;
+setSceneAndTime
+end
+%delete cells
+function deletebutton_Callback(~,~) 
+global ImageDetails  Tracked togStruct
+
+ArrayStruct = Tracked.arrayStruct;
+trackmatrix = Tracked.trackmatrix;
+t = ImageDetails.Frame;
+segment_Pixels_array = ArrayStruct.pixels;
+
+
+% Display mesh plot of the currently selected data.
+[cellxx,cellyy] = ginput();
+cellx = round(cellxx);
+celly = round(cellyy);
+cellind = sub2ind(ImageDetails.ImgSize,celly,cellx);
+
+PX = segment_Pixels_array{t};
+for j = 1:length(cellxx)
+    if j==1
+        idxs = cellfun(@(x) isempty(find(x==cellind(j),1)),PX,'UniformOutput',1);
+    else
+        idxs = idxs & cellfun(@(x) isempty(find(x==cellind(j),1)),PX,'UniformOutput',1);
+    end
+end
+dropidx = ~idxs;
+dropArray = {dropidx};
+newidx = [];
+newArray = {newidx};
+keepidx = [];
+keepArray = {keepidx};
+PXarray = {[]};
+tvec = t;
+trackmatrix = updateTrackMatrix(trackmatrix,t,dropidx,keepidx,newidx);
+ArrayStruct = updateArrayStruct(ArrayStruct,PXarray,tvec,dropArray,newArray,keepArray,trackmatrix,ImageDetails.ImgSize); %this is not ideal for updating trackmatrix or removing
+    
+Tracked.arrayStruct = ArrayStruct;
+Tracked.trackmatrix = trackmatrix;
+togStruct.refineTrackingToggle = 1;
+setSceneAndTime;
+end
+
 
 
 function [cellxx,cellyy,timingkeeper,button] = identifyCellbyClick(t,ginputnum)
@@ -1157,101 +1239,6 @@ setSceneAndTime
 end
 
 
-%delete cells
-function deletebutton_Callback(~,~) 
-    global ImageDetails  Tracked togStruct
-    
-
-t = ImageDetails.Frame;
-CC = Tracked{t}.Cellz;
-PX = CC.PixelIdxList;   
-    
-    
-% Display mesh plot of the currently selected data.
-     [cellxx,cellyy] = ginput();
-       
-    cellx = round(cellxx);
-    celly = round(cellyy);
-    
-    cellind = sub2ind(ImageDetails.ImgSize,celly,cellx);
-    
-    for j = 1:length(cellxx)
-    if j==1
-        idxs = cellfun(@(x) isempty(find(x==cellind(j),1)),PX,'UniformOutput',1);
-    else
-        idxs = idxs & cellfun(@(x) isempty(find(x==cellind(j),1)),PX,'UniformOutput',1);
-    end
-    end
-    
-PX(~idxs) = {NaN};
-CC.PixelIdxList = PX;
-    S = regionprops(CC,'Centroid');
-    Smat = vertcat(S.Centroid);
-    CC.Centroid = Smat;
-Tracked{t}.Cellz = CC;
-Tracked{t}.If = IfPerimFunction(CC);
-    
-togStruct.refineTrackingToggle = 1; 
-setSceneAndTime;
-   
-end
-function eliminatebutton_Callback(~,~)
-
-global ImageDetails Tracked togStruct
-
-button=1;
-while button == 1
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   determine the frame to load
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-t = ImageDetails.Frame;
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-CC = Tracked{t}.Cellz;
-PX = CC.PixelIdxList;   
-    
-    
-% Display mesh plot of the currently selected data.
-     [cellxx,cellyy,button] = ginput(1);
-
-     
-
-       
-% for j = 1:length(cellxx)
-%     cellx = cellxx(j);
-%     celly = cellyy(j);
-%     
-    cellx = round(cellxx);
-    celly = round(cellyy);
-    
-    cellind = sub2ind(ImageDetails.ImgSize,celly,cellx);
-    
-    for j = 1:length(cellxx)
-    if j==1
-        idxs = cellfun(@(x) isempty(find(x==cellind(j),1)),PX,'UniformOutput',1);
-    else
-        idxs = idxs & cellfun(@(x) isempty(find(x==cellind(j),1)),PX,'UniformOutput',1);
-    end
-    end
-    
-PX(~idxs) = {NaN};
-CC.PixelIdxList = PX;
-    S = regionprops(CC,'Centroid');
-    Smat = vertcat(S.Centroid);
-    CC.Centroid = Smat;
-Tracked{t}.Cellz = CC;
-Tracked{t}.If = IfPerimFunction(CC);
-
-if button==1
-    nextbutton_callback([],[])
-elseif button == 3
-    prevbutton_callback([],[])
-else 
-   togStruct.refineTrackingToggle = 1; 
-    setSceneAndTime;
-end
-
-end
-end
 
 %destroy and chosen ones
 function destroyAllFramePrevious_Callback(~,~)
@@ -1743,6 +1730,9 @@ end
 function Plot_callback(~,~)
 global segStruct xAxisLimits cmaplz SecondPlotAxes Tracked ImageDetails pathStruct timeFrames frameToLoad PlotAxes togStruct psettings cmap
 
+trackmatrix = Tracked.trackmatrix;
+ArrayStruct = Tracked.arrayStruct;
+segment_Pixels_array = ArrayStruct.pixels;
     if togStruct.plotSettingsToggle == 0
         psettings = PlotSettings_callback([],[]);
         togStruct.plotSettingsToggle=1;
@@ -1751,21 +1741,14 @@ global segStruct xAxisLimits cmaplz SecondPlotAxes Tracked ImageDetails pathStru
 
 
     for jy = 1
-        PX = Tracked{framesThatMustBeTracked(1)}.Cellz.PixelIdxList;
+        PX = segment_Pixels_array{jy};
         makeIMG(jy,:) = ~logical(cellfun(@(x) length(x)<2,PX,'UniformOutput',1)); %choose only the cells without NAN
     end
-    [~,~,~,plotidx]=commentsforplot(Tracked);
+
     makeIMGidx = find(makeIMG==1);
     
-    if ~isempty(plotidx)
-        iidd = find(~ismember(makeIMGidx,plotidx));
-    else
-        iidd=[];
-    end
-
-
     smooththat=0;
-    [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,pathStruct.expDirPath,ImageDetails,pathStruct.mstackPath,timeFrames,frameToLoad,PlotAxes,ImageDetails.ImgSize,togStruct.plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat);
+    [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,pathStruct,ImageDetails,timeFrames,frameToLoad,PlotAxes,togStruct,psettings,makeIMG,makeIMGidx,smooththat);
 
     % plotStructUI.EGFP = Smad;
     % plotStructUI.mKate = mkate;
@@ -1807,9 +1790,6 @@ global segStruct xAxisLimits cmaplz SecondPlotAxes Tracked ImageDetails pathStru
         colormap(cmap);    
     end
     
-    for po = iidd  %fade out the commented cells
-        h(po).LineStyle = ':';
-    end
 
     SecondPlotAxes.XLim = ([xAxisLimits(1) xAxisLimits(2)]);
     SecondPlotAxes.YLim = (ylimit);
@@ -1830,9 +1810,6 @@ global segStruct xAxisLimits cmaplz SecondPlotAxes Tracked ImageDetails pathStru
         colormap(cmap);    
     end
     
-    for po = iidd  %fade out the commented cells
-        h(po).LineStyle = ':';
-    end
         
 
     PlotAxes.XLim = ([xAxisLimits(1) xAxisLimits(2)]);
@@ -1847,8 +1824,6 @@ global segStruct xAxisLimits cmaplz SecondPlotAxes Tracked ImageDetails pathStru
 end
 function plotAxis_callback(~,~)
 global xAxisLimits 
-
-
 prompt = {'xmin','xmax'};
 dlg_title = 'set x axis limits...';
 inputdlgOutput = inputdlg(prompt,dlg_title);
@@ -1859,23 +1834,25 @@ function Plot_SpecificCell_callback(~,~)
 global togStruct cmaplz xAxisLimits ThirdPlotAxes Tracked ImageDetails pathStruct timeFrames frameToLoad PlotAxes psettings
 
 if togStruct.plotSettingsToggle == 0
-psettings = PlotSettings_callback([],[]);
-togStruct.plotSettingsToggle=1;
+    psettings = PlotSettings_callback([],[]);
+    togStruct.plotSettingsToggle=1;
 end
 
 
 
 
-framesThatMustBeTracked = psettings.framesThatMustBeTracked;
+trackmatrix = Tracked.trackmatrix;
+ArrayStruct = Tracked.arrayStruct;
+segment_Pixels_array = ArrayStruct.pixels;
+    if togStruct.plotSettingsToggle == 0
+        psettings = PlotSettings_callback([],[]);
+        togStruct.plotSettingsToggle=1;
+    end
+    framesThatMustBeTracked = psettings.framesThatMustBeTracked;
 
 
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%   determine the frame to load
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 t = ImageDetails.Frame;
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-CC = Tracked{t}.Cellz;
-PX = CC.PixelIdxList;   
+PX = segment_Pixels_array{t};
       
 % Display mesh plot of the currently selected data.
     [cellxx,cellyy] = ginput();
@@ -1893,9 +1870,9 @@ makeIMG = ~idxs;
 makeIMGidx = find(makeIMG==1);
 
 
-smooththat=0;
-[plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,pathStruct.expDirPath,ImageDetails,pathStruct.mstackPath,timeFrames,frameToLoad,PlotAxes,ImageDetails.ImgSize,togStruct.plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat);
-    
+    smooththat=0;
+    [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,pathStruct,ImageDetails,timeFrames,frameToLoad,PlotAxes,togStruct,psettings,makeIMG,makeIMGidx,smooththat);
+   
     if strcmp(ImageDetails.Channel,'EGFP')
         plotMat = plotStructUI.Smad;
         plotMatFC = plotStructUI.SmadFC;
@@ -1909,7 +1886,10 @@ smooththat=0;
         plotMatFC = plotStructUI.SmadFC;
     end
     
-toplot = plotMatFC(makeIMGidx,:);
+    
+alltrackframe = trackmatrix(t,:);
+makeIMGidx = find(makeIMGidx==alltrackframe);
+toplot = plotMat(makeIMGidx,:);
 h = plot(ThirdPlotAxes,toplot','LineWidth',3);
 ThirdPlotAxes.XLim = ([xAxisLimits(1) xAxisLimits(2)]);
 ThirdPlotAxes.YLim = (ylimit);
@@ -1918,7 +1898,7 @@ ThirdPlotAxes.XLabel.String = 'frames';
 ThirdPlotAxes.XGrid = 'on';
 ThirdPlotAxes.YGrid = 'on';
 ThirdPlotAxes.Color = [0.95 0.95 0.95];
-
+axis(ThirdPlotAxes,'tight')
 
     cmapl = cmaplz;
             
@@ -1929,16 +1909,12 @@ ThirdPlotAxes.Color = [0.95 0.95 0.95];
     end
 
 end
-function [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,expDirPath,ImageDetails,mstackPath,timeFrames,frameToLoad,PlotAxes,ImgSize,plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat)
-global segStruct pathStruct
+function [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,pathStruct,ImageDetails,timeFrames,frameToLoad,PlotAxes,togStruct,psettings,makeIMG,makeIMGidx,smooththat)     
+global segStruct
 
-PXX = Tracked{1}.Cellz.PixelIdxList;
-plotTracesCell = cell(length(PXX),length(Tracked));
-    for i = 1:length(Tracked)
-        PXX = Tracked{i}.Cellz.PixelIdxList;
-        plotTracesCell(:,i) = PXX;
-    end
-    
+
+trackmatrix = Tracked.trackmatrix;
+ArrayStruct = Tracked.arrayStruct;
 
 cd(pathStruct.mstackPath)
 %no bleach correction option yet
@@ -2009,9 +1985,36 @@ end
 
 
 %extract pixel intensities
-cellQ_pxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
-nuc_pxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
+segment_Pixels_array = ArrayStruct.pixels;
+segment_cellFluor_array = ArrayStruct.cellFluor;
+segment_nucFluor_array = ArrayStruct.nucFluor;
+%now update all the fields
+plotTracesCell = cell(size(trackmatrix));
+plotTracesCell(:) = {NaN};
+nucFluorMatrix = nan(size(trackmatrix,2),timeFrames);
+cellFluorMatrix = nan(size(trackmatrix,2),timeFrames);
+for i = 1:timeFrames
+    a=i;
+    trackvals=trackmatrix(i,:);
+    trackidx = ~isnan(trackvals);
+    tracknums = trackvals(trackidx);
+    
+    px = segment_Pixels_array{a};
+    nucFluor = segment_nucFluor_array{a};
+    cellFluor = segment_cellFluor_array{a};
+    if ~isempty(px)
+        %first pixels
+        pxpx = plotTracesCell(i,:);
+        pxpx(trackidx) = px(tracknums);
+        plotTracesCell(i,:) = pxpx;
+        nucFluorMatrix(trackidx,i) = nucFluor(tracknums,:);
+        cellFluorMatrix(trackidx,i) = cellFluor(tracknums,:);
+    end
+end
 
+plotTracesCell = plotTracesCell';
+cellQ_pxls = plotTracesCell;
+nuc_pxls = plotTracesCell;
 for i = 1:size(plotTracesCell,2)
     cellQ_img = single(squeeze(cellQ_imgstack(:,:,i)));
     nuc_img = single(squeeze(nuc_imgstack(:,:,i)));
@@ -3216,16 +3219,9 @@ end
 
 function Tracked = makeTrackingFile(timeFrames)
 
-Tracked = cell(1,length(timeFrames));
-Framez = struct();
-Framez.Cellz =[];
-Framez.ImageDetails.ImgSize=[];
-Framez.filename=[];
-
-
-for i = 1:length(Tracked)
-    Tracked{i} = Framez;
-end
+Tracked = struct();
+Tracked.trackmatrix = [];
+Tracked.arrayStruct = [];
 
 end
 function trackbutton_Callback(~,~)
@@ -3256,28 +3252,29 @@ end
 
 function Tracked = loadTrackedStructure
 global pathStruct timeFrames togStruct ImageDetails
+
 if togStruct.runIterateToggle ==0
     cd(pathStruct.trackingPath)
-    trackfile = dir(strcat('*',ImageDetails.Scene,'*.mat'));
+    trackfile = dir(strcat('*',ImageDetails.Scene,'*num.mat'));
     if ~isempty(trackfile)
         trackfilelist = {trackfile.name};
         Selection=[];
         [Selection,~] = listdlg('PromptString','Select a tracking file:',...
-                    'SelectionMode','single',...
-                    'ListSize',[500 300],...
-                    'ListString',trackfilelist);
+            'SelectionMode','single',...
+            'ListSize',[500 300],...
+            'ListString',trackfilelist);
         if ~isempty(Selection)
             load(trackfilelist{Selection}); %load Tracked
         else
             Tracked = makeTrackingFile(timeFrames);
         end
-
-        if isempty(Tracked{1}.Cellz)
-        togStruct.refineTrackingToggle=0;
+        
+        if isempty(Tracked.trackmatrix)
+            togStruct.refineTrackingToggle=0;
         else
-        togStruct.refineTrackingToggle =1;
+            togStruct.refineTrackingToggle =1;
         end
-
+        
     else
         Tracked = makeTrackingFile(timeFrames);
     end
@@ -3560,10 +3557,10 @@ global SceneList pathStruct ExportName segStruct timeFrames pStruct timeSteps to
             scenestr = char(sub_sList{i});
 
             %run tracking
-            Tracked1 = FrickTrackCellsYeah(paStruct,scenestr,sStruct,[],nucleiDist,tsteps);
+            Tracked = FrickTrackCellsYeah(paStruct,scenestr,sStruct,[],nucleiDist,tsteps);
 
             %refine tracking if necessary
-            Tracked = trackingCosmetics(Tracked1,toggleS);
+%             Tracked = trackingCosmetics(Tracked1,toggleS);
             
             %display time it takes to track and refine
             disp(scenestr)
@@ -3572,17 +3569,17 @@ global SceneList pathStruct ExportName segStruct timeFrames pStruct timeSteps to
             filename = 'tsi';
             saveTrackingIteratively(filename,scenestr,eName,Tracked)
             
-
-            %run chosen at two specific frames
-            for ftmbt = framesThatMustBeTracked
-                frame = ftmbt;
-                Tracked1 = specialchosenOnesAllOnFrame_Callback(frame,Tracked);
-                Tracked = trackingCosmetics(Tracked1,toggleS);
-            end
-
-            cd(tPath)
-            filename = 'tsichosen';
-            saveTrackingIteratively(filename,scenestr,eName,Tracked)
+% 
+%             %run chosen at two specific frames
+%             for ftmbt = framesThatMustBeTracked
+%                 frame = ftmbt;
+%                 Tracked1 = specialchosenOnesAllOnFrame_Callback(frame,Tracked);
+%                 Tracked = trackingCosmetics(Tracked1,toggleS);
+%             end
+% 
+%             cd(tPath)
+%             filename = 'tsichosen';
+%             saveTrackingIteratively(filename,scenestr,eName,Tracked)
         end
     end
 end
@@ -3611,6 +3608,160 @@ disp(iixixixi)
 %why am i saving a specific file name without asking if I want to
 %overwrite?
 save(strcat('commentfinalfricktrack.mat'),'Tracked')
+end
+
+%% these functions are for updating segmentation areas/pixels and trackmatrix
+function trackmatrix = updateTrackMatrix(trackmatrix,t,dropidx,keepidx,newidx)
+% first need to update the cellNumber values so they correspond to the indices of arraystruct;
+
+trackmatrixorig = trackmatrix;
+% need to remove tracks from trackmatrix corresponding to dropidx
+alltrackframe = trackmatrix(t,:); %pull track idx nums from trackmatrix for given frame
+if ~isempty(dropidx)
+    dropnum = zeros(1,length(dropidx));
+    for k = 1:length(dropidx)
+        dropnum(k) = find(dropidx(k) == alltrackframe);
+    end
+    
+end
+
+alltrackframe = trackmatrix(t,:); %pull track idx nums from trackmatrix for given frame
+updatetrackframe = nan(size(alltrackframe)); %make all values = nan
+postdroptrackidx = sort(alltrackframe(~isnan(alltrackframe))); %find all numbers
+postdroptrackidx(dropidx) = []; %remove dropped cells
+newalltrackidx = 1:length(postdroptrackidx); %update numbers of non-dropped cells to reflect new numbers in ArrayStruct;
+%need to renumber postdroptrack to be continuous integer set
+for k = 1:length(postdroptrackidx)
+    allidxnum = find(postdroptrackidx(k) == alltrackframe); %find index where previous numbers matched
+    if ~isempty(allidxnum)
+        updatetrackframe(allidxnum) = newalltrackidx(k); % if a match is found, update number
+    end
+end
+trackmatrix(t,:) = updatetrackframe;
+trackmatrix(:,dropnum) = [];
+
+
+
+% and need to add tracks to trackmatrix corresponding to newidx
+if ~isempty(newidx)
+    newtrackmatrix = nan(size(trackmatrix,1),size(trackmatrix,2)+length(newidx));
+    oldtracklog = false(size(newtrackmatrix));
+    oldtracklog(1:size(trackmatrix,1),1:size(trackmatrix,2)) = true;
+    newtrackmatrix(oldtracklog) = trackmatrix;
+    %     better method
+    newtrackmat = nan(size(trackmatrix,1),length(newidx));
+    newtrackmat(t,:) = newidx;
+    newtrackmatrix = horzcat(trackmatrix,newtrackmat);
+    trackmatrix = newtrackmatrix;
+end
+
+end
+function ArrayStruct = updateArrayStruct(ArrayStruct,PXarray,tvec,dropArray,newArray,keepArray,trackmatrix,imgsize)
+global nucleusimgstack channelimgstack backgroundimgstack
+
+
+%update image stack
+    %background subtract nucleusimgstack
+    nucleusimgstackz = zeros(size(nucleusimgstack));
+    cellimgstackz = nucleusimgstackz;
+    for i=1:size(nucleusimgstack,3)
+        nucI = nucleusimgstack(:,:,i);
+        cellI = channelimgstack(:,:,i);
+        bkgI = backgroundimgstack(:,:,i);
+        nucleusimgstackz(:,:,i) = nucI - nanmedian(nucI(bkgI));
+        cellimgstackz(:,:,i) = cellI - nanmedian(cellI(bkgI));
+    end
+
+
+segment_Area_array = ArrayStruct.area;
+segment_nucFluor_array = ArrayStruct.nucFluor;
+segment_cellFluor_array = ArrayStruct.cellFluor;
+segment_Stdev_array = ArrayStruct.stdev;
+segment_Centroid_array = ArrayStruct.centroid;
+segment_Ellipt_array = ArrayStruct.ellipt;
+segment_Pixels_array = ArrayStruct.pixels;
+segment_Cellnum_array = ArrayStruct.cellnum;
+
+cnnec = 8;
+CC = struct();
+CC.ImageSize = [imgsize(1) imgsize(2)];
+CC.Connectivity = cnnec;
+CC.PixelIdxList =	[];
+CC.NumObjects = [];
+
+
+for i = 1:length(tvec)
+    
+    dropidx = dropArray{i};
+    newidx = newArray{i};
+    keepidx = keepArray{i};
+    PXnew = PXarray(i);
+    tnum = tvec(i);
+    nucI = nucleusimgstackz(:,:,tnum);
+    cellI = cellimgstackz(:,:,tnum);
+    if ~isempty(PXnew)
+        CC.PixelIdxList = PXnew;
+        CC.NumObjects = numel(PXnew);
+        S = regionprops(CC,'Centroid','Area','Perimeter');
+        areavec = vertcat(S.Area);
+        perimetervec = vertcat(S.Perimeter);
+        elliptvec = 4.*pi.*areavec./(perimetervec.^2);
+        centroidMat = vertcat(S.Centroid);
+        cellnumvec = trackmatrix(tnum,:);
+        cellnum = cellnumvec(~isnan(cellnumvec))';
+        
+        nucFluor = cellfun(@(x) nanmedian(nucI(x)),PXnew,'UniformOutput',1)';
+        cellFluor = cellfun(@(x) nanmedian(cellI(x)),PXnew,'UniformOutput',1)';
+        stdeval = cellfun(@(x) nanstd(nucI(x)),PXnew,'UniformOutput',1)';
+        
+        
+        if ~isempty(newidx)
+            segment_Area_array{tnum} = vertcat(segment_Area_array{tnum},areavec);
+            segment_Centroid_array{tnum} = vertcat(segment_Centroid_array{tnum},centroidMat);
+            segment_Pixels_array{tnum} = vertcat(segment_Pixels_array{tnum},PXnew);
+            segment_Cellnum_array{tnum} = cellnum;
+            segment_Ellipt_array{tnum} = vertcat(segment_Ellipt_array{tnum},elliptvec);
+            segment_nucFluor_array{tnum} = vertcat(segment_nucFluor_array{tnum},nucFluor);
+            segment_cellFluor_array{tnum} = vertcat(segment_cellFluor_array{tnum},cellFluor);
+            segment_Stdev_array{tnum} = vertcat(segment_Stdev_array{tnum},stdeval);
+        end
+        
+        if ~isempty(keepidx)
+            segment_Area_array{tnum}(keepidx) = areavec;
+            segment_Centroid_array{tnum}(keepidx,true(1,size(centroidMat,2))) = centroidMat;
+            segment_Pixels_array{tnum}(keepidx) = PXnew;
+            segment_Cellnum_array{tnum}= cellnum;
+            segment_Ellipt_array{tnum}(keepidx) = elliptvec;
+            segment_nucFluor_array{tnum}(keepidx) = nucFluor;
+            segment_cellFluor_array{tnum}(keepidx) = cellFluor;
+            segment_Stdev_array{tnum}(keepidx) = stdeval;
+        end
+    end
+    
+    if ~isempty(dropidx)
+        centold = segment_Centroid_array{tnum};
+        centidx = 1:size(centold,1);
+        centidx(dropidx)=[];
+        centnew = centold(centidx,:);
+        
+        segment_Area_array{tnum}(dropidx) = [];
+        segment_Centroid_array{tnum} = centnew;
+        segment_Pixels_array{tnum}(dropidx) = [];
+        segment_Cellnum_array{tnum}= cellnum;
+        segment_Ellipt_array{tnum}(dropidx) = [];
+        segment_nucFluor_array{tnum}(dropidx) = [];
+        segment_cellFluor_array{tnum}(dropidx) = [];
+        segment_Stdev_array{tnum}(dropidx) = [];
+    end
+end
+ArrayStruct.area    =   segment_Area_array;
+ArrayStruct.ellipt     =   segment_Ellipt_array;
+ArrayStruct.nucFluor     =   segment_nucFluor_array;
+ArrayStruct.cellFluor     =   segment_cellFluor_array;
+ArrayStruct.stdev     =   segment_Stdev_array;
+ArrayStruct.centroid     =   segment_Centroid_array;
+ArrayStruct.pixels     =   segment_Pixels_array;
+ArrayStruct.cellnum     =   segment_Cellnum_array;
 end
 
 %% functions for tracking cells
@@ -3717,17 +3868,18 @@ function [ Tracked ] = FrickTrackCellsYeah(pathStruct,pvalue,segStruct,h,nucleiD
             
         end
         
-        
-%         ArrayStruct.area     =   segment_Area_array;
-%         ArrayStruct.ellipt     =   segment_Ellipt_array;
-%         ArrayStruct.nucFluor     =   segment_nucFluor_array;
-%         ArrayStruct.cellFluor     =   segment_cellFluor_array;
-%         ArrayStruct.stdev     =   segment_Stdev_array;
-%         ArrayStruct.centroid     =   segment_Centroid_array;
-%         ArrayStruct.pixels     =   segment_Pixels_array;
-%         ArrayStruct.cellnum     =   segment_Cellnum_array;
-%         Frame.Arrayz = ArrayStruct;
-%         Tracked{i} = Frame;
+        ArrayStruct = struct();
+        ArrayStruct.area     =   segment_Area_array;
+        ArrayStruct.ellipt     =   segment_Ellipt_array;
+        ArrayStruct.nucFluor     =   segment_nucFluor_array;
+        ArrayStruct.cellFluor     =   segment_cellFluor_array;
+        ArrayStruct.stdev     =   segment_Stdev_array;
+        ArrayStruct.centroid     =   segment_Centroid_array;
+        ArrayStruct.pixels     =   segment_Pixels_array;
+        ArrayStruct.cellnum     =   segment_Cellnum_array;
+%         ArrayStruct.If  = IfPerimFunction();
+
+
 %         
 %% tracking
 
@@ -3960,15 +4112,28 @@ function [ Tracked ] = FrickTrackCellsYeah(pathStruct,pvalue,segStruct,h,nucleiD
             trackmatrix(i,bdist+1:bdist+nb) = births;
         end
     end
+    
+    
+    Tracked = struct();
+    Tracked.trackmatrix = trackmatrix;
+    Tracked.arrayStruct = ArrayStruct;  
+end
 
+
+function traverseTracked(Tracked)
+global ImageDetails
+
+ImageDetails.ImgSize
+trackmatrix = Tracked.trackmatrix;
+ArrayStruct = Tracked.arrayStruct;
+segment_Pixels_array = ArrayStruct.pixels;
+segment_Centroid_array = ArrayStruct.centroid;
 
     %now update all the fields
     newpx = cell(size(trackmatrix));
     newpx(:) = {NaN};
-    segI = segmentimgstack(:,:,1); %choose the first frame of segmentimgstack to start with
-    CC = bwconncomp(segI);
-    cnnec = CC.Connectivity;
-    imgsize = CC.ImageSize;
+    cnnec = 8;
+    imgsize = ImageDetails.ImgSize;
     Tracked = cell(1,size(segmentimgstack,3));
     %parfor i = 1:size(segmentimgstack,3)
     for i = 1:size(segmentimgstack,3)
@@ -3989,11 +4154,6 @@ function [ Tracked ] = FrickTrackCellsYeah(pathStruct,pvalue,segStruct,h,nucleiD
             %then centroids
             centnew(trackidx,:) = centroids(tracknums,:);
         end
-        
-
-        
-
-        
 
         AllCellsPX = newpx(i,:);
         CC = struct();
@@ -4007,7 +4167,6 @@ function [ Tracked ] = FrickTrackCellsYeah(pathStruct,pvalue,segStruct,h,nucleiD
         Frame.filename = filename;
         Frame.Cellz = CC;
         Frame.If = IfPerimFunction(CC);
-%         Frame.Arrayz = ArrayStruct{i};
         Tracked{i} = Frame;
     end
     
@@ -4124,6 +4283,7 @@ end
 %% Image Display functions
 function setSceneAndTime
 global bkgmedianmat togStruct DICimgstack foStruct backgroundimgstack segStruct nucleusimgstack segmentimgstack channelimgstack pathStruct frameToLoad ImageDetails Tracked SceneList imgfile 
+trackmatrix = Tracked.trackmatrix;
 
     %check for empty variables
     cd(pathStruct.mstackPath)
@@ -4291,30 +4451,40 @@ global bkgmedianmat togStruct DICimgstack foStruct backgroundimgstack segStruct 
          
         
 %choose the segmentation image
-    if isempty(Tracked{1}.Cellz) %Tracked is empty try to load tracking or make new tracking structure
+    if isempty(trackmatrix) %Tracked is empty try to load tracking or make new tracking structure
         togStruct.refineTrackingToggle = 0;
         cd(pathStruct.segmentPath)
         imgfile = dir(strcat('*',ImageDetails.Scene,'*',segStruct.nucleus_seg,'*'));
-        If = segmentimg;
+
         Tracked = loadTrackedStructure;
-        centroidDisagreement=false;
-        Ts = Tracked{t};
-        CC = Ts.Cellz;
+        if isempty(Tracked.trackmatrix)
+            If = segmentimg;
+        else
+            PX = Tracked.arrayStruct{t};
+            centroidDisagreement=false;
+            CC.NumOjects = length(PX);
+            CC.PixelIdxList = PX;
+            CC.ImageSize = ImageDetails.ImgSize;
+            CC.Connectivity = 8;
+            If = IfPerimFunction(CC);
+        end
     else  %if there exists segmenttracking already...then use that. 
-        Ts = Tracked{t};
-        CC = Ts.Cellz;
-        PX = CC.PixelIdxList;
-        Centroids  = CC.Centroid;
-        centroidDisagreement = ~(size(Centroids,2)==CC.NumObjects);
+        PX = Tracked.arrayStruct.pixels{t};
+        centroidDisagreement=false;
+        CC.NumOjects = length(PX);
+        CC.PixelIdxList = PX;
+        CC.ImageSize = ImageDetails.ImgSize;
+        CC.Connectivity = 8;
+        If = IfPerimFunction(CC);
     end
     
-    fnames = fieldnames(Ts);
-    if sum(strcmp(fnames,'If')>0)
-        If = Tracked{t}.If;
-    else
-        If =  IfPerimFunction(CC);
-        Tracked{t}.If = If;
-    end
+%     fnames = fieldnames(Ts);
+%     if sum(strcmp(fnames,'If')>0)
+%         If = Tracked{t}.If;
+%     else
+%         If =  IfPerimFunction(CC);
+%         Tracked{t}.If = If;
+%     end
 
 
 
@@ -4323,11 +4493,12 @@ global bkgmedianmat togStruct DICimgstack foStruct backgroundimgstack segStruct 
             togStruct.refineTrackingToggle = 1;
         end
     end
-    % disp(togStruct.refineTrackingToggle)
-    if togStruct.refineTrackingToggle == 1
-        Tracked = trackingCosmetics(Tracked,togStruct);
-    end
-    togStruct.refineTrackingToggle=0;
+    
+%     %shouldn't need to run this!
+%     if togStruct.refineTrackingToggle == 1
+%         Tracked = trackingCosmetics(Tracked,togStruct);
+%     end
+%     togStruct.refineTrackingToggle=0;
 
 
     if strcmp(ImageDetails.Channel,segStruct.nucleus_seg)
@@ -4377,7 +4548,7 @@ function displayTrackingButton_Callback(~,~)
 global togStruct Tracked
 
 
-if isempty(Tracked{1}.Cellz)
+if isempty(Tracked.trackmatrix)
     disp('need to run tracking!!!')
 else
     if togStruct.displayTrackingToggle == 0
@@ -4405,25 +4576,28 @@ end
 function traject = trackingTrajectories(timeFrames)
 global Tracked
 
+trackmatrix = Tracked.trackmatrix;
+ArrayStruct = Tracked.arrayStruct;
+segment_Pixels_array = ArrayStruct.pixels;
+segment_Centroid_array = ArrayStruct.centroid;
 
-%   determine the frame to load
-    t = timeFrames;
-
-    xy = cell(1,t);
-    lxy = zeros(1,t);
-
-    for i = 1:t %determine centroids from 1:t for plotting a tracking tail 
-        CC = Tracked{i}.Cellz;
-        Centroids  = CC.Centroid;
-        xy{i} = Centroids';
-        lxy(i) = size(xy{i},1);
+%now update all the fields
+centroids = segment_Centroid_array{1};
+if ~isempty(centroids)
+    centnew = nan(size(trackmatrix,2),size(centroids,2),timeFrames);
+    for i = 1:timeFrames
+        a=i;
+        trackvals=trackmatrix(i,:);
+        trackidx = ~isnan(trackvals);
+        tracknums = trackvals(trackidx);
+        px = segment_Pixels_array{a};
+        centroids = segment_Centroid_array{a};
+        if ~isempty(px)
+            centnew(trackidx,:,i) = centroids(tracknums,:);
+        end
     end
-    
-    traject = nan(max(lxy),2,t);
-
-    for i = 1:t
-        traject(1:lxy(i),1:2,i) = xy{i};
-    end
+    traject = centnew;
+end
 end
 function displayImageFunct(If,channelimg,bkgmedian)
 global oldscenename expDetailsStruct togStruct timeFrames tcontrast lcontrast MainAxes ImageDetails prcntl lprcntl cmap cmaplz
@@ -4432,36 +4606,36 @@ scenestr = ImageDetails.Scene;
 tnum = ImageDetails.Frame;
 
 %delete old images to keep memory usage low
-    children1 = findobj(MainAxes,'Type','image');
-    children2 = findobj(MainAxes,'Type','Line');
-    delete(children1);
-    delete(children2);
-    set(MainAxes,'NextPlot','replace')
+children1 = findobj(MainAxes,'Type','image');
+children2 = findobj(MainAxes,'Type','Line');
+delete(children1);
+delete(children2);
+set(MainAxes,'NextPlot','replace')
 %constrain image axis to be square initially
-    set(MainAxes,'Units','pixels');
-    pos = get(MainAxes,'Position');
-    pos(3:4) = [min([pos(3) pos(4)]) min([pos(3) pos(4)])];
-    set(MainAxes,'Position',pos);
-    set(MainAxes,'Units','normalized');
-    pos = get(MainAxes,'Position');
-    pos(2)= 0.5 - pos(4)/2;
-    set(MainAxes,'Position',pos);
+set(MainAxes,'Units','pixels');
+pos = get(MainAxes,'Position');
+pos(3:4) = [min([pos(3) pos(4)]) min([pos(3) pos(4)])];
+set(MainAxes,'Position',pos);
+set(MainAxes,'Units','normalized');
+pos = get(MainAxes,'Position');
+pos(2)= 0.5 - pos(4)/2;
+set(MainAxes,'Position',pos);
 
-    
-    
-    % important for updating the contrast
-    %update contrast if time =1
-    togStruct.changeSceneOrChannel=0;
-    if tnum==1
+
+
+% important for updating the contrast
+%update contrast if time =1
+togStruct.changeSceneOrChannel=0;
+if tnum==1
     oldscenename='new';
     togStruct.changeSceneOrChannel=1;
-    end
+end
 
 %update contrast if channel has changed
-    if ~strcmp(ImageDetails.Channel,oldscenename)
+if ~strcmp(ImageDetails.Channel,oldscenename)
     togStruct.changeSceneOrChannel=1;
     oldscenename = ImageDetails.Channel;
-    end
+end
 
 % %update contrast if contrast values are updated
 %     if togStruct.contrastAdjust ==1
@@ -4470,107 +4644,107 @@ tnum = ImageDetails.Frame;
 %     end
 
 %scripts for displaying contrasted image
-    if strcmp(ImageDetails.Channel,'overlay') %when overlay display is desired
-        disprgb = zeros(size(channelimg));
-        channelimgrgb = channelimg;
-        for i = 1:size(channelimg,3)
-            if i==3
-                channelimg = channelimgrgb(:,:,i);
-                lprcntl = prctile(channelimg(:),lcontrast);
-                prcntl = prctile(channelimg(:),tcontrast);
-                scaleFactor = 150./(prcntl - lprcntl);
-                dispimg = channelimg.*scaleFactor;
-                dispimg = dispimg-(lprcntl.*scaleFactor);
-                dispimg(dispimg> 255) =254;
-                dispimg(dispimg<0) = 0;
-            else
-                channelimg = channelimgrgb(:,:,i);
-                lprcntl = prctile(channelimg(:),lcontrast);
-                prcntl = prctile(channelimg(:),tcontrast);
-                scaleFactor = 255./(prcntl - lprcntl);
-                dispimg = channelimg.*scaleFactor;
-                dispimg = dispimg-(lprcntl.*scaleFactor);
-                dispimg(dispimg> 255) =254;
-                dispimg(dispimg<0) = 0;
-            end
-            
-            if i==1
-                If = bwperim(If) | bwperim(imdilate(If,strel('disk',1)));
-                dispimg(If>0)=255;  
-                disprgb(:,:,i) = dispimg;
-            elseif i==2
-                disprgb(:,:,i) = dispimg;
-            elseif i==3
-                for j = 1:3
-                    cimg =  disprgb(:,:,j);
-                    cimg(dispimg>cimg) = dispimg(dispimg>cimg);
-                    disprgb(:,:,j) = cimg;
-                end
-            end
-        end
-        
-        dispimg = disprgb;
-        
-    else  %under normal circumstances
-        if togStruct.changeSceneOrChannel ==1
+if strcmp(ImageDetails.Channel,'overlay') %when overlay display is desired
+    disprgb = zeros(size(channelimg));
+    channelimgrgb = channelimg;
+    for i = 1:size(channelimg,3)
+        if i==3
+            channelimg = channelimgrgb(:,:,i);
+            lprcntl = prctile(channelimg(:),lcontrast);
             prcntl = prctile(channelimg(:),tcontrast);
-            togStruct.changeSceneOrChannel =0;
+            scaleFactor = 150./(prcntl - lprcntl);
+            dispimg = channelimg.*scaleFactor;
+            dispimg = dispimg-(lprcntl.*scaleFactor);
+            dispimg(dispimg> 255) =254;
+            dispimg(dispimg<0) = 0;
+        else
+            channelimg = channelimgrgb(:,:,i);
+            lprcntl = prctile(channelimg(:),lcontrast);
+            prcntl = prctile(channelimg(:),tcontrast);
+            scaleFactor = 255./(prcntl - lprcntl);
+            dispimg = channelimg.*scaleFactor;
+            dispimg = dispimg-(lprcntl.*scaleFactor);
+            dispimg(dispimg> 255) =254;
+            dispimg(dispimg<0) = 0;
         end
-        lprcntl = bkgmedian.*0.90;
-        scaleFactor = 255./(prcntl - lprcntl);
-        dispimg = channelimg.*scaleFactor;
-        dispimg = dispimg-(lprcntl.*scaleFactor);
-        dispimg(dispimg> 255) =254;
-        dispimg(If>0)=255;
+        
+        if i==1
+            If = bwperim(If) | bwperim(imdilate(If,strel('disk',1)));
+            dispimg(If>0)=255;
+            disprgb(:,:,i) = dispimg;
+        elseif i==2
+            disprgb(:,:,i) = dispimg;
+        elseif i==3
+            for j = 1:3
+                cimg =  disprgb(:,:,j);
+                cimg(dispimg>cimg) = dispimg(dispimg>cimg);
+                disprgb(:,:,j) = cimg;
+            end
+        end
     end
+    
+    dispimg = disprgb;
+    
+else  %under normal circumstances
+    if togStruct.changeSceneOrChannel ==1
+        prcntl = prctile(channelimg(:),tcontrast);
+        togStruct.changeSceneOrChannel =0;
+    end
+    lprcntl = bkgmedian.*0.90;
+    scaleFactor = 255./(prcntl - lprcntl);
+    dispimg = channelimg.*scaleFactor;
+    dispimg = dispimg-(lprcntl.*scaleFactor);
+    dispimg(dispimg> 255) =254;
+    dispimg(If>0)=255;
+end
 
 %title the displayed image
-    image(MainAxes,uint8(dispimg));
-    colormap(MainAxes,cmap);
+image(MainAxes,uint8(dispimg));
+colormap(MainAxes,cmap);
 
-    expDetailsStruct.expDateTitleStr = expDetailsStruct.expDateStr;
-    [a,~] = regexp(expDetailsStruct.expDateTitleStr,'_');expDetailsStruct.expDateTitleStr(a) = '-';
+expDetailsStruct.expDateTitleStr = expDetailsStruct.expDateStr;
+[a,~] = regexp(expDetailsStruct.expDateTitleStr,'_');expDetailsStruct.expDateTitleStr(a) = '-';
 
-    ttl = get(MainAxes,'Title');
-    set(ttl,'String',[expDetailsStruct.expDateTitleStr ' ' scenestr ' frame ' num2str(tnum) ' out of ' num2str(timeFrames)]);
-    set(ttl,'FontSize',12);
-    set(MainAxes,'NextPlot','add')
+ttl = get(MainAxes,'Title');
+set(ttl,'String',[expDetailsStruct.expDateTitleStr ' ' scenestr ' frame ' num2str(tnum) ' out of ' num2str(timeFrames)]);
+set(ttl,'FontSize',12);
+set(MainAxes,'NextPlot','add')
 
-    %plot cell tracking "tails"
-    if ~(tnum==1)
-        if togStruct.displayTrackingToggle==1
-            trajectForPlot = trackingTrajectories(timeFrames);
-            set(MainAxes,'NextPlot','add');
-            mainplotX = squeeze(trajectForPlot(:,1,:)); %28x22 means 28 cells on frame 22;
-            mainplotY = squeeze(trajectForPlot(:,2,:));
-
-            if size(mainplotY,2) == 1
-                mainplotY=mainplotY';
-                mainplotX=mainplotX';
+%plot cell tracking "tails"
+if ~(tnum==1)
+    if togStruct.displayTrackingToggle==1
+        trajectForPlot = trackingTrajectories(timeFrames);
+        set(MainAxes,'NextPlot','add');
+        mainplotX = squeeze(trajectForPlot(:,1,:)); %28x22 means 28 cells on frame 22;
+        mainplotY = squeeze(trajectForPlot(:,2,:));
+        
+        if size(mainplotY,2) == 1
+            mainplotY=mainplotY';
+            mainplotX=mainplotX';
+        end
+        %only plot if the cell is currently tracked/segmented in this frame
+        idx = ~isnan(mainplotY(:,tnum));
+        idxa = find(idx==1);
+        if ~isempty(idxa)
+            cmaplz = colorcubemodified(length(idx),'colorcube');
+            cmapl = cmaplz;
+            plotcmap = zeros(length(idxa),3);
+            for i=1:length(idxa)
+                plotcmap(i,:) =  cmapl(idxa(i),:);
             end
-            %only plot if the cell is currently tracked/segmented in this frame
-            idx = ~isnan(mainplotY(:,tnum));
-            idxa = find(idx==1);
-            if ~isempty(idxa)
-                cmaplz = colorcubemodified(length(idx),'colorcube');
-                cmapl = cmaplz;
-                plotcmap = zeros(length(idxa),3);
-                for i=1:length(idxa)
-                    plotcmap(i,:) =  cmapl(idxa(i),:);
-                end
-
-                x = mainplotX(idx,:);
-                y = mainplotY(idx,:);
-                t0 =max([1 tnum-20]);
-                h = plot(MainAxes,x(:,t0:tnum)',y(:,t0:tnum)','LineWidth',2);
-                set(h, {'color'}, num2cell(plotcmap,2));
-            end
+            
+            x = mainplotX(idx,:);
+            y = mainplotY(idx,:);
+            t0 =max([1 tnum-20]);
+            h = plot(MainAxes,x(:,t0:tnum)',y(:,t0:tnum)','LineWidth',2);
+            set(h, {'color'}, num2cell(plotcmap,2));
         end
     end
-    set(MainAxes,'Color','none');
-    set(MainAxes,'CLim',[0 256]);
-    set(MainAxes,'YTick',[]);
-    set(MainAxes,'XTick',[]);
+end
+set(MainAxes,'Color','none');
+set(MainAxes,'CLim',[0 256]);
+set(MainAxes,'YTick',[]);
+set(MainAxes,'XTick',[]);
 
 end
 
