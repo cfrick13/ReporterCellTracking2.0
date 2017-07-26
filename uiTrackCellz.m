@@ -1238,7 +1238,6 @@ while a ==1
         %update cellnum
         alltrackframe = trackmatrix(t,:);
         cellnum = find(alltrackframe == idx);
-        cellnum = find(alltrackframe == idx);
         if isempty(cellnum)
             newtrack = nan(size(trackmatrix,1),1);
             trackmatrix = horzcat(trackmatrix,newtrack);
@@ -1254,12 +1253,14 @@ while a ==1
 end
 
 timestart = horzcat(1,timingkeeper(2:end));
-timeend = horzcat(timingkeeper(1:end-1),timeFrames);
+timeend = horzcat(timingkeeper(2:end)-1,timeFrames);
+% disp(horzcat(timestart',timeend'))
 cellnnz = horzcat(cellnn,cellnn(end));
 cellLoc = cellnnz(1);
 newtrackmatrix = trackmatrix;
 for i = 1:length(timestart)
     trange = timestart(i):timeend(i);
+    disp(trange)
     newtrackmatrix(trange,cellLoc) = trackmatrix(trange,cellnnz(i));
     if ~(cellnnz(i)==cellLoc)
         newtrackmatrix(trange,cellnnz(i)) = NaN;
