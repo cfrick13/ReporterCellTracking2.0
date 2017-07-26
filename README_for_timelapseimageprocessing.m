@@ -78,9 +78,10 @@ fullT = tic;
 %         donemail('cfrick@caltech.edu','segmentation complete','segmentation complete')
 
     %% run autotracking algorithms
-%         uiTrackCellz(B,'AutoExportNuclei')
-        uiTrackCellz(B,'AutoTrackCells')
-        uiTrackCellz(B,'AutoExportTracks')
+    %
+    uiTrackCellz(B,'AutoTrackCells')
+    uiTrackCellz(B,'AutoExportTracks')
+    uiTrackCellz(B,'AutoExportNuclei')
         
     end
 fullTime = toc(fullT);
