@@ -1,5 +1,5 @@
 function uiTrackCellz(FileDate,AutoTrackStr)
-global  Tracked chanbkgmedianmat nucbkgmedianmat pStruct timeVec expDetailsStruct dirStruct timeSteps DivisionStruct segStruct foStruct xAxisLimits DICimgstack pathStruct segmentimgstack channelimgstack ExportNameKey ExportName plottingTotalOrMedian channelinputs tcontrast lcontrast ThirdPlotAxes SecondPlotAxes togStruct PlotAxes cmap  timeFrames frameToLoad ImageDetails MainAxes SceneList
+global  stimulationFrame Tracked chanbkgmedianmat nucbkgmedianmat pStruct timeVec expDetailsStruct dirStruct timeSteps DivisionStruct segStruct foStruct xAxisLimits DICimgstack pathStruct segmentimgstack channelimgstack ExportNameKey ExportName plottingTotalOrMedian channelinputs tcontrast lcontrast ThirdPlotAxes SecondPlotAxes togStruct PlotAxes cmap  timeFrames frameToLoad ImageDetails MainAxes SceneList
 
 close all
 
@@ -35,20 +35,20 @@ segmentName = 'segment mstack';
 
 
 %set contrast and plotting details
-togStruct.updateContrast=0;
-togStruct.runIterate =0;
-togStruct.trackUpdated = 1;
-togStruct.plotSettingsToggle =0;
-togStruct.displayTrackingToggle = 0;
+togStruct.updateContrast=false;
+togStruct.runIterate =false;
+togStruct.trackUpdated = true;
+togStruct.plotSettingsToggle =false;
+togStruct.displayTrackingToggle = false;
 
-xAxisLimits = [0 50];
+
 plottingTotalOrMedian = 'median';
 tcontrast = 99;
 lcontrast = 1;
 
 
 %determine export details
-ExportNameKey = 'tsi_';
+ExportNameKey = 'final';
 if ~strcmp(ExportNameKey,'final')
     disp(strcat('Export name key is "',ExportNameKey,'" not FINAL'))
 end
@@ -176,7 +176,7 @@ chanbkgmedianmat = zeros(1,timeFrames);
 nucbkgmedianmat = zeros(1,timeFrames);
 frameToLoad = 1;
 
-
+xAxisLimits = [0 timeFrames];
 
 
 %% set up user interface
@@ -191,8 +191,8 @@ fH = fpos(4);
 
 
 bW = initialsize(3)./11; %button width
-bH = initialsize(4)/36; %button height
-yP = sort(100:bH:(fH-(fH/9)),'descend');
+bH = initialsize(4)/40; %button height
+yP = sort(110:bH:(fH-(fH/9)),'descend');
 xP = ones(1,length(yP)).*(fW-(bW*2));
 fontSize = 10;
 
@@ -229,12 +229,16 @@ uicontrol('Style','pushbutton',...
 %next row is final Frame and first Frame commands
 mmm=3;
 uicontrol('Style','pushbutton',...
-    'String','FinalFrame [g]',...
+    'String','FinalFrame [h]',...
     'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
     'Callback',@finalbutton_callback);
 uicontrol('Style','pushbutton',...
     'String','FirstFrame [z]',...
     'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
+    'Callback',@firstbutton_callback);
+uicontrol('Style','pushbutton',...
+    'String','StimulationFrame [g]',...
+    'Position',[xP(mmm)-bW - bW./2,yP(mmm),bW,bH],...
     'Callback',@firstbutton_callback);
 
 %choose scene text and popup menu
@@ -251,37 +255,53 @@ uicontrol('Style','popupmenu',...
 mmm=7;
 uicontrol('Style','pushbutton','String','AddArea [v]',...
     'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
+    'BackgroundColor',[0.7 0.7 1],...
     'Callback',@addareabutton_Callback);
-uicontrol('Style', 'pushbutton', 'String', 'Remove area [b]',...
+uicontrol('Style', 'pushbutton', 'String', 'Remove area [r]',...
     'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
+    'BackgroundColor',[0.7 0.7 1],...
     'Callback',@removeArea_Callback);
 
 %delete commands
 mmm=8;
-uicontrol('Style','pushbutton','String','Delete',...
+uicontrol('Style','pushbutton','String','DeleteArea',...
     'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
+    'BackgroundColor',[0.7 0.7 1],...
     'Callback',@deletebutton_Callback);
 uicontrol('Style','pushbutton','String','DeleteAllOnFrame',...
     'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
+    'BackgroundColor',[0.7 0.7 1],...
     'Callback',@deleteAllonFrame_Callback);
 
+%erode or dilate
+mmm=9;
+uicontrol('Style','pushbutton','String','Erode Selected Nuclei',...
+    'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
+    'BackgroundColor',[0.7 0.7 1],...
+    'Callback',@erodeOnes_Callback);
+uicontrol('Style','pushbutton','String','Dilate Selected Nuclei',...
+    'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
+    'BackgroundColor',[0.7 0.7 1],...
+    'Callback',@dilateOnes_Callback);
+
+
 
 %destroy commands
-mmm=9;
-uicontrol('Style','pushbutton','String','Destroy [d]',...
+mmm=11;
+uicontrol('Style','pushbutton','String','Destroy [q]',...
     'Position',[xP(mmm),yP(mmm),bW,bH],...
     'Callback',@destroybutton_Callback);
-hDestroy = uicontrol('Style','pushbutton','String','DestroyPrevious',...
+hDestroy = uicontrol('Style','pushbutton','String','DestroyPrevious [w]',...
     'Position',[xP(mmm)-bW,yP(mmm),bW,bH],...
-    'Callback',@destroybuttonAllPrevious_Callback);
+    'Callback',@destroybuttonPrevious_Callback);
 hDestroy.FontSize=fontSize-2;
-hDestroy = uicontrol('Style','pushbutton','String','DestroySubsequent',...
+hDestroy = uicontrol('Style','pushbutton','String','DestroySubsequent [e]',...
     'Position',[xP(mmm)+bW,yP(mmm),bW,bH],...
-    'Callback',@destroybuttonAllSubsequent_Callback);
+    'Callback',@destroybuttonSubsequent_Callback);
 hDestroy.FontSize=fontSize-2;
 
 %destroy commands
-mmm=10;
+mmm=12;
 
 hDestroy = uicontrol('Style','pushbutton','String','DestroyAllFramePrevious',...
     'Position',[xP(mmm)-bW,yP(mmm),bW+bW./2,bH],...
@@ -294,7 +314,7 @@ hDestroy.FontSize=fontSize-2;
 
 
 %chosen ones commands
-mmm=11;
+mmm=13;
 uicontrol('Style','pushbutton','String','Chosen Ones',...
     'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
     'Callback',@chosenOnes_Callback);
@@ -303,33 +323,31 @@ uicontrol('Style','pushbutton','String','Chosen OnesAllOnFrame',...
     'Callback',@chosenOnesAllOnFrame_Callback);
 
 
-%erode or dilate nuclei
-mmm=12;
-uicontrol('Style','pushbutton','String','Erode Selected Nuclei',...
-    'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
-    'Callback',@erodeOnes_Callback);
-uicontrol('Style','pushbutton','String','Dilate Selected Nuclei',...
-    'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
-    'Callback',@dilateOnes_Callback);
-
 
 %tracking commands
-mmm=14;
-uicontrol('Style','pushbutton','String','LinkCells [r]',...
-    'Position',[xP(mmm),yP(mmm),bW,bH],...
-    'Callback',@linkCells_Callback);
 mmm=15;
-h=    uicontrol('Style','pushbutton',...
+uicontrol('Style','pushbutton','String','Break link [d]',...
+    'Position',[xP(mmm),yP(mmm),bW,bH],...
+    'BackgroundColor',[0.7 1 0.7],...
+    'Callback',@breaklink_Callback);
+mmm=16;
+uicontrol('Style','pushbutton','String','LinkCells [c]',...
+    'Position',[xP(mmm),yP(mmm),bW,bH],...
+    'BackgroundColor',[0.7 1 0.7],...
+    'Callback',@linkCells_Callback);
+
+mmm=17;
+uicontrol('Style','pushbutton',...
     'String','Run Tracking [t]',...
     'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
     'Callback',@trackbutton_Callback);
-h=    uicontrol('Style','pushbutton',...
-    'String','divisionTrack [d]',...
+uicontrol('Style','pushbutton',...
+    'String','divisionTrack [y]',...
     'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
     'BackgroundColor',[1 0.7 0.7],...
     'Callback',@divisionTrack_Callback);
 
-mmm=16;
+mmm=18;
 uicontrol('Style','pushbutton',...
     'String','LoadTracking',...
     'Position',[xP(mmm),yP(mmm),bW,bH],...
@@ -337,9 +355,9 @@ uicontrol('Style','pushbutton',...
 
 
 %display commands
-mmm=18;
+mmm=20;
 uicontrol('Style','pushbutton',...
-    'String','contrast user',...
+    'String','Set Contrast [k]',...
     'Position',[xP(mmm),yP(mmm),bW,bH],...
     'Callback',@contrast_Callback);
 uicontrol('Style','pushbutton',...
@@ -349,14 +367,14 @@ uicontrol('Style','pushbutton',...
 
 
 %save commands
-mmm=20;
+mmm=22;
 uicontrol('Style','pushbutton',...
     'String','SaveTrackingAs',...
     'Position',[xP(mmm)-bW./2,yP(mmm),bW+bW,bH],...
     'Callback',@saveTrackingFileAs_callback);
 
 %autotrack commands
-mmm=21;
+mmm=23;
 uicontrol('Style','pushbutton',...
     'String','trackSaveIterate',...
     'Position',[xP(mmm)+bW./2,yP(mmm),bW+bW./2,bH./1.5],...
@@ -368,7 +386,7 @@ uicontrol('Style','pushbutton',...
 
 
 %plot and plot settings commands
-mmm=23;
+mmm=25;
 uicontrol('Style','pushbutton',...
     'String','PLOT!',...
     'Position',[xP(mmm)-bW./2,yP(mmm),bW,bH],...
@@ -377,14 +395,14 @@ uicontrol('Style','pushbutton',...
     'String','Plot Specific Cell!',...
     'Position',[xP(mmm)+bW./2,yP(mmm),bW,bH],...
     'Callback',@Plot_SpecificCell_callback);
-mmm=24;
+mmm=26;
 uicontrol('Style','pushbutton',...
     'String','Plot Settings!',...
     'Position',[xP(mmm)-bW./2,yP(mmm),bW+bW./2,bH./1.5],...
     'Callback',@PlotSettings_callback);
 
 %export commands
-mmm=26;
+mmm=28;
 uicontrol('Style','pushbutton',...
     'String','ExportTrackedCells',...
     'Position',[xP(mmm),yP(mmm),bW,bH*2],...
@@ -399,7 +417,7 @@ uicontrol('Style','pushbutton',...
     'Callback',@exportSegmentedCells);
 
 %label and comment commands
-mmm=28;
+mmm=30;
 uicontrol('Style','pushbutton',...
     'String','Label Cells',...
     'Position',[xP(mmm)-bW,yP(mmm),bW,bH./1.5],...
@@ -430,6 +448,11 @@ Position = [10 10 imgdim imgdim];
 % Position = [0.1 0.3 0.65 0.65];
 MainAxes.Position = Position;
 MainAxes.Units = 'normalized';
+c = colorbar(MainAxes);
+c.Limits = [256 size(cmap,1)];
+c.Location = 'eastoutside';
+c.TickLabels = c.Ticks -255;
+c.Label.String = 'track length, # of frames';
 
 
 PlotAxes = axes;
@@ -569,30 +592,33 @@ switch key
         ImageDetails.Channel = 'overlay';
         setSceneAndTime
     case 'q'
-        prevscenebutton_Callback([],[])
+        destroybutton_Callback([],[])
     case 'w'
-        nextscenebutton_Callback([],[])
+        destroybuttonPrevious_Callback([],[])
+    case 'e' 
+        destroybuttonSubsequent_Callback([],[])
     case 'a'
         prevbutton_callback([],[])
     case 'f'
         nextbutton_callback([],[])
     case 'd'
-        %         destroybutton_Callback([],[]);
-        divisionTrack_Callback([],[]);
+        breaklink_callback([],[]);
     case 't'
         trackbutton_Callback([],[]);
-    case 'e'
-        eliminatebutton_Callback([],[]);
     case 'v'
         addareabutton_Callback([],[]);
-    case 'b'
-        removeArea_Callback([],[]);
     case 'r'
+        removeArea_Callback([],[]);
+    case 'c'
         linkCells_Callback([],[]);
+    case 'y'
+        divisionTrack_Callback([],[]);
     case 'm'
         displayTrackingButton_Callback([],[])
-    case 'g'
+    case 'h'
         finalbutton_callback([],[])
+    case 'g'
+        stimulationFramebutton_callback([],[])
     case 'z'
         firstbutton_callback([],[])
     case 's'
@@ -601,33 +627,33 @@ switch key
         loadTrackingFile_callback([],[])
     case 'p'
         Plot_callback([],[])
-    case 'o'
-        labelCells;
-    case 'u'
-        %         if displaycomments==1
-        %             displaycomments=0;
-        %         else
-        displaycomments=1;
-        [~] = getxy([],[]);
-        %         end
-    case 'c'
-        contrast_Callback([],[])
+%     case 'o'
+%         labelCells;
+%     case 'u'
+%         %         if displaycomments==1
+%         %             displaycomments=0;
+%         %         else
+%         displaycomments=1;
+%         [~] = getxy([],[]);
+%         %         end
     case 'k'
-        comment_Callback([],[])
-    case 'j'
-        comment_CallbackJ([],[])
-    case 'n'
-        PlotCFPnorm_callback([],[])
-    case 'b'
-        PlotCFPnotnorm_callback([],[])
+        contrast_Callback([],[])
+%     case 'k'
+%         comment_Callback([],[])
+%     case 'j'
+%         comment_CallbackJ([],[])
+%     case 'n'
+%         PlotCFPnorm_callback([],[])
+%     case 'b'
+%         PlotCFPnotnorm_callback([],[])
     case 'x'
         plotAxis_callback([],[])
-    case '0'
-        displaycomments=1;
-        xy = getxy([],[]);
-        [~,comments,commentpos,~]=updatecomments(xy);
-        setcommentsTracking(comments,commentpos)
-        dispxy(xy)
+%     case '0'
+%         displaycomments=1;
+%         xy = getxy([],[]);
+%         [~,comments,commentpos,~]=updatecomments(xy);
+%         setcommentsTracking(comments,commentpos)
+%         dispxy(xy)
 end
 
 end
@@ -788,6 +814,13 @@ frameToLoad = timeFrames;
 ImageDetails.Frame = frameToLoad;
 setSceneAndTime
 end
+function stimulationFramebutton_callback(~,~)
+global frameToLoad ImageDetails timeFrames stimulationFrame
+
+frameToLoad = timeFrames;
+ImageDetails.Frame = stimulationFrame;
+setSceneAndTime
+end
 function firstbutton_callback(~,~) %first button
 global frameToLoad ImageDetails
 
@@ -884,7 +917,7 @@ while button==1
     [polyx,polyy,button] = ginput();
     button = round(mean(button));
     
-    if button ==1
+    if button ==1 && length(polyx)>2
         M = zeros(1,length(polyx)*2);
         M(1:2:end) = polyx;
         M(2:2:end) = polyy;
@@ -946,6 +979,12 @@ while button==1
             tvec = horzcat(tvec,t);
         end
         nextbutton_callback([],[]);
+    else
+        if isempty(tvec)
+            return
+        else
+            break
+        end
     end
     %array struct does not work here because it runs twice!
 end
@@ -953,6 +992,8 @@ ArrayStruct = updateArrayStruct(ArrayStruct,PXarray,tvec,dropArray,newArray,keep
 Tracked.arrayStruct = ArrayStruct;
 Tracked.trackmatrix = trackmatrix;
 ImageDetails.Frame = tvec(1);
+ucell = 1:size(trackmatrix,2);
+trackmatrix = refineTrackingMatrix(trackmatrix,ucell);
 setSceneAndTime;
 end
 %removeArea
@@ -974,7 +1015,7 @@ while button==1
     [polyx,polyy,button] = ginput();
     button = round(mean(button));
     
-    if button ==1
+    if button ==1 && length(polyx)>2
         M = zeros(1,length(polyx)*2);
         M(1:2:end) = polyx;
         M(2:2:end) = polyy;
@@ -1043,10 +1084,18 @@ while button==1
             tvec = horzcat(tvec,t);
         end
         nextbutton_callback([],[]);
+    else
+        if isempty(tvec)
+            return
+        else
+            break
+        end
     end
 end
 ArrayStruct = updateArrayStruct(ArrayStruct,PXarray,tvec,dropArray,newArray,keepArray,allArray,trackmatrix,ImageDetails.ImgSize); %this is not ideal for updating trackmatrix or removing
 Tracked.arrayStruct = ArrayStruct;
+ucell = 1:size(trackmatrix,2);
+trackmatrix = refineTrackingMatrix(trackmatrix,ucell);
 Tracked.trackmatrix = trackmatrix;
 setSceneAndTime
 end
@@ -1087,7 +1136,8 @@ PXarray = {[]};
 tvec = t;
 trackmatrix = updateTrackMatrix(trackmatrix,t,dropidx,keepidx,newidx);
 ArrayStruct = updateArrayStruct(ArrayStruct,PXarray,tvec,dropArray,newArray,keepArray,allArray,trackmatrix,ImageDetails.ImgSize); %this is not ideal for updating trackmatrix or removing
-
+ucell = 1:size(trackmatrix,2);
+trackmatrix = refineTrackingMatrix(trackmatrix,ucell);
 Tracked.arrayStruct = ArrayStruct;
 Tracked.trackmatrix = trackmatrix;
 setSceneAndTime;
@@ -1114,7 +1164,8 @@ PXarray = {[]};
 tvec = t;
 trackmatrix = updateTrackMatrix(trackmatrix,t,dropidx,keepidx,newidx);
 ArrayStruct = updateArrayStruct(ArrayStruct,PXarray,tvec,dropArray,newArray,keepArray,allArray,trackmatrix,ImageDetails.ImgSize); %this is not ideal for updating trackmatrix or removing
-
+ucell = 1:size(trackmatrix,2);
+trackmatrix = refineTrackingMatrix(trackmatrix,ucell);
 Tracked.arrayStruct = ArrayStruct;
 Tracked.trackmatrix = trackmatrix;
 setSceneAndTime;
@@ -1262,7 +1313,6 @@ cellLoc = cellnnz(1);
 newtrackmatrix = trackmatrix;
 for i = 1:length(timestart)
     trange = timestart(i):timeend(i);
-    disp(trange)
     newtrackmatrix(trange,cellLoc) = trackmatrix(trange,cellnnz(i));
     if ~(cellnnz(i)==cellLoc)
         newtrackmatrix(trange,cellnnz(i)) = NaN;
@@ -1395,7 +1445,7 @@ trackmatrix = refineTrackingMatrix(trackmatrix,ucell);
 Tracked.trackmatrix = trackmatrix;
 setSceneAndTime;
 end
-function destroybuttonAllPrevious_Callback(~,~)
+function destroybuttonPrevious_Callback(~,~)
 %delete a cell from all frames
 global ImageDetails Tracked
 trackmatrix = Tracked.trackmatrix;
@@ -1420,7 +1470,7 @@ if ~isempty(idx)
 end
 setSceneAndTime;
 end
-function destroybuttonAllSubsequent_Callback(~,~)
+function destroybuttonSubsequent_Callback(~,~)
 %delete a cell from all frames
 global ImageDetails Tracked  togStruct
 trackmatrix = Tracked.trackmatrix;
@@ -1471,6 +1521,34 @@ if ~isempty(idx)
 end
 setSceneAndTime;
 end
+
+
+function breaklink_callback(~,~)
+%remove entire track from all frames
+global ImageDetails Tracked
+trackmatrix = Tracked.trackmatrix;
+t = ImageDetails.Frame;
+ginputnum=[];
+[cxx,cyy,~,button] = identifyCellbyClick(t,ginputnum);
+if isempty(button)
+    return
+end
+%find cell
+[idx,~,~] = findCellByCoordinate(Tracked,ImageDetails.ImgSize,cxx,cyy,t);
+alltrackframe = trackmatrix(t,:);
+if ~isempty(idx)
+    cellnum = zeros(1,length(idx));
+    for i = 1:length(idx)
+        cellnum(i) = find(idx(i)==alltrackframe);
+    end
+    trackmatrix(t,cellnum) = NaN;
+    ucell = 1:size(trackmatrix,2);
+    trackmatrix = refineTrackingMatrix(trackmatrix,ucell);
+    Tracked.trackmatrix = trackmatrix;
+end
+setSceneAndTime;
+end
+
 %choose the cells you want
 function chosenOnes_Callback(~,~)
 %keep the entire track of selected cells
@@ -1790,7 +1868,13 @@ idx = true(size(toplot,1),1);
 cmapl = cmaplz;
 idxa = find(idx==1);
 h = plot(SecondPlotAxes,toplot(idx,:)','LineWidth',2);
-
+nvalue = max(sum(~isnan(toplot),1));
+nstr = num2str(nvalue);
+tstr = ['n = ' nstr ' tracks'];
+t = text(SecondPlotAxes,0,0,tstr);
+t.Units = 'normalized';
+t.Position = [0.01 0.95];
+t.FontSize = 8;
 
 if togStruct.displayTrackingToggle ==1
     for i=1:length(h)
@@ -1903,7 +1987,8 @@ end
 
 
 alltrackframe = trackmatrix(t,:);
-makeIMGidx = find(makeIMGidx==alltrackframe);
+
+makeIMGidx = find(ismember(alltrackframe,makeIMGidx));
 toplot = plotMat(makeIMGidx,:);
 h = plot(ThirdPlotAxes,toplot','LineWidth',3);
 ThirdPlotAxes.XLim = ([xAxisLimits(1) xAxisLimits(2)]);
@@ -3464,6 +3549,7 @@ function loadTrackingFile_callback(~,~)
 global  Tracked togStruct
 
 Tracked = loadTrackedStructure;
+togStruct.trackUpdated = true;
 end
 
 %make trajectories for overlay of tracking
@@ -3752,7 +3838,7 @@ if ~isempty(newidx)
 end
 
 ucell = 1:size(trackmatrix,2);
-trackmatrix = refineTrackingMatrix(trackmatrix,ucell);
+% trackmatrix = refineTrackingMatrix(trackmatrix,ucell);
 
 end
 function ArrayStruct = updateArrayStruct(ArrayStruct,PXarray,tvec,dropArray,newArray,keepArray,allArray,trackmatrix,imgsize)
@@ -4068,7 +4154,7 @@ for iNW = 1:nWorkers
             %two cells are the same
             knnnum = 5;
             [distProb,~,distcut] = probSpitter(centroids,centroidsPrev,knnnum,displacementCutoff,[]);
-            [areaProbette,~,areacut] = probSpitter(area,areaPrev,size(area,1),[],1.2);
+            [areaProbette,~,areacut] = probSpitter(area,areaPrev,size(area,1),[],1.1);
             [nucFluorProbette,~,nuccut] = probSpitter(nucfluor,nucfluorPrev,size(nucfluor,1),[],1.2);
             [cellFluorProbette,~,cellcut] = probSpitter(cellfluor,cellfluorPrev,size(cellfluor,1),[],1.2);
             newProb = distProb.*areaProbette.*nucFluorProbette.*cellFluorProbette;
@@ -4500,7 +4586,6 @@ end
 if togStruct.trackUpdated && trackexists
     Ifstack = IfPerimFunction(Tracked);
     If = Ifstack(:,:,t);
-    togStruct.trackUpdated = false;
 elseif ~togStruct.trackUpdated && trackexists
     If = Ifstack(:,:,t);
 else
@@ -4676,7 +4761,7 @@ children1 = findobj(MainAxes,'Type','image');
 children2 = findobj(MainAxes,'Type','Line');
 delete(children1);
 delete(children2);
-set(MainAxes,'NextPlot','replace')
+set(MainAxes,'NextPlot','add')
 %constrain image axis to be square initially
 set(MainAxes,'Units','pixels');
 pos = get(MainAxes,'Position');
@@ -4772,11 +4857,6 @@ end
 imagesc(MainAxes,int16(dispimg));
 colormap(MainAxes,cmap);
 set(MainAxes,'CLim',[0 size(cmap,1)]);
-c = colorbar(MainAxes);
-c.Limits = [256 size(cmap,1)];
-c.Location = 'eastoutside';
-c.TickLabels = c.Ticks -255;
-c.Label.String = 'track length, # of frames';
 expDetailsStruct.expDateTitleStr = expDetailsStruct.expDateStr;
 [a,~] = regexp(expDetailsStruct.expDateTitleStr,'_');expDetailsStruct.expDateTitleStr(a) = '-';
 
@@ -4801,7 +4881,9 @@ if ~(tnum==1)
         idx = ~isnan(mainplotY(:,tnum));
         idxa = find(idx==1);
         if ~isempty(idxa)
-            cmaplz = colorcubemodified(length(idx),'colorcube');
+            if togStruct.trackUpdated
+                cmaplz = colorcubemodified(length(idx),'colorcube');
+            end
             cmapl = cmaplz;
             plotcmap = zeros(length(idxa),3);
             for i=1:length(idxa)
@@ -4819,7 +4901,7 @@ end
 set(MainAxes,'Color','none');
 set(MainAxes,'YTick',[]);
 set(MainAxes,'XTick',[]);
-
+togStruct.trackUpdated = false;
 end
 
 function cmaplz = colorcubemodified(cmaplength,cmapstr)
@@ -4878,6 +4960,8 @@ for j = 1:size(ccnew,2)
     ccnew(1:length(xq),j) = interp1(x,v,xq);
 end
 
+randidx = randi(size(ccnew,1),1,size(ccnew,1));
+ccnew = ccnew(randidx,:);
 cmaplz = ccnew;
 end
 
