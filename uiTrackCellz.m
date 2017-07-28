@@ -1,5 +1,5 @@
 function uiTrackCellz(FileDate,AutoTrackStr)
-global  stimulationFrame Tracked chanbkgmedianmat nucbkgmedianmat pStruct timeVec expDetailsStruct dirStruct timeSteps DivisionStruct segStruct foStruct xAxisLimits DICimgstack pathStruct segmentimgstack channelimgstack ExportNameKey ExportName plottingTotalOrMedian channelinputs tcontrast lcontrast ThirdPlotAxes SecondPlotAxes togStruct PlotAxes cmap  timeFrames frameToLoad ImageDetails MainAxes SceneList
+global  ttl stimulationFrame Tracked chanbkgmedianmat nucbkgmedianmat pStruct timeVec expDetailsStruct dirStruct timeSteps DivisionStruct segStruct foStruct xAxisLimits DICimgstack pathStruct segmentimgstack channelimgstack ExportNameKey ExportName plottingTotalOrMedian channelinputs tcontrast lcontrast ThirdPlotAxes SecondPlotAxes togStruct PlotAxes cmap  timeFrames frameToLoad ImageDetails MainAxes SceneList
 
 close all
 
@@ -453,6 +453,7 @@ c.Limits = [256 size(cmap,1)];
 c.Location = 'eastoutside';
 c.TickLabels = c.Ticks -255;
 c.Label.String = 'track length, # of frames';
+ttl = get(MainAxes,'Title');
 
 
 PlotAxes = axes;
@@ -627,6 +628,8 @@ switch key
         loadTrackingFile_callback([],[])
     case 'p'
         Plot_callback([],[])
+    case 'o'
+        Plot_SpecificCell_callback([],[])
 %     case 'o'
 %         labelCells;
 %     case 'u'
@@ -913,7 +916,6 @@ keepArray=[];
 allArray=[];
 
 button=1;
-while button==1
     [polyx,polyy,button] = ginput();
     button = round(mean(button));
     
@@ -936,12 +938,12 @@ while button==1
             
             if ~isempty(index)
                 %find location in trackmatrix [trackmatrix(frame,tracknum)]
-                trackmatrixframe = trackmatrix(t,:);
+                alltrackframe = trackmatrix(t,:);
                 trackidx = zeros(size(index));
                 tracklength = zeros(size(index));
                 for j = 1:length(index)
                     indexnum = index(j);
-                    ti = find(trackmatrixframe == indexnum);
+                    ti = find(alltrackframe == indexnum);
                     if ~isempty(ti)
                         trackidx(j) = ti;
                         tracklength(j) = sum(~isnan(trackmatrix(:,j)));
@@ -982,12 +984,9 @@ while button==1
     else
         if isempty(tvec)
             return
-        else
-            break
         end
     end
     %array struct does not work here because it runs twice!
-end
 ArrayStruct = updateArrayStruct(ArrayStruct,PXarray,tvec,dropArray,newArray,keepArray,allArray,trackmatrix,ImageDetails.ImgSize); %this is not ideal for updating trackmatrix or removing
 Tracked.arrayStruct = ArrayStruct;
 Tracked.trackmatrix = trackmatrix;
@@ -1257,7 +1256,7 @@ while a ==1
         for t = tkeeper:timeFrames
             ImageDetails.Frame = t;
             setSceneAndTime
-            pause(0.05)
+            pause(0.01)
             nanidx = isnan(trackmatrix(t,cellnum));
             if nanidx
                 broken = true;
@@ -1458,11 +1457,8 @@ end
 %find cell
 [idx,~,~] = findCellByCoordinate(Tracked,ImageDetails.ImgSize,cxx,cyy,t);
 alltrackframe = trackmatrix(t,:);
-if ~isempty(idx)
-    cellnum = zeros(1,length(idx));
-    for i = 1:length(idx)
-        cellnum(i) = find(idx(i)==alltrackframe);
-    end
+cellnum = find(ismember(alltrackframe,idx));
+if ~isempty(cellnum)
     trackmatrix(1:t-1,cellnum) = NaN;
     ucell = 1:size(trackmatrix,2);
     trackmatrix = refineTrackingMatrix(trackmatrix,ucell);
@@ -1483,11 +1479,8 @@ end
 %find cell
 [idx,~,~] = findCellByCoordinate(Tracked,ImageDetails.ImgSize,cxx,cyy,t);
 alltrackframe = trackmatrix(t,:);
-if ~isempty(idx)
-    cellnum = zeros(1,length(idx));
-    for i = 1:length(idx)
-        cellnum(i) = find(idx(i)==alltrackframe);
-    end
+cellnum = find(ismember(alltrackframe,idx));
+if ~isempty(cellnum)
     trackmatrix(t+1:end,cellnum) = NaN;
     ucell = 1:size(trackmatrix,2);
     trackmatrix = refineTrackingMatrix(trackmatrix,ucell);
@@ -1509,11 +1502,8 @@ end
 %find cell
 [idx,~,~] = findCellByCoordinate(Tracked,ImageDetails.ImgSize,cxx,cyy,t);
 alltrackframe = trackmatrix(t,:);
-if ~isempty(idx)
-    cellnum = zeros(1,length(idx));
-    for i = 1:length(idx)
-        cellnum(i) = find(idx(i)==alltrackframe);
-    end
+cellnum = find(ismember(alltrackframe,idx));
+if ~isempty(cellnum)
     trackmatrix(:,cellnum) = NaN;
     ucell = 1:size(trackmatrix,2);
     trackmatrix = refineTrackingMatrix(trackmatrix,ucell);
@@ -1536,11 +1526,8 @@ end
 %find cell
 [idx,~,~] = findCellByCoordinate(Tracked,ImageDetails.ImgSize,cxx,cyy,t);
 alltrackframe = trackmatrix(t,:);
-if ~isempty(idx)
-    cellnum = zeros(1,length(idx));
-    for i = 1:length(idx)
-        cellnum(i) = find(idx(i)==alltrackframe);
-    end
+cellnum = find(ismember(alltrackframe,idx));
+if ~isempty(cellnum)
     trackmatrix(t,cellnum) = NaN;
     ucell = 1:size(trackmatrix,2);
     trackmatrix = refineTrackingMatrix(trackmatrix,ucell);
@@ -1563,11 +1550,8 @@ end
 %find cell
 [idx,~,~] = findCellByCoordinate(Tracked,ImageDetails.ImgSize,cxx,cyy,t);
 alltrackframe = trackmatrix(t,:);
-if ~isempty(idx)
-    cellnum = zeros(1,length(idx));
-    for i = 1:length(idx)
-        cellnum(i) = find(idx(i)==alltrackframe);
-    end
+cellnum = find(ismember(alltrackframe,idx));
+if ~isempty(cellnum)
     cellmatlog = true(1,size(trackmatrix,2));
     cellmatlog(cellnum) = false;
     trackmatrix(:,cellmatlog) = NaN;
@@ -4154,7 +4138,7 @@ for iNW = 1:nWorkers
             %two cells are the same
             knnnum = 5;
             [distProb,~,distcut] = probSpitter(centroids,centroidsPrev,knnnum,displacementCutoff,[]);
-            [areaProbette,~,areacut] = probSpitter(area,areaPrev,size(area,1),[],1.1);
+            [areaProbette,~,areacut] = probSpitter(area,areaPrev,size(area,1),[],1.2);
             [nucFluorProbette,~,nuccut] = probSpitter(nucfluor,nucfluorPrev,size(nucfluor,1),[],1.2);
             [cellFluorProbette,~,cellcut] = probSpitter(cellfluor,cellfluorPrev,size(cellfluor,1),[],1.2);
             newProb = distProb.*areaProbette.*nucFluorProbette.*cellFluorProbette;
@@ -4163,7 +4147,7 @@ for iNW = 1:nWorkers
             
             %centroids [37x2] centroidPrev[34x2] idx[34x3] distProb[34x37];
             trackProb = distProb;
-            trackProb(distcut|nuccut)=0;
+            trackProb(distcut|nuccut|areacut)=0;
             [maxvals,idx] = max(trackProb,[],2); %idx is index of input that matches to inputPrev such that input(idx) = inputPrev;
             %idx has length(idx) = length(inputPrev);
             %idx has max(idx) = length(input);
@@ -4616,8 +4600,10 @@ elseif strcmp(ImageDetails.Channel,'BKGbinary')
 elseif strcmp(ImageDetails.Channel,'reporter_quantify')
 elseif strcmp(ImageDetails.Channel,'overlay')
     channelimg = zeros(size(cellImg,1),size(cellImg,2),3);
-    channelimg(:,:,1) = nucleusImg;
-    channelimg(:,:,2) = cellImg;
+    bkgmedian = chanbkgmedianmat(t);
+    nucbkgmedian = nucbkgmedianmat(t);
+    channelimg(:,:,1) = nucleusImg-nucbkgmedian;
+    channelimg(:,:,2) = cellImg-bkgmedian;
     channelimg(:,:,3) = DICImg;
     bkgmedian = chanbkgmedianmat(t);
 end
@@ -4751,7 +4737,7 @@ if ~isempty(centroids)
 end
 end
 function displayImageFunct(If,channelimg,bkgmedian)
-global oldscenename expDetailsStruct togStruct timeFrames tcontrast lcontrast MainAxes ImageDetails prcntl lprcntl cmap cmaplz
+global ttl oldscenename expDetailsStruct togStruct timeFrames tcontrast lcontrast MainAxes ImageDetails prcntl lprcntl cmap cmaplz
 
 scenestr = ImageDetails.Scene;
 tnum = ImageDetails.Frame;
@@ -4798,6 +4784,13 @@ end
 if strcmp(ImageDetails.Channel,'overlay') %when overlay display is desired
     disprgb = zeros(size(channelimg));
     channelimgrgb = channelimg;
+    Ifrgb = ind2rgb(single(If)+258,cmap);
+    lprcntl = prctile(Ifrgb(:),0);
+    prcntl = prctile(Ifrgb(:),100);
+    scaleFactor = 255./(prcntl - lprcntl);
+    Ifrgb = Ifrgb.*scaleFactor;
+    Ifrgb = Ifrgb-(lprcntl.*scaleFactor);
+    
     for i = 1:size(channelimg,3)
         if i==3
             channelimg = channelimgrgb(:,:,i);
@@ -4810,7 +4803,7 @@ if strcmp(ImageDetails.Channel,'overlay') %when overlay display is desired
             dispimg(dispimg<0) = 0;
         else
             channelimg = channelimgrgb(:,:,i);
-            lprcntl = prctile(channelimg(:),lcontrast);
+            lprcntl = -100;
             prcntl = prctile(channelimg(:),tcontrast);
             scaleFactor = 255./(prcntl - lprcntl);
             dispimg = channelimg.*scaleFactor;
@@ -4819,9 +4812,8 @@ if strcmp(ImageDetails.Channel,'overlay') %when overlay display is desired
             dispimg(dispimg<0) = 0;
         end
         
+        
         if i==1
-            If = bwperim(If) | bwperim(imdilate(If,strel('disk',1)));
-            dispimg(If>0)=255;
             disprgb(:,:,i) = dispimg;
         elseif i==2
             disprgb(:,:,i) = dispimg;
@@ -4834,33 +4826,45 @@ if strcmp(ImageDetails.Channel,'overlay') %when overlay display is desired
         end
     end
     
+    for i = 1:size(channelimg,3)
+        Ifsub = Ifrgb(:,:,i);
+        dispimg = disprgb(:,:,i);
+        dispimg(If>0) = Ifsub(If>0);
+        disprgb(:,:,i) = dispimg;
+    end
+    
+    
     dispimg = disprgb;
+    dispimg = uint8(dispimg);
+    imagesc(MainAxes,dispimg);
+    colormap(MainAxes,cmap);
+    set(MainAxes,'CLim',[0 size(cmap,1)]);
     
 else  %under normal circumstances
     if togStruct.changeSceneOrChannel ==1
         prcntl = prctile(channelimg(:),tcontrast);
         togStruct.changeSceneOrChannel =0;
     end
-%     lprcntl = bkgmedian.*0.90;
+    %     lprcntl = bkgmedian.*0.90;
     lprcntl = bkgmedian;
     scaleFactor = 255./(prcntl - lprcntl);
     dispimg = channelimg.*scaleFactor;
     dispimg = dispimg-(lprcntl.*scaleFactor);
     dispimg(dispimg > 250) =253;
     dispimg(dispimg < 0) = 0;
-%     dispimg(If>0)=255;
+    %     dispimg(If>0)=255;
     dispimg(If>0)=If(If>0)+257;
-    
+    imagesc(MainAxes,int16(dispimg));
+    colormap(MainAxes,cmap);
+    set(MainAxes,'CLim',[0 size(cmap,1)]);
 end
 
 %title the displayed image
-imagesc(MainAxes,int16(dispimg));
-colormap(MainAxes,cmap);
-set(MainAxes,'CLim',[0 size(cmap,1)]);
+
 expDetailsStruct.expDateTitleStr = expDetailsStruct.expDateStr;
 [a,~] = regexp(expDetailsStruct.expDateTitleStr,'_');expDetailsStruct.expDateTitleStr(a) = '-';
 
-ttl = get(MainAxes,'Title');
+% title([expDetailsStruct.expDateTitleStr ' ' scenestr ' frame ' num2str(tnum) ' out of ' num2str(timeFrames)]);
 set(ttl,'String',[expDetailsStruct.expDateTitleStr ' ' scenestr ' frame ' num2str(tnum) ' out of ' num2str(timeFrames)]);
 set(ttl,'FontSize',12);
 set(MainAxes,'NextPlot','add')
@@ -4882,6 +4886,8 @@ if ~(tnum==1)
         idxa = find(idx==1);
         if ~isempty(idxa)
             if togStruct.trackUpdated
+                cmaplz = colorcubemodified(length(idx),'colorcube');
+            elseif ~(size(cmaplz,1)==length(idx))
                 cmaplz = colorcubemodified(length(idx),'colorcube');
             end
             cmapl = cmaplz;
