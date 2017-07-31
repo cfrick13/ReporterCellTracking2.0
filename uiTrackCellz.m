@@ -1,5 +1,5 @@
 function uiTrackCellz(FileDate,AutoTrackStr)
-global  ttl stimulationFrame Tracked chanbkgmedianmat nucbkgmedianmat pStruct timeVec expDetailsStruct dirStruct timeSteps DivisionStruct segStruct foStruct xAxisLimits DICimgstack pathStruct segmentimgstack channelimgstack ExportNameKey ExportName plottingTotalOrMedian channelinputs tcontrast lcontrast ThirdPlotAxes SecondPlotAxes togStruct PlotAxes cmap  timeFrames frameToLoad ImageDetails MainAxes SceneList
+global  mainfig ttl stimulationFrame Tracked chanbkgmedianmat nucbkgmedianmat pStruct timeVec expDetailsStruct dirStruct timeSteps DivisionStruct segStruct foStruct xAxisLimits DICimgstack pathStruct segmentimgstack channelimgstack ExportNameKey ExportName plottingTotalOrMedian channelinputs tcontrast lcontrast ThirdPlotAxes SecondPlotAxes togStruct PlotAxes cmap  timeFrames frameToLoad ImageDetails MainAxes SceneList
 
 close all
 
@@ -180,12 +180,13 @@ xAxisLimits = [0 timeFrames];
 
 
 %% set up user interface
-f = figure(1);
+fnum=22;
+mainfig = figure(fnum);
 initialsize = [1 1 2560 1080];
-f.Units = 'pixels';
+mainfig.Units = 'pixels';
 figdim = [initialsize(3) initialsize(4)];
 fpos = [1 1 figdim(1) figdim(2)];
-f.Position = fpos;
+mainfig.Position = fpos;
 fW = fpos(3);
 fH = fpos(4);
 
@@ -432,10 +433,10 @@ uicontrol('Style','pushbutton',...
 
 
 %refine figure details
-f.Visible = 'on'   ;
-f.Units = 'normalized';
-for i = 1:length(f.Children)
-    hhh = f.Children(i);
+mainfig.Visible = 'on'   ;
+mainfig.Units = 'normalized';
+for i = 1:length(mainfig.Children)
+    hhh = mainfig.Children(i);
     hhh.Units = 'normalized';
 end
 
@@ -483,13 +484,13 @@ pos = ThirdPlotAxes.Position;
 pos(2:4) = [0.2605    0.1500    0.1500];
 ThirdPlotAxes.Position = pos;
 
-f.Units = 'pixels';
+mainfig.Units = 'pixels';
 scrnsize = get(0,'screensize');
 fpos = scrnsize;
 fpos(1) = scrnsize(3)/2;
 fpos(3) = scrnsize(3)/2;
 fpos(4) = scrnsize(4).*0.75;
-f.Position = fpos;
+mainfig.Position = fpos;
 
 %constrain image axis to be square initially
 MainAxes.Units = 'pixels';
@@ -502,8 +503,8 @@ pos(2)= 0.5 - pos(4)/2;
 MainAxes.Position = pos;
 
 
-f.Color = 'w';
-set(f,'KeyPressFcn',@keypress);
+mainfig.Color = 'w';
+set(mainfig,'KeyPressFcn',@keypress);
 
 
 pStruct = loadSegmentParameters([],FileName,dirStruct.exportdir); %loads saved value of pStruct
@@ -514,17 +515,17 @@ timeVec = rtimeMat(1,:)-rtimeMat(1,stimulationFrame);
 timeSteps = diff(round(timeVec),[],2);
 
 if strcmpi(AutoTrackStr,'AutoTrackCells')
-    f.Visible = 'off';
+    mainfig.Visible = 'off';
     trackSaveIterateChosen_callback([],[])
     % exportNuclei([],[])
-    close(f)
+    close(mainfig)
 elseif strcmpi(AutoTrackStr,'AutoExportNuclei')
     exportSegmentedCells([],[])
-    close(f)
+    close(mainfig)
 elseif strcmpi(AutoTrackStr,'AutoExportTracks')
-    f.Visible = 'off';
+    mainfig.Visible = 'off';
     exportTrackedCells([],[])
-    close(f)
+    close(mainfig)
 else
     Tracked = makeTrackingFile(timeFrames);
     ImageDetails.Scene = SceneList{1};
@@ -1063,14 +1064,19 @@ while button==1
                 
                 %define dropidx,keepidx,newidx
                 keepidx = index(samecells);
-                allidx = index(subindeces);
+                searchidx = index(subindeces);
                 newnum = find(newcells==1);
-                newidx = [];
+                newspotsidx = [];
+                searchupdateidx = ismember(histidx,newnum);
                 for k = 1:length(newnum)
-                    newn = allidx(find(newnum(k) == histidx));
-                    newidx = horzcat(newidx,newn);
+                    newn = searchidx(find(newnum(k) == histidx));
+                    newspotsidx = horzcat(newspotsidx,newn);
                 end
-                dropidx = horzcat(index(gonecells),unique(newidx)); %good
+                newidx = length(PX) + (1:length(newspotsidx));
+                dropidx = horzcat(index(gonecells),unique(newspotsidx)); %good
+%                 allidx = [newidx(:)' keepidx(:)'];
+                searchidx(searchupdateidx) = newidx;
+                allidx = searchidx;
                 pxnew = newPX; %good
             end
             
@@ -3813,33 +3819,27 @@ if ~isempty(newidx)
     %     oldtracklog(1:size(trackmatrix,1),1:size(trackmatrix,2)) = true;
     %     newtrackmatrix(oldtracklog) = trackmatrix;
     %     better method
+    
     newtrackmat = nan(size(trackmatrix,1),length(newidx));
-    alltrackframe = trackmatrix(t,:);
-    updatenewidx = (1:length(newidx)) + max(alltrackframe(~isnan(alltrackframe)));
+    updatenewidx = newidx;
     newtrackmat(t,:) = updatenewidx;
     newtrackmatrix = horzcat(trackmatrix,newtrackmat);
     trackmatrix = newtrackmatrix;
 end
 
-ucell = 1:size(trackmatrix,2);
+% ucell = 1:size(trackmatrix,2);
 % trackmatrix = refineTrackingMatrix(trackmatrix,ucell);
 
 end
 function ArrayStruct = updateArrayStruct(ArrayStruct,PXarray,tvec,dropArray,newArray,keepArray,allArray,trackmatrix,imgsize)
-global nucleusimgstack channelimgstack backgroundimgstack
+global nucleusimgstack channelimgstack
 
 
 %update image stack
 %background subtract nucleusimgstack
-nucleusimgstackz = zeros(size(nucleusimgstack));
-cellimgstackz = nucleusimgstackz;
-for i=1:size(nucleusimgstack,3)
-    nucI = nucleusimgstack(:,:,i);
-    cellI = channelimgstack(:,:,i);
-    bkgI = backgroundimgstack(:,:,i);
-    nucleusimgstackz(:,:,i) = nucI - nanmedian(nucI(bkgI));
-    cellimgstackz(:,:,i) = cellI - nanmedian(cellI(bkgI));
-end
+nucleusimgstackz = nucleusimgstack;
+cellimgstackz = channelimgstack;
+
 
 
 segment_Area_array = ArrayStruct.area;
@@ -3890,15 +3890,8 @@ for i = 1:length(tvec)
         
         
         if ~isempty(newidx)
-            %determine newnum
-            newnum = zeros(1,length(newidx));
-            newnumz = [];
-            for k = 1:length(newidx)
-                newnum = find(newidx(k)==allidx);
-                newnumz = horzcat(newnumz,newnum);
-            end
-            newnum = unique(newnumz);
-            
+            newnum = ismember(allidx,newidx);
+           
             segment_Area_array{tnum} = vertcat(segment_Area_array{tnum},areavec(newnum));
             segment_Centroid_array{tnum} = vertcat(segment_Centroid_array{tnum},centroidMat(newnum,:));
             segment_Pixels_array{tnum} = horzcat(segment_Pixels_array{tnum},PXnew(newnum));
@@ -3910,17 +3903,7 @@ for i = 1:length(tvec)
         end
         
         if ~isempty(keepidx)
-            %determine newnum
-            newnum = zeros(1,length(keepidx));
-            newnumz = [];
-            for k = 1:length(keepidx)
-                newnum = find(keepidx(k)==allidx);
-                newnumz = horzcat(newnumz,newnum);
-            end
-            newnum = unique(newnumz);
-            if ~(length(keepidx)==length(newnum))
-                error('wrong lengths')
-            end
+            newnum = ismember(allidx,keepidx);
             
             segment_Area_array{tnum}(keepidx) = areavec(newnum);
             segment_Centroid_array{tnum}(keepidx,true(1,size(centroidMat,2))) = centroidMat(newnum,:);
@@ -4403,20 +4386,20 @@ if ~isempty(foStruct.cfoName) %if channelfileObject has been made, check to see 
     [a,~] = regexp(foStruct.cfoName,ImageDetails.Scene);
     if isempty(a) %if the scene has changed load the new channelimgstack
         channelfileObject = matfile(filename);
-        channelimgstack = channelfileObject.flatstack;
+        chanimgstack = channelfileObject.flatstack;
         foStruct.cfoName = char(channelfileObject.Properties.Source);%update foStruct.cfoName
     elseif ~isempty(a) && isempty(channelimgstack)  %if the scene is same but unloaded
         channelfileObject = matfile(filename);
-        channelimgstack = channelfileObject.flatstack;
+        chanimgstack = channelfileObject.flatstack;
         foStruct.cfoName = char(channelfileObject.Properties.Source);%update foStruct.cfoName
     else
     end
 else %if no foStruct.cfoName, then
     channelfileObject = matfile(filename);
-    channelimgstack = channelfileObject.flatstack;
+    chanimgstack = channelfileObject.flatstack;
     foStruct.cfoName = char(channelfileObject.Properties.Source);%update foStruct.cfoName
 end
-cellImg = channelimgstack(:,:,t);
+
 
 %choose the nucleus image
 cd(pathStruct.mstackPath)
@@ -4426,21 +4409,21 @@ if ~isempty(foStruct.nfoName) %if channelfileObject has been made, check to see 
     [a,~] = regexp(foStruct.nfoName,ImageDetails.Scene);
     if isempty(a) %if the scene has changed load the new channelimgstack
         nucleusfileObject = matfile(filename);
-        nucleusimgstack = nucleusfileObject.flatstack;
+        nucimgstack = nucleusfileObject.flatstack;
         foStruct.nfoName = char(nucleusfileObject.Properties.Source);%update foStruct.cfoName
     elseif ~isempty(a) && isempty(nucleusimgstack)  %if the scene is same but unloaded
         nucleusfileObject = matfile(filename);
-        nucleusimgstack = nucleusfileObject.flatstack;
+        nucimgstack = nucleusfileObject.flatstack;
         foStruct.nfoName = char(nucleusfileObject.Properties.Source);%update foStruct.cfoName
     else
         %dont do anything
     end
 else %if no foStruct.cfoName, then
     nucleusfileObject = matfile(filename);
-    nucleusimgstack = nucleusfileObject.flatstack;
+    nucimgstack = nucleusfileObject.flatstack;
     foStruct.nfoName = char(nucleusfileObject.Properties.Source);%update foStruct.cfoName
 end
-nucleusImg = nucleusimgstack(:,:,t);
+
 
 
 %choose the DIC image
@@ -4471,7 +4454,7 @@ else %if no foStruct.cfoName, then
         foStruct.dfoName = filename;
     end
 end
-DICImg = DICimgstack(:,:,t);
+
 
 
 %load nucleus segmented image
@@ -4499,7 +4482,7 @@ else %if no foStruct.cfoName, then
     segmentimgstack = segmentfileObject.IfFinal;
     foStruct.sfoName = char(segmentfileObject.Properties.Source);%update foStruct.cfoName
 end
-segmentimg = segmentimgstack(:,:,t);
+
 
 
 
@@ -4536,16 +4519,27 @@ if updatebkgmedianmat %udpdate background subtraction if new files loaded
     for k = 1:size(backgroundimgstack,3)
         backgroundimg = backgroundimgstack(:,:,k);
         segimg = segmentimgstack(:,:,k);
-        chanimg = channelimgstack(:,:,k);
-        nucimg = nucleusimgstack(:,:,k);
+        chanimg = chanimgstack(:,:,k);
+        nucimg = nucimgstack(:,:,k);
         backgroundimg(segimg) = true;
         bkgpixels = chanimg(~backgroundimg);
         nucbkgpixels = nucimg(~backgroundimg);
-        chanbkgmedianmat(k) = nanmedian(bkgpixels);
-        nucbkgmedianmat(k) = nanmedian(nucbkgpixels);
+        nucbkg = nanmedian(nucbkgpixels);
+        chanbkg = nanmedian(bkgpixels);
+        chanbkgmedianmat(k) = chanbkg;
+        nucbkgmedianmat(k) = nucbkg;
+        nucleusimgstack(:,:,k) = nucimg - single(nucbkg);
+        channelimgstack(:,:,k) = chanimg - single(chanbkg);
     end
     clear segimg chanimg nucimg
+    
 end
+
+
+cellImg = channelimgstack(:,:,t);
+nucleusImg = nucleusimgstack(:,:,t);
+DICImg = DICimgstack(:,:,t);
+segmentimg = segmentimgstack(:,:,t);
 backgroundimg = backgroundimgstack(:,:,t);
 
 
@@ -4581,9 +4575,11 @@ end
 if strcmp(ImageDetails.Channel,segStruct.nucleus_seg)
     channelimg = nucleusImg;
     bkgmedian = nucbkgmedianmat(t);
+    bkgmedian = 0;
 elseif strcmp(ImageDetails.Channel,segStruct.cell_seg)
     channelimg = cellImg;
     bkgmedian = chanbkgmedianmat(t);
+    bkgmedian = 0;
 elseif strcmp(ImageDetails.Channel,'EGFP')
     channelimg = cellImg;
     bkgmedian = chanbkgmedianmat(t);
@@ -4737,11 +4733,11 @@ if ~isempty(centroids)
 end
 end
 function displayImageFunct(If,channelimg,bkgmedian)
-global ttl oldscenename expDetailsStruct togStruct timeFrames tcontrast lcontrast MainAxes ImageDetails prcntl lprcntl cmap cmaplz
+global mainfig ttl oldscenename expDetailsStruct togStruct timeFrames tcontrast lcontrast MainAxes ImageDetails prcntl lprcntl cmap cmaplz
 
 scenestr = ImageDetails.Scene;
 tnum = ImageDetails.Frame;
-
+figure(mainfig)
 %delete old images to keep memory usage low
 children1 = findobj(MainAxes,'Type','image');
 children2 = findobj(MainAxes,'Type','Line');
