@@ -1,5 +1,5 @@
 function uiTrackCellz(FileDate,AutoTrackStr)
-global  mainfig ttl stimulationFrame Tracked chanbkgmedianmat nucbkgmedianmat pStruct timeVec expDetailsStruct dirStruct timeSteps DivisionStruct segStruct foStruct xAxisLimits DICimgstack pathStruct segmentimgstack channelimgstack ExportNameKey ExportName plottingTotalOrMedian channelinputs tcontrast lcontrast ThirdPlotAxes SecondPlotAxes togStruct PlotAxes cmap  timeFrames frameToLoad ImageDetails MainAxes SceneList
+global  medmeantot mainfig stimulationFrame Tracked chanbkgmedianmat nucbkgmedianmat pStruct timeVec expDetailsStruct dirStruct timeSteps DivisionStruct segStruct foStruct xAxisLimits DICimgstack pathStruct segmentimgstack channelimgstack ExportNameKey ExportName plottingTotalOrMedian channelinputs tcontrast lcontrast ThirdPlotAxes SecondPlotAxes togStruct PlotAxes cmap  timeFrames frameToLoad ImageDetails MainAxes SceneList
 
 close all
 
@@ -45,6 +45,7 @@ togStruct.displayTrackingToggle = false;
 plottingTotalOrMedian = 'median';
 tcontrast = 99;
 lcontrast = 1;
+medmeantot = 'total';
 
 
 %determine export details
@@ -465,7 +466,6 @@ c.Limits = [256 size(cmap,1)];
 c.Location = 'eastoutside';
 c.TickLabels = c.Ticks -255;
 c.Label.String = 'track length, # of frames';
-ttl = get(MainAxes,'Title');
 
 
 PlotAxes = axes;
@@ -512,7 +512,9 @@ MainAxes.Units = 'normalized';
 pos = MainAxes.Position;
 pos(2)= 0.5 - pos(4)/2;
 MainAxes.Position = pos;
-
+imgsize =ImageDetails.ImgSize;
+MainAxes.YAxis.Limits = [0 imgsize(1)];
+MainAxes.XAxis.Limits = [0 imgsize(2)];
 
 mainfig.Color = 'w';
 set(mainfig,'KeyPressFcn',@keypress);
@@ -621,6 +623,8 @@ switch key
         breaklink_callback([],[]);
     case '9'
         breakEdge_callback([],[]);
+    case '8'
+        togglemmstr
     case 't'
         trackbutton_Callback([],[]);
     case 'v'
@@ -683,6 +687,18 @@ end
 end
 
 %% division functions
+function togglemmstr
+global medmeantot
+
+if strcmp(medmeantot,'median')
+    medmeantot = 'mean';
+elseif strcmp(medmeantot,'mean')
+    medmeantot = 'total';
+elseif strcmp(medmeantot,'total')
+    medmeantot = 'median';
+end
+Plot_callback([],[])
+end
 function divisionTrack_Callback(~,~)
 global ImageDetails Tracked MainAxes DivisionStruct
 
@@ -1202,9 +1218,9 @@ for i =1:length(cellind)
 end
 idx(isnan(idx))=[];
 notACell = isempty(idx);
-if ~notACell && ~isempty(idx)
-    plotTheChosenCells(idx);
-end
+% if ~notACell && ~isempty(idx)
+%     plotTheChosenCells(idx);
+% end
 end
 function linkCells_Callback(~,~)
 %fast link!
@@ -1217,6 +1233,7 @@ trackmatrix = Tracked.trackmatrix;
 cellxx = [];
 cellyy = [];
 cellnn = [];
+idxnn = [];
 timingkeeper=[];
 
 
@@ -1231,6 +1248,9 @@ while notACell %keep running until a cell is clicked
     end
     %find cell
     [idx,~,notACell] = findCellByCoordinate(Tracked,ImageDetails.ImgSize,cxx,cyy,tkeeper);
+    if ~notACell && ~isempty(idx)
+        plotTheChosenCells(idx);
+    end
 end
 cellxx =[cellxx(:)' cxx];
 cellyy =[cellyy(:)' cyy];
@@ -1245,6 +1265,7 @@ if isempty(cellnum)
     trackmatrix(t,cellnum) = idx;
 end
 cellnn = [cellnn(:)' cellnum];
+idxnn = [idxnn(:)' idx];
 
 a=1;
 while a ==1
@@ -1277,6 +1298,9 @@ while a ==1
             end
             %find cell
             [idx,~,notACell] = findCellByCoordinate(Tracked,ImageDetails.ImgSize,cxx,cyy,tkeeper);
+            if ~notACell && ~isempty(idx)
+                plotTheChosenCells(idx);
+            end
         end
         if isempty(button)
             break
@@ -1294,6 +1318,7 @@ while a ==1
             trackmatrix(t,cellnum) = idx;
         end
         cellnn = [cellnn(:)' cellnum];
+        idxnn = [idxnn(:)' idx];
     end
     
     if ~broken
@@ -1321,8 +1346,11 @@ trackmatrix = refineTrackingMatrix(newtrackmatrix,ucell);
 ImageDetails.Frame = max([1 ImageDetails.Frame-1]);
 Tracked.trackmatrix = trackmatrix;
 setSceneAndTime
+alltrackframe = trackmatrix(timingkeeper(1),:);
+idx = idxnn(1);
+cellnum = find(alltrackframe == idx);
 alltrackframe = trackmatrix(ImageDetails.Frame,:);
-idx = alltrackframe(cellLoc);
+idx = alltrackframe(cellnum);
     if  ~isempty(idx)
         plotTheChosenCells(idx);
     end
@@ -1447,7 +1475,11 @@ if ~isempty(cellnum)
     ucell = 1:size(trackmatrix,2);
     trackmatrix = refineTrackingMatrix(trackmatrix,ucell);
     Tracked.trackmatrix = trackmatrix;
+    if ~isempty(idx)
+        plotTheChosenCells(idx);
+    end
 end
+
 setSceneAndTime;
 end
 function destroybuttonSubsequent_Callback(~,~)
@@ -1469,8 +1501,12 @@ if ~isempty(cellnum)
     ucell = 1:size(trackmatrix,2);
     trackmatrix = refineTrackingMatrix(trackmatrix,ucell);
     Tracked.trackmatrix = trackmatrix;
+    if ~isempty(idx)
+        plotTheChosenCells(idx);
+    end
 end
 setSceneAndTime;
+plotTheChosenCells(idx);
 end
 
 function destroybutton_Callback(~,~)
@@ -1811,7 +1847,7 @@ togStruct.cfpNorm = 1;
 Plot_callback([],[]);
 end
 function Plot_callback(~,~)
-global segStruct xAxisLimits cmaplz SecondPlotAxes Tracked ImageDetails pathStruct timeFrames PlotAxes togStruct psettings cmap
+global medmeantot segStruct xAxisLimits cmaplz SecondPlotAxes Tracked ImageDetails pathStruct timeFrames PlotAxes togStruct psettings cmap
 
 trackmatrix = Tracked.trackmatrix;
 ArrayStruct = Tracked.arrayStruct;
@@ -1836,6 +1872,7 @@ smooththat=0;
 
     
     %second axes, plot fold-change
+    mmsstr = medmeantot;
     fcplotstr = 'FC';
     ylabelstr = 'fold change';
     if strcmp(ImageDetails.Channel,segStruct.cell_seg)
@@ -1845,7 +1882,7 @@ smooththat=0;
     else
         plotstr = ['Smad' fcplotstr];
     end
-    plotMat = plotStructUI.median.(plotstr);
+    plotMat = plotStructUI.(mmsstr).(plotstr);
     ylimit = [prctile(plotMat(:),0) prctile(plotMat(:),100)];
     
     idx = true(size(plotMat,1),1);
@@ -1870,11 +1907,12 @@ smooththat=0;
     
     SecondPlotAxes.XLim = ([xAxisLimits(1) xAxisLimits(2)]);
     SecondPlotAxes.YLim = (ylimit);
-    SecondPlotAxes.YLabel.String = ylabelstr;
+    SecondPlotAxes.YLabel.String = [ylabelstr ' ' mmsstr];
     SecondPlotAxes.XLabel.String = 'frames';
     SecondPlotAxes.XGrid = 'on';
     SecondPlotAxes.YGrid = 'on';
     SecondPlotAxes.Color = [0.95 0.95 0.95];
+    SecondPlotAxes.FontSize = 7;
     
     
     %main axes, plot abundance
@@ -1887,7 +1925,7 @@ smooththat=0;
     else
         plotstr = ['Smad' fcplotstr];
     end
-    plotMat = plotStructUI.median.(plotstr);
+    plotMat = plotStructUI.(mmsstr).(plotstr);
     ylimit = [prctile(plotMat(:),0) prctile(plotMat(:),100)];
     
     h = plot(PlotAxes,plotMat(idx,:)','LineWidth',2);
@@ -1907,12 +1945,14 @@ smooththat=0;
     
     PlotAxes.XLim = ([xAxisLimits(1) xAxisLimits(2)]);
     PlotAxes.YLim = ([prctile(plotMat(:),0.5)./1.2 prctile(plotMat(:),99.5).*1.2]);
-    PlotAxes.YLabel.String = ylabelstr;
+    PlotAxes.YLabel.String = [ylabelstr ' ' mmsstr];
     PlotAxes.XLabel.String = 'frames';
     PlotAxes.XGrid = 'on';
     PlotAxes.YGrid = 'on';
     PlotAxes.Color = [0.95 0.95 0.95];
     PlotAxes.Title.String = [ImageDetails.Channel ' in tracked cells'];
+    PlotAxes.FontSize = 7;
+
 end
 
 function plotAxis_callback(~,~)
@@ -1958,7 +1998,7 @@ end
 end
 
 function plotTheChosenCells(idxs) % Display mesh plot of the currently selected data.
-global togStruct cmaplz xAxisLimits ThirdPlotAxes Tracked ImageDetails pathStruct timeFrames psettings
+global togStruct cmaplz xAxisLimits ThirdPlotAxes Tracked ImageDetails pathStruct timeFrames psettings segStruct
 
 if togStruct.plotSettingsToggle == 0
     psettings = PlotSettings_callback([],[]);
@@ -1996,9 +2036,9 @@ for lrnum = [1 2]
         ylabelstr = 'abundance';
     end
     
-    if strcmp(ImageDetails.Channel,'EGFP')
+    if strcmp(ImageDetails.Channel,segStruct.cell_seg)
         plotstr = ['Smad' fcplotstr];
-    elseif strcmp(ImageDetails.Channel,'mKate')
+    elseif strcmp(ImageDetails.Channel,segStruct.nucleus_seg)
         plotstr = ['mkate' fcplotstr];
     else
         plotstr = ['Smad' fcplotstr];
@@ -2042,11 +2082,12 @@ for lrnum = [1 2]
 
     ThirdPlotAxes.XLim = ([xAxisLimits(1) xAxisLimits(2)]);
     ThirdPlotAxes.YLim = (ylimit);
-    ThirdPlotAxes.YLabel.String = ylabelstr;
+    ThirdPlotAxes.YLabel.String = [ylabelstr ''  mmsstr];
     ThirdPlotAxes.XLabel.String = 'frames';
     ThirdPlotAxes.XGrid = 'on';
     ThirdPlotAxes.YGrid = 'on';
     ThirdPlotAxes.Color = [0.95 0.95 0.95];
+    ThirdPlotAxes.FontSize = 7;
     
     
 
@@ -2122,6 +2163,12 @@ for k = 1:size(cellFluorInit,2)
     for i = 1:size(mkate,2)
         mkateFC(:,i) = mkate(:,i)./basalmkate;
     end
+    
+    nanvec= Smad(:,framesThatMustBeTracked(1));
+    nanidx = isnan(nanvec);
+    
+    SmadFC(nanidx,:) = NaN;
+    mkateFC(nanidx,:) = NaN;
     
     %     Smad,Cfp,mkate,CfpFC,SmadFC,mkateFC,Smadbkg,Cfpbkg,mkatebkg
     plotStructUI.(mmsstr).Smad = Smad;
@@ -3305,11 +3352,12 @@ toc
 end
 
 function Tracked = loadTrackedStructure
-global pathStruct timeFrames togStruct ImageDetails
+global pathStruct timeFrames togStruct ImageDetails MainAxes expDetailsStruct
 
+scenestr = ImageDetails.Scene;
 if togStruct.runIterate ==0
     cd(pathStruct.trackingPath)
-    trackfile = dir(strcat('*',ImageDetails.Scene,'*num_mmt.mat'));
+    trackfile = dir(strcat('*',scenestr,'*num_mmt.mat'));
     if ~isempty(trackfile)
         trackfilelist = {trackfile.name};
         Selection=[];
@@ -3331,7 +3379,12 @@ else
     Tracked = makeTrackingFile(timeFrames);
 end
 
+expDetailsStruct.expDateTitleStr = expDetailsStruct.expDateStr;
+[a,~] = regexp(expDetailsStruct.expDateTitleStr,'_');expDetailsStruct.expDateTitleStr(a) = '-';
 
+ttl = get(MainAxes,'Title');
+set(ttl,'String',[expDetailsStruct.expDateTitleStr ' ' scenestr]);
+set(ttl,'FontSize',12);
 end
 function loadTrackingFile_callback(~,~)
 global  Tracked togStruct
@@ -3698,9 +3751,9 @@ for i = 1:length(tvec)
         
         
 %         nucFluor = cellfun(@(x) nanmedian(nucI(x)),PXnew,'UniformOutput',1)';
-        nucFluor = horzcat(cellfun(@(x) nanmedian(nucI(x)),PX,'UniformOutput',1)',cellfun(@(x) nanmean(nucI(x)),PX,'UniformOutput',1)',cellfun(@(x) nansum(nucI(x)),PX,'UniformOutput',1)');
+        nucFluor = horzcat(cellfun(@(x) nanmedian(nucI(x)),PXnew,'UniformOutput',1)',cellfun(@(x) nanmean(nucI(x)),PXnew,'UniformOutput',1)',cellfun(@(x) nansum(nucI(x)),PXnew,'UniformOutput',1)');
 %         cellFluor = cellfun(@(x) nanmedian(cellI(x)),PXnew,'UniformOutput',1)';
-        cellFluor = horzcat(cellfun(@(x) nanmedian(cellI(x)),PX,'UniformOutput',1)',cellfun(@(x) nanmean(cellI(x)),PX,'UniformOutput',1)',cellfun(@(x) nansum(cellI(x)),PX,'UniformOutput',1)');
+        cellFluor = horzcat(cellfun(@(x) nanmedian(cellI(x)),PXnew,'UniformOutput',1)',cellfun(@(x) nanmean(cellI(x)),PXnew,'UniformOutput',1)',cellfun(@(x) nansum(cellI(x)),PXnew,'UniformOutput',1)');
         stdeval = cellfun(@(x) nanstd(nucI(x)),PXnew,'UniformOutput',1)';
 
         
@@ -4699,7 +4752,7 @@ if ~isempty(centroids)
 end
 end
 function displayImageFunct(If,channelimg,bkgmedian)
-global mainfig ttl oldscenename expDetailsStruct togStruct timeFrames tcontrast lcontrast MainAxes ImageDetails prcntl lprcntl cmap cmaplz
+global mainfig oldscenename expDetailsStruct togStruct timeFrames tcontrast lcontrast MainAxes ImageDetails prcntl lprcntl cmap cmaplz
 
 scenestr = ImageDetails.Scene;
 tnum = ImageDetails.Frame;
@@ -4707,8 +4760,12 @@ figure(mainfig)
 %delete old images to keep memory usage low
 children1 = findobj(MainAxes,'Type','image');
 children2 = findobj(MainAxes,'Type','Line');
+children3 = findobj(MainAxes,'Type','Text');
 delete(children1);
 delete(children2);
+delete(children3);
+% set(MainAxes,'NextPlot','replace')
+
 set(MainAxes,'NextPlot','add')
 %constrain image axis to be square initially
 set(MainAxes,'Units','pixels');
@@ -4829,13 +4886,16 @@ end
 
 %title the displayed image
 
-expDetailsStruct.expDateTitleStr = expDetailsStruct.expDateStr;
-[a,~] = regexp(expDetailsStruct.expDateTitleStr,'_');expDetailsStruct.expDateTitleStr(a) = '-';
 
-% title([expDetailsStruct.expDateTitleStr ' ' scenestr ' frame ' num2str(tnum) ' out of ' num2str(timeFrames)]);
-set(ttl,'String',[expDetailsStruct.expDateTitleStr ' ' scenestr ' frame ' num2str(tnum) ' out of ' num2str(timeFrames)]);
-set(ttl,'FontSize',12);
-set(MainAxes,'NextPlot','add')
+
+frametext= text(MainAxes,0,0,[' frame ' num2str(tnum) '/' num2str(timeFrames)]);
+% frametext.Units = 'normalized';
+imgsize = ImageDetails.ImgSize;
+textspace = round(imgsize(1)/100);
+texty = imgsize(2)-textspace*2;
+frametext.Position = [textspace texty];
+frametext.FontSize = 12;
+frametext.Color =[1 0 0];
 
 %plot cell tracking "tails"
 if ~(tnum==1)
@@ -4869,6 +4929,11 @@ if ~(tnum==1)
             t0 =max([1 tnum-20]);
             h = plot(MainAxes,x(:,t0:tnum)',y(:,t0:tnum)','LineWidth',2);
             set(h, {'color'}, num2cell(plotcmap,2));
+%             idxnum = find(idx);
+%             for i = 1:length(idxnum)
+%                 cellnum = num2str(idxnum(i));
+%                 t = text(x(i,tnum),y(i,tnum),cellnum);
+%             end
         end
     end
 end
@@ -4876,6 +4941,7 @@ set(MainAxes,'Color','none');
 set(MainAxes,'YTick',[]);
 set(MainAxes,'XTick',[]);
 togStruct.trackUpdated = false;
+drawnow
 end
 
 function cmaplz = colorcubemodified(cmaplength,cmapstr)
