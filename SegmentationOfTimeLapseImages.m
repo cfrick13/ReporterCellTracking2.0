@@ -66,12 +66,14 @@ nucleusFileList = dir(mstackPath);
 dlog = ~cellfun(@isempty,d,'UniformOutput',1); 
 dcell = d(dlog);
 SceneList = unique(cellfun(@(x) x{1},dcell,'UniformOutput',0));
+nucleusFileListArrayPre = {nucleusFileList.name};
+nucleusFileListArray = nucleusFileListArrayPre(dlog);
     
 [~,~,~,d] = regexp(SceneList,bkinputs);
 bkgscenelog = cellfun(@isempty,d,'UniformOutput',1);
 SceneList = SceneList(bkgscenelog);
 
-fileobject = matfile(char(nucleusFileList(3).name));
+fileobject = matfile(nucleusFileListArray{1});
 imgstack = fileobject.flatstack;
     %determine number of parallel cores to employ based on memory requirements
         dim = size(imgstack);

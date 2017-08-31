@@ -547,7 +547,7 @@ function plotTestOut(testOut,channel)
     stringsToTest = {'rawMinusLPScaled','Inew','gradmag2','Ieg'};
     else
 %     stringsToTest = {'rawMinusLPScaled','Ih','Ihcd','Shapes'};
-    stringsToTest = {'imgRawDenoised','Inew','gradmag2','fgm4'};
+    stringsToTest = {'imgRawDenoised','Inew','imgLowPass','Ih'};
     end
     for i = 1:length(subaxestwo)
     axes(subaxestwo(i))

@@ -65,57 +65,145 @@ elseif percentageOfImageSegmented == 0
     percentageOfImageSegmented = 1;
 end
 
+newlog = img<prctile(img(~Ih),0.5);
+newlogclose = imclose(newlog,strel('disk',20));
+newlogclose(Ih) = false;
+newlogclose(img>prctile(img(Ih),0.5)) = false;
+newlogcloseclose = imclose(newlogclose,strel('disk',5));
+If = ~newlogcloseclose;
+
+% 
+% 
+% %try someting new
+% %first inmeanvals
+% inmean0 = prctile(img(~Ih),95);
+% instd0 = nanstd(img(~Ih));
+% 
+% %next iteratively erode and dilate
+% origlog = ~Ih;
+% inmeanvals = [];
+% instdvals =[];
+% senumvec =[];
+% sevec = 5:5:100;
+% for senum = 1:length(sevec)
+%     se = strel('disk',sevec(senum));
+%     Ihe = imdilate(origlog,se);
+%     sumihe = sum(~Ihe);
+%     if sumihe<100
+%         break
+%     end
+%     inmean = prctile(img(Ihe),95);
+%     instd = nanstd(img(Ihe));
+%     inmeanvals = [inmeanvals(:)' inmean(:)'];
+%     instdvals = [instdvals(:)' instd(:)'];
+%     senumvec = [senumvec(:)' -sevec(senum)'];
+% end
+% cycle1 = senum-1;
+% inmean1 = inmeanvals;
+% instd1 = instdvals;
+% senum1 = senumvec;
+% 
+% origlog = ~Ih;
+% inmeanvals = [];
+% instdvals =[];
+% senumvec =[];
+% sevec = 5:5:100;
+% for senum = 1:length(sevec)
+%     se = strel('disk',sevec(senum));
+%     Ihe = imerode(origlog,se);
+%     sumihe = sum(Ihe);
+%     if sumihe<100
+%         break
+%     end
+%     inmean = prctile(img(Ihe),95);
+%     instd = nanstd(img(Ihe));
+%     inmeanvals = [inmeanvals(:)' inmean(:)'];
+%     instdvals = [instdvals(:)' instd(:)'];    
+%     senumvec = [senumvec(:)' sevec(senum)'];
+% end
+% cycle2=senum-1;
+% inmean2 = inmeanvals;
+% instd2 = instdvals;
+% senum2 = senumvec;
+% 
+% 
+% 
+% meanvals = [inmean1(:)' inmean0 inmean2(:)'];
+% stdvals = [instd1(:)' instd0 instd2(:)'];
+% senumvals = [senum1(:)' 0 senum2(:)'];
+% 
+% 
+% midx = meanvals < min(meanvals)*1.05;
+% sidx = stdvals < min(stdvals)*1.05;
+% nidx = midx & sidx;
+% seidx = senumvals(nidx);
+% 
+% senum = seidx(1);
+% if senum<0
+%     se = strel('disk',abs(senum));
+%     Ihnew = imdilate(origlog,se);
+%     %imdilate
+% else
+%     se = strel('disk',senum);
+%     Ihnew = imerode(origlog,se);
+% end
+%     
+% If = Ihnew;
     
-    imgW = wiener2(img,[1 20]);
-    imgWW = wiener2(imgW,[20 1]);
-    imgWWW = wiener2(imgWW,[5 5]);
-    imgRawDenoised = imgWWW;
-    denoiseVec = single(reshape(imgRawDenoised,size(imgRawDenoised,1)^2,1));
-    highpoints = prctile(imgWWW(Ih),percentSmoothed);
-%     highpoints = prctile(denoiseVec,percentageOfImageSegmented);
-    a = sum(imgRawDenoised(:)>highpoints)>(size(imgW,1)*size(imgW,2).*0.85);
-    stepup=1;
-    newperc = 1;
-    while a==1
-        newperc = newperc+stepup;
-        highpoints = prctile(imgWWW(Ih),newperc);
-        a = sum(imgRawDenoised(:)>highpoints)>(size(imgW,1)*size(imgW,2).*0.85);
-    end
-    imgRawDenoised(imgRawDenoised>highpoints) = highpoints;
-
- 
-    
-
-
-    If = imgRawDenoised;
-%     If = Im;
-    mmIf = max(If(:)) ;
-    If(If<mmIf)=0;
-    If(If == mmIf)=1;
-    If = logical(If);
-    arealimit = min([(100-percentageOfImageSegmented) 5]);
-    imgarea = (size(If,1).*size(If,2));
-
-   a = length(If==0);
-   width = 10;
-   Ig= If;
-   while  1
-       se = strel('disk',width);
-       a = ((imgarea-sum(Ig(:)))./imgarea).*100;
-       if a<arealimit
-           break
-       else
-            Ig = imdilate(Ig,se);
-       end
-
-   end
-
-   if sum(~Ig(:))>0
-       If = Ig;
-   else
-       %If=If;
-   end
-   
+%     imgW = wiener2(img,[1 20]);
+%     imgWW = wiener2(imgW,[20 1]);
+%     imgWWW = wiener2(imgWW,[5 5]);
+%     imgRawDenoised = imgWWW;
+%     denoiseVec = single(reshape(imgRawDenoised,size(imgRawDenoised,1)^2,1));
+%     highpoints = prctile(imgWWW(Ih),percentSmoothed);
+% %     highpoints = prctile(denoiseVec,percentageOfImageSegmented);
+% 
+% 
+% %what is this for?????
+%     a = sum(imgRawDenoised(:)>highpoints)>(size(imgW,1)*size(imgW,2).*0.85);
+%     stepup=1;
+%     newperc = 1;
+%     areacriteria = size(imgW,1)*size(imgW,2).*0.85;
+%     while a==1
+%         newperc = newperc+stepup;
+%         highpoints = prctile(imgWWW(Ih),newperc);
+%         a = sum(imgRawDenoised(:)>highpoints)>areacriteria;
+%     end
+%     imgRawDenoised(imgRawDenoised>highpoints) = highpoints;
+% 
+%  
+%     
+% 
+% 
+%     If = imgRawDenoised;
+% %     If = Im;
+%     mmIf = max(If(:)) ;
+%     If(If<mmIf)=0;
+%     If(If == mmIf)=1;
+%     If = logical(If);
+%     arealimit = min([(100-percentageOfImageSegmented) 5]);
+%     imgarea = (size(If,1).*size(If,2));
+% 
+%    a = length(If==0);
+%    width = 10;
+%    Ig= If;
+%    while  1
+%        se = strel('disk',width);
+%        a = ((imgarea-sum(Ig(:)))./imgarea).*100;
+%        if a<arealimit
+%            break
+%        else
+%             Ig = imdilate(Ig,se);
+%        end
+% 
+%    end
+% 
+%    if sum(~Ig(:))>0
+%        If = Ig;
+%    else
+%        %If=If;
+%    end
+%    
    
   Im= zeros(size(imgW));
   

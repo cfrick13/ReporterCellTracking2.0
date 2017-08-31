@@ -21,7 +21,16 @@ fullT = tic;
             '2017_04_29 plate exp1','2017_05_01 plate exp1','2017_05_03 plate exp1','2017_05_03 plate exp2',...
             '2017_06_22 plate exp1','2017_06_24 plate exp1','2017_06_24 plate exp2',...
             '2017_06_24 plate exp3','2017_06_24 plate exp4','2017_06_26 plate exp2','2017_07_01 plate exp1',...
-            '2017_07_01 plate exp2','2017_07_03 plate exp1','2017_07_03 plate exp2','2017_07_05 plate exp1'};
+            '2017_07_01 plate exp2','2017_07_03 plate exp1','2017_07_03 plate exp2','2017_07_05 plate exp1',...
+            '2017_07_07 plate exp1','2017_07_08 plate exp1','2017_07_14 plate exp1'};
+        
+                dateArray = {'2017_04_14 plate exp2','2017_04_12 plate exp8','2017_04_12 plate exp5',...
+            '2017_04_17 plate exp2','2017_04_17 plate exp3','2017_04_17 plate exp4',...
+            '2017_04_29 plate exp1','2017_05_01 plate exp1','2017_05_03 plate exp1','2017_05_03 plate exp2',...
+            '2017_06_22 plate exp1','2017_06_24 plate exp1','2017_06_24 plate exp2',...
+            '2017_06_24 plate exp3','2017_06_24 plate exp4','2017_06_26 plate exp2','2017_07_01 plate exp1',...
+            '2017_07_01 plate exp2'};
+        
         
 %         dateArray = {'2017_07_01 plate exp1',...
 %             '2017_07_01 plate exp2','2017_07_03 plate exp1','2017_07_03 plate exp2','2017_07_05 plate exp1'};
@@ -32,9 +41,9 @@ fullT = tic;
 %         dateArray = {'2017_02_08 plate exp1','2017_02_08 plate exp2'};
 %         dateArray = {'2017_04_17 plate exp2','2017_04_17 plate exp3','2017_04_17 plate exp4'};
 %         dateArray = {'2017_04_17 plate exp4'};
-%         dateArray = {'2017_07_08 plate exp1','2017_07_14 plate exp1'};
-        dateArray = {'2017_07_07 plate exp1'};
-    for BB = dateArray
+%         dateArray = {'2017_07_01 plate exp2','2017_07_07 plate exp1','2017_07_08 plate exp1','2017_07_14 plate exp1'};
+%         dateArray = {'2017_06_26 plate exp2'};
+    for BB = fliplr(dateArray)
 
     %get directory name from date Array
         B = char(BB);
@@ -74,14 +83,14 @@ fullT = tic;
 %         BackgroundAndFlatfieldCorrectionOfTimeLapseImages(A,B,channelstoinput,BACKGROUND);
     %% run segmentation
 %         uiSegmentTimeLapseImages
-%         SegmentationOfTimeLapseImages(A,B,dontsegment,segInstruct);
+        SegmentationOfTimeLapseImages(A,B,dontsegment,segInstruct);
 %         donemail('cfrick@caltech.edu','segmentation complete','segmentation complete')
 
     %% run autotracking algorithms
     %
     uiTrackCellz(B,'AutoTrackCells')
-    uiTrackCellz(B,'AutoExportTracks')
-    uiTrackCellz(B,'AutoExportNuclei')
+%     uiTrackCellz(B,'AutoExportTracks')
+%     uiTrackCellz(B,'AutoExportNuclei')
         
     end
 fullTime = toc(fullT);
