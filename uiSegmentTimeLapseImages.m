@@ -593,7 +593,12 @@ function [IfFinal,testOut] = segmentationImageBackground(FinalImage,segmentPath,
 testOut = struct();
     frames = 1;
     img = FinalImage(:,:,frames); 
+    tic
+    [~,testOut] = segmentCellBackgroundNEW(img,background_seg,pStruct,frames);
+    toc
+    tic
     [~,testOut] = segmentCellBackground(img,background_seg,pStruct,frames);
+    toc
     
     IfFinal = false(size(FinalImage));
     for frames = 1:size(FinalImage,3)
@@ -604,7 +609,7 @@ testOut = struct();
                 
     %save here if running actual segmentation
 
-
+disp('done')
 % parameters
 
 end
@@ -1110,7 +1115,7 @@ global pStruct timeFrames mstackPath segInstructList channelList segmentList TC 
 % define channel spacing
 
     channelspacing = round(linspace(1,timeFrames,9));
-    channelspacing(2) =20;
+    channelspacing(2) =69;
     if length(channelspacing)>timeFrames
         channelspacing = 1:timeFrames;
     end

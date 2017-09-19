@@ -80,27 +80,27 @@ If = ~newlogcloseclose;
 
 
 
-% output = entropyfilt(uint16(img),true(21));
-% [~,~,~,threshLocation] = method4(output(:));
-% outputlog = false(size(output));
-% outputlog(:) = false;
-% outputlog(output<threshLocation)=true;
-% Ih = ~outputlog;
-% 
-% 
-% newlog = img<prctile(img(~Ih),0.5);
-% newlogclose = imclose(newlog,strel('disk',20));
-% newlogclose(Ih) = false;
-% newlogclose(img>prctile(img(Ih),0.5)) = false;
-% newlogcloseclose = imclose(newlogclose,strel('disk',5));
-% Ihf = ~newlogcloseclose;
+output = entropyfilt(uint16(img),true(21));
+[~,~,~,threshLocation] = method4(output(:));
+outputlog = false(size(output));
+outputlog(:) = false;
+outputlog(output<threshLocation)=true;
+Ih = ~outputlog;
+
+
+newlog = img<prctile(img(~Ih),0.5);
+newlogclose = imclose(newlog,strel('disk',20));
+newlogclose(Ih) = false;
+newlogclose(img>prctile(img(Ih),0.5)) = false;
+newlogcloseclose = imclose(newlogclose,strel('disk',5));
+Ihf = ~newlogcloseclose;
 
 
 % figure(9999)
 % subplot(1,2,1);imagesc(If);
 % subplot(1,2,2);imagesc(Ihf)
 
-% If = Ihf;
+If = Ihf;
 
 stophere=1;
 
