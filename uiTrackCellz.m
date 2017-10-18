@@ -725,6 +725,8 @@ if strcmp(medmeantot,'median')
 elseif strcmp(medmeantot,'mean')
     medmeantot = 'total';
 elseif strcmp(medmeantot,'total')
+    medmeantot = 'nuccyto';
+elseif strcmp(medmeantot,'nuccyto')
     medmeantot = 'median';
 end
 Plot_callback([],[])
@@ -2133,7 +2135,7 @@ end
 end
 
 function plotTheChosenCells(idxs) % Display mesh plot of the currently selected data.
-global togStruct cmaplz xAxisLimits ThirdPlotAxes Tracked ImageDetails pathStruct timeFrames psettings segStruct
+global togStruct cmaplz xAxisLimits ThirdPlotAxes Tracked ImageDetails pathStruct timeFrames psettings segStruct medmeantot
 
 if togStruct.plotSettingsToggle == 0
     psettings = PlotSettings_callback([],[]);
@@ -2158,7 +2160,7 @@ makeIMGidx = find(ismember(alltrackframe,idxs));
 basalnanidx = ~isnan(trackmatrix(framesThatMustBeTracked(1),makeIMGidx));
 
 lrstrArray = {'left', 'right'};
-mmsstrArray = {'median','total'};
+mmsstrArray = {medmeantot,'total'};
 for lrnum = [1 2]
     lrstr = lrstrArray{lrnum}; %determine left or right axis
     mmsstr = mmsstrArray{lrnum};
@@ -2255,10 +2257,16 @@ ArrayStruct = Tracked.arrayStruct;
 segment_Pixels_array = ArrayStruct.pixels;
 segment_cellFluor_array = ArrayStruct.cellFluor;
 segment_nucFluor_array = ArrayStruct.nucFluor;
+
+segment_cellcyto_array = ArrayStruct.cellcyto;
+segment_nuccyto_array = ArrayStruct.nuccyto;
+
 cellFluorInit = ArrayStruct.cellFluor{1};
-mmsstrArray = {'median','mean','total'};
-for k = 1:size(cellFluorInit,2)
+mmsstrArray = {'median','mean','total','nuccyto'};
+% for k = 1:size(cellFluorInit,2)
+for k = 1:length(mmsstrArray)
     mmsstr = mmsstrArray{k};
+
     
     %now update all the fields
     plotTracesCell = cell(size(trackmatrix));
@@ -2280,8 +2288,17 @@ for k = 1:size(cellFluorInit,2)
             pxpx = plotTracesCell(i,:);
             pxpx(trackidx) = px(tracknums);
             plotTracesCell(i,:) = pxpx;
-            nucFluorMatrix(trackidx,i) = nucFluor(tracknums,k); %choose median, mean or total (k=1,2,3 respectively)
-            cellFluorMatrix(trackidx,i) = cellFluor(tracknums,k);
+            
+            if strcmp(mmsstr,'nuccyto')
+                k=1;
+                nuccyto = segment_nuccyto_array{a}';
+                cellcyto = segment_cellcyto_array{a}';
+                nucFluorMatrix(trackidx,i) = nucFluor(tracknums,k)./nuccyto(tracknums); %choose median, mean or total (k=1,2,3 respectively)
+                cellFluorMatrix(trackidx,i) = cellFluor(tracknums,k)./cellcyto(tracknums);
+            else
+                nucFluorMatrix(trackidx,i) = nucFluor(tracknums,k); %choose median, mean or total (k=1,2,3 respectively)
+                cellFluorMatrix(trackidx,i) = cellFluor(tracknums,k);
+            end
         end
     end
     
@@ -3973,6 +3990,10 @@ segment_Ellipt_array = ArrayStruct.ellipt;
 segment_Pixels_array = ArrayStruct.pixels;
 segment_Cellnum_array = ArrayStruct.cellnum;
 
+segment_PixelsCyto_array = ArrayStruct.pixelscyto;
+segment_cellCyto_array = ArrayStruct.cellcyto;
+segment_nucCyto_array = ArrayStruct.nuccyto;
+
 cnnec = 8;
 CC = struct();
 CC.ImageSize = [imgsize(1) imgsize(2)];
@@ -3992,6 +4013,16 @@ for i = 1:length(tvec)
     nucI = nucleusimgstackz(:,:,tnum);
     cellI = cellimgstackz(:,:,tnum);
     
+
+
+    %cytoplasmic annulus
+    imdim = CC.ImageSize;
+    if ~isempty(PXnew)
+        ncpx = nuccytopxspitter(PXnew,imdim);
+    else
+        ncpx = PXnew;
+    end
+    
     cellnumvec = trackmatrix(tnum,:);
     cellnum = cellnumvec(~isnan(cellnumvec))';
     if ~isempty(PXnew)
@@ -4009,9 +4040,11 @@ for i = 1:length(tvec)
 %         cellFluor = cellfun(@(x) nanmedian(cellI(x)),PXnew,'UniformOutput',1)';
         cellFluor = horzcat(cellfun(@(x) nanmedian(cellI(x)),PXnew,'UniformOutput',1)',cellfun(@(x) nanmean(cellI(x)),PXnew,'UniformOutput',1)',cellfun(@(x) nansum(cellI(x)),PXnew,'UniformOutput',1)');
         stdeval = cellfun(@(x) nanstd(nucI(x)),PXnew,'UniformOutput',1)';
+        
+        
+        cellcyto = cellfun(@(x) nanmedian(cellI(x)),ncpx,'UniformOutput',1);
+        nuccyto = cellfun(@(x) nanmedian(nucI(x)),ncpx,'UniformOutput',1);
 
-        
-        
         
         
         if ~isempty(newidx)
@@ -4025,6 +4058,13 @@ for i = 1:length(tvec)
             segment_nucFluor_array{tnum} = vertcat(segment_nucFluor_array{tnum},nucFluor(newnum,:));
             segment_cellFluor_array{tnum} = vertcat(segment_cellFluor_array{tnum},cellFluor(newnum,:));
             segment_Stdev_array{tnum} = vertcat(segment_Stdev_array{tnum},stdeval(newnum));
+            
+            segment_PixelsCyto_array{tnum} = horzcat(segment_PixelsCyto_array{tnum},ncpx(newnum));
+            segment_cellCyto_array{tnum} = horzcat(segment_cellCyto_array{tnum},cellcyto(newnum));
+            segment_nucCyto_array{tnum} = horzcat(segment_nucCyto_array{tnum},nuccyto(newnum));
+            
+
+
         end
         
         if ~isempty(keepidx)
@@ -4038,6 +4078,10 @@ for i = 1:length(tvec)
             segment_nucFluor_array{tnum}(keepidx,true(1,size(nucFluor,2))) = nucFluor(newnum,:);
             segment_cellFluor_array{tnum}(keepidx,true(1,size(cellFluor,2)))= cellFluor(newnum,:);
             segment_Stdev_array{tnum}(keepidx) = stdeval(newnum);
+            
+            segment_PixelsCyto_array{tnum}(keepidx) = ncpx(newnum);
+            segment_cellCyto_array{tnum}(keepidx) = cellcyto(newnum);
+            segment_nucCyto_array{tnum}(keepidx) = nuccyto(newnum); 
         end
     end
     
@@ -4061,6 +4105,11 @@ for i = 1:length(tvec)
         segment_nucFluor_array{tnum} = nucFluornew;
         segment_cellFluor_array{tnum} = cellFluornew;
         segment_Stdev_array{tnum}(dropidx) = [];
+        
+        
+        segment_PixelsCyto_array{tnum}(dropidx) = [];
+        segment_cellCyto_array{tnum}(dropidx) = [];
+        segment_nucCyto_array{tnum}(dropidx) = [];
     end
 end
 ArrayStruct.area    =   segment_Area_array;
@@ -4071,6 +4120,10 @@ ArrayStruct.stdev     =   segment_Stdev_array;
 ArrayStruct.centroid     =   segment_Centroid_array;
 ArrayStruct.pixels     =   segment_Pixels_array;
 ArrayStruct.cellnum     =   segment_Cellnum_array;
+
+ArrayStruct.pixelscyto = segment_PixelsCyto_array;
+ArrayStruct.cellcyto = segment_cellCyto_array;
+ArrayStruct.nuccyto = segment_nucCyto_array;
 end
 
 %% functions for tracking cells
@@ -4174,6 +4227,15 @@ for snum = 1:length(SceneList)
             segment_Ellipt_array = ArrayStruct.ellipt;
             segment_Pixels_array = ArrayStruct.pixels;
             segment_Cellnum_array = ArrayStruct.cellnum;
+            
+            
+            fnames = fieldnames(ArrayStruct);
+            if sum(strcmp(fnames,'pixelscyto'))>0
+                segment_PixelsCyto_array = ArrayStruct.pixelscyto;
+                segment_cellCyto_array = ArrayStruct.cellcyto;
+                segment_nucCyto_array = ArrayStruct.nuccyto;
+            end
+
             segmentsequence = 1:size(segmentimgstack,3); %track from first frame to last frame
             for i = segmentsequence
                 segI = segmentimgstack(:,:,i);
@@ -4184,7 +4246,15 @@ for snum = 1:length(SceneList)
                 PX = segment_Pixels_array{i}; %use the previous pixels
                 CC.PixelIdxList = PX;
                 CC.NumObjects = length(PX);
+                imdim = CC.ImageSize;
                 %
+                if ~sum(strcmp(fnames,'pixelscyto'))>0
+                    ncpx = nuccytopxspitter(PX,imdim);
+                else
+                    ncpx = segment_PixelsCyto_array{i};
+                end
+                
+                
                 S = regionprops(CC,'Centroid','Area','Perimeter');
                 areavec = vertcat(S.Area);
                 perimetervec = vertcat(S.Perimeter);
@@ -4202,32 +4272,10 @@ for snum = 1:length(SceneList)
                 segment_Pixels_array{i} = PX;
                 segment_Cellnum_array{i} = (1:length(PX))';
                 
-                %thinking about adding nuc:cyto ratio  to update
-%                 a=i;
-%                 imdim = size(segI);
-%                 if ~isempty(PX)
-%                     newim = zeros(imdim(1),imdim(2));
-%                     for j = 1:length(PX)
-%                         subpx = PX{j};
-%                         newim(subpx) =j;
-%                     end
-%                     
-%                     se = strel('disk',3);
-%                     newimd2 = imdilate(newim,se);
-%                     se = strel('disk',1);
-%                     newimd1 = imdilate(newim,se);
-%                     newimd2log = newimd2>0;
-%                     newimd1log = newimd1>0;
-%                     newimlog = ~newimd1log & newimd2log;
-%                     newimnew = newimd2;
-%                     newimnew(~newimlog) = 0;
-%                     
-%                     for j = 1:length(PX)
-%                         newpx = find(newimnew==j);
-%                         PXcyto{j} = newpx;
-%                     end
-%                 end
-%                 segment_Pixels_Cyto_array{i} = PXcyto;
+                segment_PixelsCyto_array{i} = ncpx;
+                segment_cellCyto_array{i} = cellfun(@(x) nanmedian(cellI(x)),ncpx,'UniformOutput',1);
+                segment_nucCyto_array{i} = cellfun(@(x) nanmedian(nucI(x)),ncpx,'UniformOutput',1);
+                
                 
             end
             
@@ -4239,6 +4287,10 @@ for snum = 1:length(SceneList)
             ArrayStruct.centroid     =   segment_Centroid_array;
             ArrayStruct.pixels     =   segment_Pixels_array;
             ArrayStruct.cellnum     =   segment_Cellnum_array;
+            
+            ArrayStruct.pixelscyto = segment_PixelsCyto_array;
+            ArrayStruct.cellcyto = segment_cellCyto_array;
+            ArrayStruct.nuccyto = segment_nucCyto_array;
             Tracked.arrayStruct = ArrayStruct;
             
             
@@ -4334,6 +4386,10 @@ segment_Centroid_array = cell(1,size(segmentimgstack,3));
 segment_Ellipt_array = cell(1,size(segmentimgstack,3));
 segment_Pixels_array = cell(1,size(segmentimgstack,3));
 segment_Cellnum_array = cell(1,size(segmentimgstack,3));
+
+segment_PixelsCyto_array{i} = cell(1,size(segmentimgstack,3));
+segment_cellCyto_array{i} = cell(1,size(segmentimgstack,3));
+segment_nucCyto_array{i} = cell(1,size(segmentimgstack,3));
 segmentsequence = 1:size(segmentimgstack,3); %track from first frame to last frame
 for i = segmentsequence
     segI = segmentimgstack(:,:,i);
@@ -4342,24 +4398,8 @@ for i = segmentsequence
     CC = bwconncomp(segI);
     PX = CC.PixelIdxList;
     
-%     ncRatio = cell(size(trackmatrix));
-%     ncRatio(:) = {NaN};
-%     for i = 1:timeFrames
-%         a=i;
-%         trackvals=trackmatrix(i,:);
-%         trackidx = ~isnan(trackvals);
-%         tracknums = trackvals(trackidx);
-%         px = segment_Pixels_array{a};
-%         
-%         if ~isempty(px)
-%             ncpx = nuccytopxspitter(px,imdim);
-%             px = ncpx;
-%             %first pixels
-%             pxpx = ncRatio(i,:);
-%             pxpx(trackidx) = px(tracknums);
-%             ncRatio(i,:) = pxpx;
-%         end
-%     end
+
+
     
     S = regionprops(CC,'Centroid','Area','Perimeter');
     areavec = vertcat(S.Area);
@@ -4378,6 +4418,18 @@ for i = segmentsequence
     segment_Pixels_array{i} = PX;
     segment_Cellnum_array{i} = (1:length(PX))';
     
+    
+    %cytoplasmic annulus
+    imdim = CC.ImageSize;
+    if ~isempty(PX)
+        ncpx = nuccytopxspitter(PX,imdim);
+    else
+        ncpx = PX;
+    end
+    segment_PixelsCyto_array{i} = ncpx;
+    segment_cellCyto_array{i} = cellfun(@(x) nanmedian(cellI(x)),ncpx,'UniformOutput',1);
+    segment_nucCyto_array{i} = cellfun(@(x) nanmedian(nucI(x)),ncpx,'UniformOutput',1);
+    
 end
 
 ArrayStruct = struct();
@@ -4389,6 +4441,10 @@ ArrayStruct.stdev     =   segment_Stdev_array;
 ArrayStruct.centroid     =   segment_Centroid_array;
 ArrayStruct.pixels     =   segment_Pixels_array;
 ArrayStruct.cellnum     =   segment_Cellnum_array;
+
+ArrayStruct.pixelscyto = segment_PixelsCyto_array;
+ArrayStruct.cellcyto = segment_cellCyto_array;
+ArrayStruct.nuccyto = segment_nucCyto_array;
 %         ArrayStruct.If  = IfPerimFunction();
 
 
@@ -4988,6 +5044,8 @@ Ifstack = zeros(imgsize(1),imgsize(2),size(trackmatrix,1));
 for t = 1:size(trackmatrix,1)
     imagio = zeros(imgsize(1),imgsize(2));
     PX = segment_Pixels_array{t};
+%     imdim = [imgsize(1) imgsize(2)];
+%     PX = nuccytopxspitter(PX,imdim);
     alltrackframe = trackmatrix(t,:);
     cellindices = find(~isnan(alltrackframe));
     
@@ -5016,17 +5074,6 @@ for t = 1:size(trackmatrix,1)
     end
     
     
-
-%     se = strel('disk',1);
-%     imagio = imdilate(imagio,se);
-%     imagiolog = imagio>0;
-%     se = strel('disk',2);
-%     imagiolog2 = imerode(imagiolog,se);
-%     imagiolog(imagiolog2) = false;
-%     imagio(~imagiolog) = 0;
-%     If = imagio;
-%     Ifstack(:,:,t) = If;
-    
     %erode, compute logical, then dilate, then remove logical
     se = strel('disk',1);
     imagiolog = imagio>0;
@@ -5038,20 +5085,67 @@ for t = 1:size(trackmatrix,1)
     imagio(imagiolog) = 0;
     Ifstack(:,:,t) = imagio;
     
-    
-        %erode, compute logical, then dilate, then remove logical
-%     se = strel('disk',3);
-%     imagiod2 = imdilate(imagio,se);
-%     se = strel('disk',1);
-%     imagiod1 = imdilate(imagio,se);
-%     imagiolog1 = imagiod1>0;
-%     imagiolog2 = imagiod2>0;
-%     imagiolog = ~imagiolog1 & imagiolog2;
-%     imagiod2(~imagiolog) = 0;
-%     Ifstack(:,:,t) = imagiod2;
-%     
-    
 end
+
+%Display the annulus for cytoplasm
+% Ifstacknuc = Ifstack;
+% 
+% segment_PixelsCyto_array = ArrayStruct.pixelscyto;
+% trackbrackets = 1:10:size(trackmatrix,1);
+% Ifstack = zeros(imgsize(1),imgsize(2),size(trackmatrix,1));
+% for t = 1:size(trackmatrix,1)
+%     imagio = zeros(imgsize(1),imgsize(2));
+%     PX = segment_PixelsCyto_array{t};
+%     alltrackframe = trackmatrix(t,:);
+%     cellindices = find(~isnan(alltrackframe));
+%     
+%     if ~isempty(PX)
+%         whiteiter = 1:length(PX);
+%         if ~isempty(cellindices) %if cells are tracked on the frame
+%             cellnums = alltrackframe(cellindices);
+%             celltracks = trackmatrix(:,cellindices);
+%             tracklengths = sum(~isnan(celltracks),1);
+%             cellnumlog = false(size(PX));
+%             cellnumlog(cellnums) = true;
+%             coloriter = cellnums;
+%             whiteiter = find(~cellnumlog);
+%             for j = 1:length(coloriter)
+%                 cellnum = coloriter(j);
+%                 px = PX{cellnum};
+%                 imagio(px) = tracklengths(j);
+%             end
+%         end
+%         
+%         for j = 1:length(whiteiter)
+%             cellnum = whiteiter(j);
+%             px = PX{cellnum};
+%             imagio(px) = 1;
+%         end
+%     end
+%     
+%     
+% %     %erode, compute logical, then dilate, then remove logical
+% %     se = strel('disk',1);
+% %     imagiolog = imagio>0;
+% %     %erode the removal logical
+% %     imagiolog = imerode(imagiolog,se);
+% %     %dilate imagio
+% %     imagio = imdilate(imagio,se);
+% %     %remove logical.
+% %     imagio(imagiolog) = 0;
+% %     Ifstack(:,:,t) = imagio;
+%     Ifstack(:,:,t) = imagio;
+%     
+% nucim = Ifstacknuc(:,:,t);
+% cytoim = Ifstack(:,:,t);
+% nucim(cytoim>2) = 200;
+% 
+% Ifstack(:,:,t) = nucim;
+%     
+% end
+
+
+
 end
 function traject = trackingTrajectories(timeFrames)
 global Tracked
