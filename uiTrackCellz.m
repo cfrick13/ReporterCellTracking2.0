@@ -1,5 +1,5 @@
 function uiTrackCellz(FileDate,AutoTrackStr)
-global  medmeantot mainfig stimulationFrame Tracked chanbkgmedianmat nucbkgmedianmat pStruct timeVec expDetailsStruct dirStruct timeSteps DivisionStruct segStruct foStruct xAxisLimits DICimgstack pathStruct segmentimgstack channelimgstack ExportNameKey ExportName plottingTotalOrMedian channelinputs tcontrast lcontrast ThirdPlotAxes SecondPlotAxes togStruct PlotAxes cmap  timeFrames frameToLoad ImageDetails MainAxes SceneList
+global  channelstoinput medmeantot mainfig stimulationFrame Tracked chanbkgmedianmat nucbkgmedianmat pStruct timeVec expDetailsStruct dirStruct timeSteps DivisionStruct segStruct foStruct xAxisLimits DICimgstack pathStruct segmentimgstack channelimgstack ExportNameKey ExportName plottingTotalOrMedian channelinputs tcontrast lcontrast ThirdPlotAxes SecondPlotAxes togStruct PlotAxes cmap  timeFrames frameToLoad ImageDetails MainAxes SceneList
 
 close all
 
@@ -50,6 +50,7 @@ medmeantot = 'total';
 
 
 %determine export details
+ExportNameKey = 'tsi_';
 ExportNameKey = 'final';
 if ~strcmp(ExportNameKey,'final')
     disp(strcat('Export name key is "',ExportNameKey,'" not FINAL'))
@@ -68,10 +69,7 @@ foStruct.nfoName = [];
 foStruct.dfoName=[];
 
 
-%set colormap
-cd(dirStruct.parentdir)
-addpath('Colormaps')
-cmap = vertcat(gray(256),jet(100));
+
 
 % cmap(256,:)=[1 0 0];
 
@@ -180,7 +178,11 @@ nucbkgmedianmat = zeros(1,timeFrames);
 frameToLoad = 1;
 
 xAxisLimits = [0 timeFrames];
-
+%set colormap
+cd(dirStruct.parentdir)
+addpath('Colormaps')
+cmaplength = min([max(timeFrames) 100]);
+cmap = vertcat(gray(256),jet(cmaplength));
 
 %% set up user interface
 fnum=22;
@@ -615,6 +617,8 @@ global  ImageDetails segStruct
 key = get(fig_obj,'CurrentKey');
 
 switch key
+    case '~'
+        
     case '1'
         ImageDetails.Channel = segStruct.cell_seg;
         setSceneAndTime
@@ -625,15 +629,12 @@ switch key
         ImageDetails.Channel = 'DIC';
         setSceneAndTime
     case '4'
-        ImageDetails.Channel = 'EGFP';
-        setSceneAndTime
-    case '5'
         ImageDetails.Channel = 'BKGbinary';
         setSceneAndTime
-    case '6'
+    case '5'
         ImageDetails.Channel = 'overlay';
         setSceneAndTime
-    case '7'
+    case '6'
         ImageDetails.Channel = 'FluorOnlyOverlay';
         setSceneAndTime
     case 'q'
@@ -654,6 +655,8 @@ switch key
         displaySmallMovieFunct;
     case '8'
         togglemmstr
+    case '7'
+        offplot
     case 't'
         trackbutton_Callback([],[]);
     case 'v'
@@ -731,6 +734,15 @@ elseif strcmp(medmeantot,'nuccyto')
 end
 Plot_callback([],[])
 end
+
+
+function offplot
+global mainfig
+h = findobj(mainfig,'Type','Axes');
+o = findobj(h,'Type','Line');
+o.delete;
+end
+
 function divisionTrack_Callback(~,~)
 global ImageDetails Tracked MainAxes DivisionStruct
 
@@ -1411,7 +1423,7 @@ while a ==1
         for t = tkeeper:timeFrames
             ImageDetails.Frame = t;
             setSceneAndTime
-            pause(0.01)
+%             pause(0.005)
             nanidx = isnan(trackmatrix(t,cellnum));
             if nanidx
                 broken = true;
@@ -2423,7 +2435,7 @@ ncpx = px;
 end
 
 
-function plotStruct = plotthemfunctionToStructure(Tracked,idScene,pathStruct,timeFrames,segStruct)
+function plotStruct = plotthemfunctionToStructure(Tracked,idScene,pathStruct,timeFrames,segStruct,ctinput)
 cd(pathStruct.mstackPath)
 %no bleach correction option yet
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2512,6 +2524,20 @@ plotTracesCell = plotTracesCell';
 
 cd(pathStruct.mstackPath)
 %no bleach correction option yet
+%% 
+% nctinput = ctinput;
+% for i = 1:length(ctinput)
+%     ctstr = ctinput{i};
+%     a = regexp(ctstr,'\s');
+%     astr = regexp(ctstr,'DIC');
+%     if ~isempty(astr)
+%         ctstr = 'DIC';
+%     else
+%         ctstr(a) = [];
+%     end
+%     nctinput{i} = ctstr;
+% end
+    
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%   open the image files   %%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2531,6 +2557,7 @@ filename = char(ff.name);
 channelfileObject = matfile(filename);
 nuc_imgstack = channelfileObject.flatstack;
 
+%% open segmentation images
 % open background Logical img  %
 cd(pathStruct.segmentPath)
 ff = dir(strcat('*',idScene,'*',segStruct.background_seg,'*'));
@@ -2553,6 +2580,8 @@ filename = char(ff.name);
 channelfileObject = matfile(filename);
 nuclogimgstack = channelfileObject.IfFinal;
 bkglogimgstack(nuclogimgstack) = true;
+
+%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -2583,6 +2612,8 @@ end
 %extract pixel intensities
 cellQ_pxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
 nuc_pxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
+cellQ_nc_pxls = cellQ_pxls;
+nuc_nc_pxls = nuc_pxls;
 
 for i = 1:size(plotTracesCell,2)
     cellQ_img = single(squeeze(cellQ_imgstack(:,:,i)));
@@ -2661,6 +2692,19 @@ for i = 1:size(cellQ_pxls,1)
     plotStruct(i).medianCfpbkg = nucBKG;
     plotStruct(i).medianSmadbkg = cellBKG;
 end
+
+
+%determine total pxl intensities
+cellQ = cellfun(@length,cellQ_pxls,'UniformOutput',1);
+cellQ(cellQ==single(13579)) = NaN;
+nucQ = cellfun(@length,nuc_pxls,'UniformOutput',1);
+nucQ(nucQ==single(13579)) = NaN;
+for i = 1:size(cellQ_pxls,1)
+    plotStruct(i).NucAreaEGFP = cellQ(i,:);
+    plotStruct(i).NucAreaRFP = nucQ(i,:);
+end
+
+
 
 for i = 1:size(cellQ_pxls,1)
     plotStruct(i).Centroid = centnew(i,:,:);
@@ -3111,7 +3155,7 @@ end
 
 
 function exportTrackedCells(~,~)
-global segStruct pathStruct ExportNameKey ExportName dirStruct expDetailsStruct SceneList timeFrames togStruct psettings
+global segStruct pathStruct ExportNameKey ExportName dirStruct expDetailsStruct SceneList timeFrames togStruct psettings channelstoinput
 exportStruct = struct();
 
 
@@ -3130,6 +3174,7 @@ sStruct = segStruct;
 tPath = pathStruct.trackingPath;
 sList = SceneList;
 tFrames = timeFrames;
+ctinput = channelstoinput;
 cd(tPath)
 cd ..
 
@@ -3146,7 +3191,7 @@ for scenenumber = 1:length(sList)
     
     if ~isempty(trackfilename)
         trackedArray = loadTrackedArray(trackfilename); %trackedArray = Tracked
-        plotStruct = plotthemfunctionToStructure(trackedArray,idScene,paStruct,tFrames,sStruct);
+        plotStruct = plotthemfunctionToStructure(trackedArray,idScene,paStruct,tFrames,sStruct,ctinput);
         plotStructArray{scenenumber} = plotStruct;
     end
 end
@@ -3336,12 +3381,20 @@ for i = 1:size(cellQ_imgstack,3)
     CC = bwconncomp(nuclog);
     PX = CC.PixelIdxList;
     
+    imdim = CC.ImageSize;
+    ncpx = nuccytopxspitter(PX,imdim);
     nucIntensities = cell(1,length(PX));
     cellIntensities = nucIntensities;
+    cytonucIntensities = nucIntensities;
+    cytocellIntensities = nucIntensities;
     for j=1:length(PX)
         pxidx = PX{j};
+        nxpxidx = ncpx{j};
         nucIntensities{j} = nuc_img(pxidx);
         cellIntensities{j} = cellQ_img(pxidx);
+        
+        cytonucIntensities{j} = nuc_img(nxpxidx);
+        cytocellIntensities{j} = cellQ_img(nxpxidx);
     end
     
     %store centroid values
@@ -3362,10 +3415,20 @@ for i = 1:size(cellQ_imgstack,3)
     exportNucleiStruct(i).areaSmad = cellfun(@length, cellIntensities,'UniformOutput',1);
     exportNucleiStruct(i).Centroid = Centroid;
     
+    nuccytoRep = zeros(1,length(cytonucIntensities));
+    nuccytoSmad = nuccytoRep;
+    for j = 1:length(cytonucIntensities)
+        nuccytoRep(j) = nanmedian(nucIntensities{j})./nanmedian(cytonucIntensities{j});
+        nuccytoSmad(j) = nanmedian(cellIntensities{j})./nanmedian(cytocellIntensities{j});
+    end
+    
+    exportNucleiStruct(i).nuccytoReporter = nuccytoRep;
+    exportNucleiStruct(i).nuccytoSmad = nuccytoSmad;
+    
 end
 end
 function exportAllCells(~,~)
-global ExportNameKey ExportName dirStruct segStruct  pathStruct expDetailsStruct SceneList timeFrames togStruct psettings
+global ExportNameKey ExportName dirStruct segStruct  pathStruct expDetailsStruct SceneList timeFrames togStruct psettings channelstoinput
 exportStruct = struct();
 
 if togStruct.plotSettingsToggle == 0
@@ -3411,7 +3474,7 @@ for scenenumber = 1:length(sList)
         smooththat=0;
         %                 [plotStructUI] = plotthemfunction(framesThatMustBeTracked,Tracked,pathStruct.expDirPath,ImageDetails,SceneDirPath,timeFrames,frameToLoad,PlotAxes,ImageDetails.ImgSize,togStruct.plotSettingsToggle,psettings,makeIMG,makeIMGidx,smooththat);
         %                 plotStruct = plotthemfunctionToStructure(trackedArray,idScene,mPath,tFrames,makeIMG,makeIMGidx);
-        plotStruct = plotthemfunctionToStructure(Tracked,idScene,pathStruct,timeFrames,makeIMG,makeIMGidx,segStruct);
+        plotStruct = plotthemfunctionToStructure(Tracked,idScene,pathStruct,timeFrames,makeIMG,makeIMGidx,segStruct,channelstoinput);
         
         fnames = fieldnames(plotStruct);
         if isempty(fieldnames(exportStruct)) %if exportStruct is empty
@@ -3776,7 +3839,7 @@ eName = ExportName;
 
 
 possibleWorkers = feature('numcores');
-nWorkers = possibleWorkers;
+nWorkers = possibleWorkers-2;
 %create parallel pool
 poolobj = gcp('nocreate');
 if isempty(poolobj)
@@ -4128,13 +4191,17 @@ end
 
 %% functions for tracking cells
 function updateFrickTrackCellsYeah
-global pathStruct segStruct SceneList
+global pathStruct segStruct SceneList ImageDetails
 
 
 for snum = 1:length(SceneList)
+% for snum = 1
+disp(snum)
     pvalue = SceneList{snum};
+%     pvalue = ImageDetails.Scene;
     cd(pathStruct.trackingPath)
     trackfile = dir(strcat('*',pvalue,'*_num_mmt.mat'));
+    trackfile = dir(strcat('*final*',pvalue,'*_num_mmt.mat'));
     tfilelist = {trackfile.name};
     if ~isempty(trackfile)
         
@@ -4893,7 +4960,7 @@ if ~isempty(foStruct.bfoName) %if channelfileObject has been made, check to see 
         %dont do anything
         updatebkgmedianmat = false;
     end
-else %if no foStruct.cfoName, then
+else %if no foStruct.cfoName, then5
     backgroundfileObject = matfile(filename);
     backgroundimgstack = backgroundfileObject.IfFinal;
     foStruct.bfoName = char(backgroundfileObject.Properties.Source);%update foStruct.cfoName
@@ -4974,7 +5041,8 @@ elseif strcmp(ImageDetails.Channel,'BKGbinary')
     backgroundimg(segmentimg) = true;
     prim = imdilate(bwperim(~logical(backgroundimg)),strel('square',1));
     channelimg(prim) = max(max(channelimg));
-    channelimg(~backgroundimg) = channelimg(~backgroundimg)+1000;
+%     channelimg(backgroundimg) = channelimg(backgroundimg)+1000;
+    channelimg = channelimg+1000;
     bkgmedian = 0;
 elseif strcmp(ImageDetails.Channel,'reporter_quantify')
 elseif strcmp(ImageDetails.Channel,'overlay')
@@ -5757,6 +5825,7 @@ for tnum = nannum1:nannum2
     yticklabel = mat2cell(ytick,1,ones(1,length(ytick)));
     yticklabel(2:2:end) = {''};
     ax5.YTickLabel = yticklabel;
+    ax5.Box = 'off';
     
     
   
@@ -5804,6 +5873,7 @@ for tnum = nannum1:nannum2
     yticklabel = mat2cell(ytick,1,ones(1,length(ytick)));
     yticklabel(2:2:end) = {''};
     ax6.YTickLabel = yticklabel;
+    ax6.Box = 'off';
     
     
   
@@ -5871,6 +5941,8 @@ function makeMovieAllChannels(~,~)
 global trackfilestr expDetailsStruct dirStruct timeSteps timeVec pathStruct psettings medmeantot Tracked segStruct Ifstack channelimgstack nucleusimgstack DICimgstack togStruct timeFrames tcontrast lcontrast  ImageDetails prcntl lprcntl cmap cmaplz
 
 
+
+contrastFrame = ImageDetails.Frame;
 % screen_capture(movie_name,recording_time)
 bkgmedian=0;
 
@@ -5903,7 +5975,7 @@ imgdim = ImageDetails.ImgSize;
 celltrack = ~isnan(trackmatrix);
 nanvec = sum((celltrack),2);
 % nannum1 = max([2 find(nanvec == max(nanvec),1,'first')]);
-nannum1 = max([2 find(nanvec == 1,1,'first')]);
+nannum1 = max([2 find(nanvec > 0,1,'first')]);
 % nannum1 = 1;
 nannum2 = find(nanvec == max(nanvec),1,'last');
 segment_Centroids_array = ArrayStruct.centroid;
@@ -5998,6 +6070,43 @@ ax6.Units = 'pixels';
 ax6.Position = [(xdist*5) 0 xdist ydist];
 
 
+
+
+
+%set contrast
+t = contrastFrame;
+contrastFrameSmad = find(timeVec>30,1,'first');
+contrastFrameSnail = find(timeVec>300,1,'first');
+If = Ifstack(:,:,t);
+nucleusImg = nucleusimgstack(:,:,contrastFrameSnail);
+cellImg = channelimgstack(:,:,contrastFrameSmad);
+DICImg = DICimgstack(:,:,t);
+
+ImageDetails.Channel = 'overlay';
+channelimg = zeros(size(cellImg,1),size(cellImg,2),3);
+channelimg(:,:,1) = nucleusImg;
+channelimg(:,:,2) = cellImg;
+channelimg(:,:,3) = DICImg;
+
+
+lc = nan(1,3);
+tc = nan(1,3);
+%scripts for displaying contrasted image
+channelimgrgb = channelimg;
+for i = 1:size(channelimgrgb,3)
+    if i==3
+        channelimg = channelimgrgb(:,:,i);
+        lc(i) = prctile(channelimg(:),lcontrast);
+        tc(i) = prctile(channelimg(:),tcontrast);
+    else
+        channelimg = channelimgrgb(:,:,i);
+        lc(i) = 0;
+        tc(i) = prctile(channelimg(:),tcontrast);
+    end
+end
+
+
+%display images
 for tnum = nannum1:nannum2
     t = tnum;
     
@@ -6023,8 +6132,7 @@ for tnum = nannum1:nannum2
     If(If<2)=0;
     If(If>2) = 40;
 %     If(If>1) = 0;
-    
-    
+     
     
     %scripts for displaying contrasted image
     disprgb = zeros(size(cropim));
@@ -6033,20 +6141,18 @@ for tnum = nannum1:nannum2
     for i = 1:size(cropim,3)
         if i==3
             channelimg = channelimgrgb(:,:,i);
-            lprcntl = prctile(channelimg(:),lcontrast);
-            prcntl = prctile(channelimg(:),tcontrast);
-            scaleFactor = 1./(prcntl - lprcntl);
+            lc(i) = prctile(channelimg(:),lcontrast);
+            tc(i) = prctile(channelimg(:),tcontrast);
+            scaleFactor = 1./(tc(i) - lc(i));
             dispimg = channelimg.*scaleFactor;
-            dispimg = dispimg-(lprcntl.*scaleFactor);
+            dispimg = dispimg-(lc(i).*scaleFactor);
             dispimg(dispimg> 1) =1;
             dispimg(dispimg<0) = 0;
         else
             channelimg = channelimgrgb(:,:,i);
-            lprcntl = 0;
-            prcntl = prctile(channelimg(:),tcontrast);
-            scaleFactor = 1./(prcntl - lprcntl);
+            scaleFactor = 1./(tc(i) - lc(i));
             dispimg = channelimg.*scaleFactor;
-            dispimg = dispimg-(lprcntl.*scaleFactor);
+            dispimg = dispimg-(lc(i).*scaleFactor);
             dispimg(dispimg> 1) =1;
             dispimg(dispimg<0) = 0;
         end
@@ -6072,7 +6178,7 @@ for tnum = nannum1:nannum2
             a = 0.1;
             for j = 1:3
                 cimg =  disprgb(:,:,j);
-                cimg = cimg + dispimg./5;
+                cimg = cimg + dispimg./10;
                 cimg(cimg>1) = 1;
                 disprgb(:,:,j) = cimg;
             end
@@ -6081,6 +6187,19 @@ for tnum = nannum1:nannum2
     end
     
     
+    dispimg = disprgb;
+    im1 = OGrgb;
+    im2 = OGrgb;
+    im3 = OGrgb;
+    im4 = OGrgb;
+    
+   
+    im1(:,:,2:3) = 0;
+    im2(:,:,[1 3]) = 0;
+    im3 = DICrgb;
+    im4 = dispimg;
+    
+    disprgb = im2;
     %add nuclei segmentation overlay???
     newimg = zeros(size(disprgb));
     for i = 1:size(disprgb,3)
@@ -6092,23 +6211,28 @@ for tnum = nannum1:nannum2
         disprgb(:,:,i) = dispimg;
         newimg(:,:,i) = Ifnew;
     end
+    im2 = disprgb;
+
+    disprgb = im1;
+    %add nuclei segmentation overlay???
+    newimg = zeros(size(disprgb));
+    for i = 1:size(disprgb,3)
+        Ifsub = Ifrgb(:,:,i);
+        Ifnew = zeros(size(Ifsub));
+        Ifnew(If>0) = Ifsub(If>0);
+        dispimg = disprgb(:,:,i);
+        dispimg(If>0) = Ifsub(If>0);
+        disprgb(:,:,i) = dispimg;
+        newimg(:,:,i) = Ifnew;
+    end
+    im1 = disprgb;
     
     
-    dispimg = disprgb;
-    im1 = OGrgb;
-    im2 = OGrgb;
-    im3 = OGrgb;
-    im4 = OGrgb;
     
-    im1(:,:,2:3) = 0;
-    im2(:,:,[1 3]) = 0;
-    im3 = DICrgb;
-    im4 = dispimg;
-    
-    image(ax2,im2);
+    image(ax4,im2);
     image(ax3,im1);
     image(ax1,im3);
-    image(ax4,im4);
+    image(ax2,im4);
 
 
     minstr = '0000';
@@ -6124,19 +6248,19 @@ for tnum = nannum1:nannum2
         minstr(~minidx)=' ';
     end
     
-    frametext= text(ax1,0,0,[minstr ' min']);
+    frametext= text(ax4,0,0,[minstr ' min']);
     frametext.Units = 'pixels';
     frametext.Position = [xdist-5 15];
-    frametext.FontSize = 20;
+    frametext.FontSize = 15;
     frametext.Color =[1 1 0];
     frametext.FontWeight = 'bold';
     frametext.HorizontalAlignment = 'right';
     
     if ~(timeVec(tnum)<0)
-        frametext= text(ax1,0,0,'+TGFbeta');
+        frametext= text(ax4,0,0,'+TGFbeta');
         frametext.Units = 'pixels';
         frametext.Position = [xdist-5 35];
-        frametext.FontSize = 20;
+        frametext.FontSize = 15;
         frametext.Color =[1 1 0];
         frametext.FontWeight = 'bold';
         frametext.HorizontalAlignment = 'right';
@@ -6171,6 +6295,7 @@ for tnum = nannum1:nannum2
         idxa = find(idx);
         
         cmapl = cool(size(mainplotY,1));
+        cmapl = feval('lines',(size(mainplotY,1)));
         plotcmap = zeros(length(idxa),3);
         for i=1:length(idxa)
             plotcmap(i,:) =  cmapl(idxa(i),:);
@@ -6183,7 +6308,9 @@ for tnum = nannum1:nannum2
         t0 =max([max([1 nannum1-1]) tnum-20]);
         %             h = plot(MainAxes,x(:,t0:tnum)',y(:,t0:tnum)','LineWidth',2);
         if togStruct.displayTrackingToggle==1 && tnum>1
-            h = line(ax4,x(:,t0:tnum)',y(:,t0:tnum)','LineWidth',4);
+            h = line(ax4,x(:,t0:tnum)',y(:,t0:tnum)','LineWidth',3);
+            set(h, {'color'}, num2cell(plotcmap,2));
+            h = line(ax3,x(:,t0:tnum)',y(:,t0:tnum)','LineWidth',3);
             set(h, {'color'}, num2cell(plotcmap,2));
         end
     end
@@ -6197,17 +6324,26 @@ for tnum = nannum1:nannum2
         
     %plot traces
     mmsstr = 'median';
-    %first axes, plot abundance
     fcplotstr = 'FC';
     ylabelstr = 'fold change';
+    
+%     mmsstr = 'median';
+%     fcplotstr = '';
+%     ylabelstr = 'abundance';
+    
+%     mmsstr = 'nuccyto';
+%     fcplotstr = '';
+%     ylabelstr = 'nuccyto';
+    %first axes, plot abundance
+    
 
     plotstr = ['Smad' fcplotstr];
     plotMat = plotStructUI.(mmsstr).(plotstr);
     plotMatStat = plotMat(:,nannum1:nannum2);
     ylimit = [prctile(plotMatStat(:),0)*0.95 prctile(plotMatStat(:),100)*1.2];
-    stem(ax5,0,10,'LineStyle',':','Color',[0.7 0.7 0.7],'LineWidth',5); hold on
+    stem(ax5,0,10,'LineStyle',':','Color',[0.7 0.7 0.7],'LineWidth',3); hold on
     
-    h = plot(ax5,timeVec(nannum1:tnum),plotMat(idx,nannum1:tnum)','LineWidth',3);hold off
+    h = plot(ax5,timeVec(nannum1:tnum),plotMat(idx,nannum1:tnum)','LineWidth',2.5);hold off
     if togStruct.displayTrackingToggle ==1
         for i=1:length(h)
             h(i).Color = cmapl(i,:);
@@ -6222,18 +6358,26 @@ for tnum = nannum1:nannum2
     ax5.XGrid = 'on';
     ax5.YGrid = 'on';
     ax5.Color = [0.95 0.95 0.95];
-    ax5.Title.String = ['Nuclear mNG-Smad3 in tracked cells'];
-    ax5.FontSize = 14;
-    xtick = [0:60:10000]-240;
+    ax5.GridColor = [1 1 1];
+    ax5.GridAlpha = 1;
+    ax5.Title.String = ['mNG-Smad3'];
+    ax5.FontSize = 10;
+    
+    xtick = [0:60:timeVec(nannum2)+240]-240;
     ax5.XTick = xtick;
     xticklabel = mat2cell(xtick,1,ones(1,length(xtick)));
-    xticklabel(2:2:end) = {''};
+    xtidx = false(size(xtick));
+    xtidx(1:floor(length(xtick)/5):end) = true;
+%     xtidx(xtick==0) = true;
+    xticklabel(~xtidx) = {''};
+    
     ax5.XTickLabel = xticklabel;
     ytick = [0:0.5:20]-5;
     ax5.YTick = ytick;
     yticklabel = mat2cell(ytick,1,ones(1,length(ytick)));
     yticklabel(2:2:end) = {''};
     ax5.YTickLabel = yticklabel;
+    ax5.Box = 'off';
     
     
   
@@ -6245,7 +6389,7 @@ for tnum = nannum1:nannum2
     
     
         %plot traces
-    mmsstr = 'median';
+    mmsstr = 'mean';
     %first axes, plot abundance
     fcplotstr = '';
     ylabelstr = 'abundance';
@@ -6255,8 +6399,8 @@ for tnum = nannum1:nannum2
     plotMat = plotMat./nanmedian(pm(:));
     plotMatStat = plotMat(:,nannum1:nannum2);
     ylimit = [prctile(plotMatStat(:),0)*0.95 prctile(plotMatStat(:),100)*1.2];
-    stem(ax6,0,10,'LineStyle',':','Color',[0.7 0.7 0.7],'LineWidth',5); hold on
-    h = plot(ax6,timeVec(nannum1:tnum),plotMat(idx,nannum1:tnum)','LineWidth',3);hold off
+    stem(ax6,0,10,'LineStyle',':','Color',[0.7 0.7 0.7],'LineWidth',3); hold on
+    h = plot(ax6,timeVec(nannum1:tnum),plotMat(idx,nannum1:tnum)','LineWidth',2.5);hold off
     if togStruct.displayTrackingToggle ==1
         for i=1:length(h)
             h(i).Color = cmapl(i,:);
@@ -6271,18 +6415,26 @@ for tnum = nannum1:nannum2
     ax6.XGrid = 'on';
     ax6.YGrid = 'on';
     ax6.Color = [0.95 0.95 0.95];
-    ax6.Title.String = ['Nuclear Snail-mCherry in tracked cells'];
-    ax6.FontSize = 14;
-    xtick = [0:60:10000]-240;
+    ax6.GridColor = [1 1 1];
+    ax6.GridAlpha = 1;
+    ax6.Title.String = ['Snail-mCherry'];
+    ax6.FontSize = 10;
+    
+    xtick = [0:60:timeVec(nannum2)+240]-240;
     ax6.XTick = xtick;
     xticklabel = mat2cell(xtick,1,ones(1,length(xtick)));
-    xticklabel(2:2:end) = {''};
+    xtidx = false(size(xtick));
+    xtidx(1:floor(length(xtick)/5):end) = true;
+%     xtidx(xtick==0) = true;
+    xticklabel(~xtidx) = {''};
     ax6.XTickLabel = xticklabel;
+    
     ytick = [0:0.25:20]-5;
     ax6.YTick = ytick;
     yticklabel = mat2cell(ytick,1,ones(1,length(ytick)));
     yticklabel(2:2:end) = {''};
     ax6.YTickLabel = yticklabel;
+    ax6.Box = 'off';
     
     
     
@@ -6314,7 +6466,7 @@ for tnum = nannum1:nannum2
     
 %     channelimg = horzcat(im3,im2,im1,im4);
     
-    togStruct.SaveMovie = false;
+%     togStruct.SaveMovie = false;
     if togStruct.SaveMovie
         specialdir = [dirStruct.parentdir 'LookingAtData/AnimatedTrackingPlottingMovie'];
         olddir = pwd;
@@ -6332,13 +6484,13 @@ for tnum = nannum1:nannum2
         imwrite(uint16(saveimg*30000),savename,'tif');
         
         cd(specialdir)
-        savedir = [specialdir '/' expDetailsStruct.expDateStr '/' ImageDetails.Scene '-' ImageDetails.Channel ' - ' trackfilestr ' figure png frames'];
+        savedir = [specialdir '/' expDetailsStruct.expDateStr '/' ImageDetails.Scene '-' ImageDetails.Channel ' - ' trackfilestr ' figure tiff frames'];
         if ~isdir(savedir)
             mkdir(savedir)
         end
         cd(savedir)
-        savename = [ImageDetails.Channel ' ' ImageDetails.Scene ' ' num2str(tnum) '.png'];
-        saveas(f33,savename,'png')
+        savename = [ImageDetails.Channel ' ' ImageDetails.Scene ' ' num2str(tnum) '.tif'];
+        saveas(f33,savename,'tif')
         disp(num2str(ImageDetails.Frame));
         cd(olddir)
     end
@@ -8086,6 +8238,11 @@ ax3 = axes();
 ax3.Units = 'pixels';
 ax3.Position = [1000 50 335 305];
 
+f33.Units = 'normalized';
+h = findobj(f33,'Type','Axes');
+[h.Units] = deal('normalized');
+f33.Position = [0.05 0.05 0.4 0.5];
+
 
 cropbuffer = 20;
 imgdim = ImageDetails.ImgSize;
@@ -8394,6 +8551,7 @@ for tnum = nannum1:nannum2
 % % % %     end
 % % % %     plotMat(isnan(plotMatSub)) = NaN;
     plotMat = medfilt1(plotMatSub,3,[],2);
+    plotMat = plotMatSub./(nanmedian(plotMatSub(:))*0.01);
     plotMatStat = plotMat(:,nannum1:nannum2);
     ylimit = [prctile(plotMatStat(:),0)*0.95 prctile(plotMatStat(:),100)*1.2];
     
@@ -8408,6 +8566,7 @@ for tnum = nannum1:nannum2
     ax2.XLim = timeVec([nannum1 nannum2]);
     ax2.YLim = (ylimit);
     ax2.YLabel.String = ['Smad3 ' ylabelstr ' ' mmsstr];
+    ax2.YLabel.String = ['Smad3 ' ylabelstr];
     ax2.XLabel.String = 'minutes';
     ax2.XGrid = 'on';
     ax2.YGrid = 'on';
@@ -8435,6 +8594,7 @@ for tnum = nannum1:nannum2
 % % %     end
 % % %     plotMat(isnan(plotMatSub)) = NaN;
     plotMat = medfilt1(plotMatSub,3,[],2);
+    plotMat = plotMatSub;
     plotMatStat = plotMat(:,nannum1:nannum2);
     ylimit = [prctile(plotMatStat(:),0)*0.95 prctile(plotMatStat(:),100)*1.2];
     
@@ -8451,7 +8611,8 @@ for tnum = nannum1:nannum2
     
     ax3.XLim = timeVec([nannum1 nannum2]);
     ax3.YLim = (ylimit);
-    ax3.YLabel.String = ['Smad3 ' ylabelstr ' ' mmsstr];
+%     ax3.YLabel.String = ['Smad3 ' ylabelstr ' ' mmsstr];
+    ax3.YLabel.String = ['Smad3 ' ylabelstr];
     ax3.XLabel.String = 'minutes';
     ax3.XGrid = 'on';
     ax3.YGrid = 'on';
@@ -8479,13 +8640,16 @@ for tnum = nannum1:nannum2
         imwrite(uint16(saveimg),savename,'tif');
         
         cd(specialdir)
-        savedir = [specialdir '/' expDetailsStruct.expDateStr '/' ImageDetails.Scene '-' ImageDetails.Channel ' - ' trackfilestr ' figure png frames'];
+%         savedir = [specialdir '/' expDetailsStruct.expDateStr '/' ImageDetails.Scene '-' ImageDetails.Channel ' - ' trackfilestr ' figure png frames'];
+        savedir = [specialdir '/' expDetailsStruct.expDateStr '/' ImageDetails.Scene '-' ImageDetails.Channel ' - ' trackfilestr ' figure tiff frames'];
         if ~isdir(savedir)
             mkdir(savedir)
         end
         cd(savedir)
-        savename = [ImageDetails.Channel ' ' ImageDetails.Scene ' ' num2str(tnum) '.png'];
-        saveas(f33,savename,'png')
+%         savename = [ImageDetails.Channel ' ' ImageDetails.Scene ' ' num2str(tnum) '.png'];
+%         saveas(f33,savename,'png')
+        savename = [ImageDetails.Channel ' ' ImageDetails.Scene ' ' num2str(tnum) '.tif'];
+        saveas(f33,savename,'tif')
         disp(num2str(ImageDetails.Frame));
         cd(olddir)
         
@@ -9271,7 +9435,8 @@ for j = 1:size(ccnew,2)
     ccnew(1:length(xq),j) = interp1(x,v,xq);
 end
 
-randidx = randi(size(ccnew,1),1,size(ccnew,1));
+% randidx = randi(size(ccnew,1),1,size(ccnew,1));
+randidx = randperm(size(ccnew,1));
 ccnew = ccnew(randidx,:);
 cmaplz = ccnew;
 end
