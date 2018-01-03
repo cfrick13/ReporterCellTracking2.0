@@ -62,7 +62,7 @@ bkinputs =channelregexpmaker(bkarray);
 
 cd(mstackPath)
 nucleusFileList = dir(mstackPath);
-[~,~,~,d] = regexp({nucleusFileList.name},'s[0-9]+');
+[~,~,~,d] = regexp({nucleusFileList.name},'s[0-9]++');
 dlog = ~cellfun(@isempty,d,'UniformOutput',1); 
 dcell = d(dlog);
 SceneList = unique(cellfun(@(x) x{1},dcell,'UniformOutput',0));
@@ -78,6 +78,7 @@ imgstack = fileobject.flatstack;
     %determine number of parallel cores to employ based on memory requirements
         dim = size(imgstack);
         memoryrequired = dim(1)*dim(2)*dim(3)*2*2;%background stack + imagestack
+        memoryrequired = dim(1)*dim(2)*dim(3)*2*2*4;%background stack + imagestack + extra processes
 %             disp(strcat('memory required for one image =',num2str(round(memoryrequired./(1e6),2,'decimals')),'MegaBytes'))
         detWorkers = 6./(memoryrequired./1e9); %determine the number of workers you can use while staying under 6 GB
         nWorkers = floor(detWorkers);
@@ -92,7 +93,7 @@ imgstack = fileobject.flatstack;
         disp(['memory required for imagestack = ' num2str(round(memoryrequired./(1e6),0,'decimals')) ' MB'])
 
         
-     % Enter parallel loop
+%      Enter parallel loop
         poolobj = gcp('nocreate');
         if isempty(poolobj)
             poolobj = parpool(nWorkers);
@@ -125,6 +126,7 @@ imgstack = fileobject.flatstack;
     end
     
     parfor iNW=1:nWorkers
+%     for iNW=1:nWorkers
         sceneArrayVec = sceneArray{iNW};
         sub_sList = sList(sceneArrayVec);
         for i = 1:length(sceneArrayVec)
@@ -163,7 +165,7 @@ imgstack = fileobject.flatstack;
             backtoc = num2str(round(toc(backtic),0,'decimals'));
             
             disp([scenestr ' nucSeg time= ' nuctoc ' s , backSeg time= ' backtoc ' s'])
-            
+            ssss=1;
         end
     end
 end

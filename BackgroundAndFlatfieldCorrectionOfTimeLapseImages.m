@@ -60,10 +60,16 @@ cd(mstackPath)
         mkdir(flatPath);
     end
 
+    sceneVector = A.sceneVector;
+    msv = max(sceneVector);
     backarray = cell(1,length(BACKGROUND));
     cycle=1;
     for g = BACKGROUND
-        backstr = 's00';
+        if msv>99
+            backstr = 's000';
+        else
+            backstr = 's00';
+        end
         backnumstr = num2str(g);
         backstr(end-(length(backnumstr)-1):end) = backnumstr;
         backarray{cycle} = backstr;
@@ -173,17 +179,18 @@ clear A dirlist
     cfile = {filelist.name};
 
         tic
+%         for j = 1:length(cfile) %load image_stack for each scene // and determine scene and channel
         parfor j = 1:length(cfile) %load image_stack for each scene // and determine scene and channel
             filename = char(cfile(j));
             imgstruct = load(filename);
             imgstack = single(imgstruct.img_stack_test);
 
-            [a,b] = regexp(filename,'s[0-9]+'); %determine scene
+            [a,b] = regexp(filename,'s[0-9]++'); %determine scene
             scene = filename(a:b);
 
             [e,f] = regexp(filename,channelinputs); %determine channel
             chan = filename(e:f);
-            chanstruct = alterChanName(chan)
+            chanstruct = alterChanName(chan);
             normBkgimgMat = bkgimgstruct.(chanstruct);
 
             flatstack = imgstack./normBkgimgMat; %flatten the experimental image with the background image

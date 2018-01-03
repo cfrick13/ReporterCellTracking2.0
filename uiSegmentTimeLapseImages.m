@@ -107,7 +107,7 @@ close all
 
 %determine how many scenes are present
     dirlist = dir(mstackPath);
-    [~,~,~,d] = regexp({dirlist.name},'s[0-9]+');
+    [~,~,~,d] = regexp({dirlist.name},'s[0-9]++');
     dlog = ~cellfun(@isempty,d,'UniformOutput',1); 
     dcell = d(dlog);
     SceneList = unique(cellfun(@(x) x{1},dcell,'UniformOutput',0));
@@ -594,7 +594,7 @@ testOut = struct();
     frames = 1;
     img = FinalImage(:,:,frames); 
     tic
-    [~,testOut] = segmentCellBackgroundNEW(img,background_seg,pStruct,frames);
+    [~,testOut] = segmentCellBackgroundOLDGREAT(img,background_seg,pStruct,frames);
     toc
     tic
     [~,testOut] = segmentCellBackground(img,background_seg,pStruct,frames);
@@ -1058,7 +1058,7 @@ Tracked=[];
  val = source.Value;
  channel = char(str{val});
 
- [~,~,~,d] = regexp(channel,channelinputs);
+ [~,~,~,d] = regexpi(channel,channelinputs);
 ImageDetails.Segment = d{1};
 
 [~,~,~,d] = regexp(channel,seginputs);
@@ -1115,9 +1115,11 @@ global pStruct timeFrames mstackPath segInstructList channelList segmentList TC 
 % define channel spacing
 
     channelspacing = round(linspace(1,timeFrames,9));
-    channelspacing(2) =69;
+%     channelspacing(2) =69;
     if length(channelspacing)>timeFrames
-        channelspacing = 1:timeFrames;
+        channelspacing = 1:min([timeFrames 9]);
+    elseif max(channelspacing)>timeFrames 
+        channelspacing = 1:min([timeFrames 9]);
     end
 %     channelspacing = 1:timeFrames;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -1176,8 +1178,8 @@ segmentPath = mstackPath;
 
 if strcmp(ImageDetails.segInstruct,'background')
 [IfStack,testOut] = segmentationImageBackground(FinalImage,segmentPath,background_seg,backgroundFileName,pStruct);  
-elseif strcmpi(ImageDetails.Segment,'Hoechst') && strcmp(ImageDetails.segInstruct,'nucleus')
-[IfStack,testOut] = segmentationNucleusHoechst(FinalImage,segmentPath,nucleus_seg,nucleusFileName,pStruct);
+% elseif strcmpi(ImageDetails.Segment,'Hoechst') && strcmp(ImageDetails.segInstruct,'nucleus')
+% [IfStack,testOut] = segmentationNucleusHoechst(FinalImage,segmentPath,nucleus_seg,nucleusFileName,pStruct);
 elseif strcmp(ImageDetails.segInstruct,'nucleus')
 [IfStack,testOut] = segmentationNucleus(FinalImage,segmentPath,nucleus_seg,nucleusFileName,pStruct);
 elseif strcmp(ImageDetails.segInstruct,'cell')

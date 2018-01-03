@@ -24,7 +24,7 @@ expdir = strcat(gparentdir,'/',B);
 cd(expdir)
 PathName = pwd;
 
-filelist = dir('*exp*.czi');
+filelist = dir('*plate exp*.czi');
 FileName = char(filelist.name);
 
 cd(PathName)
@@ -98,12 +98,16 @@ for cycle = 1:channelCount
         cswap = 'DIC';
     elseif emwave>505 && emwave<560
         cswap = 'EGFP';
-    elseif emwave>600
+    elseif emwave>600 && emwave<650
         cswap = 'mKate';
     elseif (emwave<480 && emwave>420) && exwave>400
         cswap = 'CFP';
     elseif exwave<370
         cswap = 'Hoechst';
+    else
+        a = regexp(cname,'\s');
+        cswap = cname;
+        cswap(a) = [];
     end
 channelNameSwapArray{cycle} = cswap;
 end
@@ -169,7 +173,7 @@ tic
 %run parallel image extraction
 disp('...running extraction...')
 disp(strcat('total images=',num2str(planeCount),'--',num2str(stackSizeX),'x',num2str(stackSizeY),'pixels'));
-% parfor iNW = 1 : nWorkers
+% for iNW = 1 : nWorkers
 parfor iNW = 1 : nWorkers
     
     % Initialize logging at INFO level
@@ -187,7 +191,11 @@ parfor iNW = 1 : nWorkers
         disp(iSeries)
         for iC = 1:channelCount
 
-            sceneNumber = 's00';
+            if max(sceneVector)>99
+                sceneNumber = 's000';
+            else
+                sceneNumber = 's00';
+            end
             scenestr = num2str(iSeries);
             sceneNumber(end-(length(scenestr)-1):end) = scenestr;
             channelName = channelNameSwapArray{iC};

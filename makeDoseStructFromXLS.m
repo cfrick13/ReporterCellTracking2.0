@@ -37,7 +37,11 @@ end
 dosestruct = struct();
 numberOfScenes = datastruct.sceneCount;
 for i=1:numberOfScenes
-   sceneStr = 's00';
+    if numberOfScenes>99
+        sceneStr = 's000';
+    else
+        sceneStr = 's00';
+    end
    scene = num2str(i);
    sceneStr(end-(length(scene)-1):end)=scene;
    dosestruct(i).scene = sceneStr;
@@ -102,13 +106,20 @@ for j=1:length(doseToScene)
     doseToScenemat = doseToScene{j};
     doseToSceneArray=cell(1,length(doseToScenemat));
     for i = 1:length(doseToScenemat)
-        dosestr = num2str(doseToScenemat(i)); 
-        if length(dosestr)>1
-            doseToSceneArray{i} = strcat('s',dosestr);
+        dosestr = num2str(doseToScenemat(i));
+        
+        %
+        
+        msv = numberOfScenes;
+        if msv>99
+            backstr = 's000';
         else
-            doseToSceneArray{i} = strcat('s0',dosestr); 
+            backstr = 's00';
         end
+        backstr(end-(length(dosestr)-1):end) = dosestr;
+        doseToSceneArray{i} = backstr;
     end
+
     
     
 
@@ -202,16 +213,18 @@ function dosestruct = dealData(var,varToScene,dosestruct,str,sceneList)
     for j=1:length(varToScene)
         varToScenemat = varToScene{j};
         varToSceneArray=cell(1,length(varToScenemat));
+        msv = length(sceneList);
         for i = 1:length(varToScenemat)
-            dosestr = num2str(varToScenemat(i)); 
-            if length(dosestr)>1
-                varToSceneArray{i} = strcat('s',dosestr);
+            if msv>99
+                backstr = 's000';
             else
-                varToSceneArray{i} = strcat('s0',dosestr); 
+                backstr = 's00';
             end
+            dosestr = num2str(varToScenemat(i));
+            backstr(end-(length(dosestr)-1):end) = dosestr;
+            varToSceneArray{i} = backstr;
         end
-
-
+        
     indicesChoice =channelregexpmaker(varToSceneArray);
     [~,~,~,d] =  regexp(sceneList,indicesChoice);
     dmat = cellfun(@isempty,d);
