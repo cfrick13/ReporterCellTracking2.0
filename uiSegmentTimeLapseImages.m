@@ -129,7 +129,11 @@ close all
     fileName = fnames{1};
     fileObject = matfile(fileName);
     dim = size(fileObject,'flatstack');
-    timeFrames = dim(3);
+    if max(size(dim))>2
+        timeFrames = dim(3);
+    else
+        timeFrames = 1;
+    end
 
 
 
@@ -367,10 +371,10 @@ end
 
 function pStruct = defaultpStructFunc(segInstructList)
     pStruct = struct();
-    parameterDefaults.background = [30 1 2 0.5 10];
-    parameterDefaults.nucleus = [30 1 2 0.5 10];
-    parameterDefaults.cell = [40 1 2 0.5 10];
-    parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','metthresh','percentSmoothed'};
+    parameterDefaults.background = [30 1 2 0.5 10 10];
+    parameterDefaults.nucleus = [30 1 2 0.5 10 10];
+    parameterDefaults.cell = [40 1 2 0.5 10 10];
+    parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','metthresh','percentSmoothed','denoise'};
     for p = 1:length(parameterStrings)
         pString = char(parameterStrings{p});
         for c = 1:length(segInstructList)
@@ -453,6 +457,10 @@ sliderspacing = linspace(0.8,0.7,length(fnames));
         elseif strcmp(str,'percentSmoothed')
             minz = 1;
             maxz = 100;
+            ssa = 1/2.5;
+        elseif strcmp(str,'denoise')
+            minz = 5;
+            maxz = 40;
             ssa = 1/2.5;
         else
             disp('parameter NOT CURRENTLY DEFINED') 
@@ -983,10 +991,12 @@ end
 
 %choose scenes
 function nextscenebutton_Callback(~,~) 
-global   ImageDetails SceneList A SceneDirectoryPath
+global   ImageDetails Tracked SceneList
 
 
 
+
+Tracked=[];
 
 if isempty(ImageDetails.Scene)
     ImageDetails.Scene = SceneList{1};
@@ -1001,16 +1011,15 @@ end
 ImageDetails.Scene = SceneList{idx};
 
 
-
-cd(A)
-cd('flatfield_corrected')
-SceneDirectory = dir (strcat('*',ImageDetails.Scene,'*'));
-cd(SceneDirectory.name)
-SceneDirectoryPath = pwd;
 setSceneAndTime
 end
 function prevscenebutton_Callback(~,~) 
-global   ImageDetails SceneList A SceneDirectoryPath
+global   ImageDetails Tracked SceneList
+
+
+
+
+Tracked=[];
 
 if isempty(ImageDetails.Scene)
     ImageDetails.Scene = SceneList{1};
@@ -1023,13 +1032,6 @@ else
 idx = idx - 1;
 end
 ImageDetails.Scene = SceneList{idx};
-
-cd(A)
-cd('flatfield_corrected')
-SceneDirectory = dir (strcat('*',ImageDetails.Scene,'*'));
-cd(SceneDirectory.name)
-SceneDirectoryPath = pwd;
-loadTrackingFile_callback([],[])
 setSceneAndTime
 end
 

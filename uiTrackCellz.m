@@ -133,7 +133,7 @@ segInstruct = dosestructstruct.segInstruct;
 segStruct.nucleus_seg = segInstruct.nucleus;
 segStruct.cell_seg = segInstruct.cell;
 segStruct.background_seg = segInstruct.background;
-channelstoinput = dosestructstruct.channelNames;
+channelstoinput = dosestructstruct.channelNameSwapArray;
 channelinputs =channelregexpmaker(channelstoinput);
 bkg = dosestructstruct.BACKGROUND;
 ImageDetails.ImgSize = dosestructstruct.dimensions;
@@ -172,7 +172,11 @@ filearray = {dirlist.name};
 filename = filearray{1};
 fileObject = matfile(filename);
 dim = size(fileObject,'flatstack');
-timeFrames = dim(3);
+    if max(size(dim))>2
+        timeFrames = dim(3);
+    else
+        timeFrames = 1;
+    end
 chanbkgmedianmat = zeros(1,timeFrames);
 nucbkgmedianmat = zeros(1,timeFrames);
 frameToLoad = 1;
@@ -457,6 +461,11 @@ uicontrol('Style','pushbutton',...
     'Position',[xP(mmm)-bW/2,yP(mmm),bW,bH./1.5],...
     'Callback',@makeMovieCropped);
 
+mmm=31;
+uicontrol('Style','pushbutton',...
+    'String','exportFrames',...
+    'Position',[xP(mmm)+bW/2 + bW,yP(mmm),bW,bH./1.5],...
+    'Callback',@saveFramesCropped);
 
 uicontrol('Style','pushbutton',...
     'String','SaveMovie',...
@@ -647,6 +656,11 @@ switch key
         prevbutton_callback([],[])
     case 'f'
         nextbutton_callback([],[])
+    case 'hyphen'
+        prevScene_callback([],[])
+    case 'equal'
+        nextScene_callback([],[])
+        
     case 'd'
         breaklink_callback([],[]);
     case '9'
@@ -860,6 +874,52 @@ end
 ds = divisionStructure;
 end
 
+
+function nextScene_callback(~,~)
+global ImageDetails Tracked timeFrames SceneList
+
+if isempty(ImageDetails.Scene)
+    ImageDetails.Scene = SceneList{1};
+    
+else
+    sceneval = ImageDetails.Scene;
+    [~,~,~,d] = regexp(SceneList,sceneval);
+    didx = ~cellfun(@isempty,d,'UniformOutput',true);
+    dval = find(didx==1)+1;
+    dval2 = min([dval length(SceneList)]);
+    ImageDetails.Scene = SceneList{dval2};
+    
+
+end
+
+Trackedz = makeTrackingFile(timeFrames);
+Tracked=Trackedz;
+setSceneAndTime
+
+end
+
+function prevScene_callback(~,~)
+global ImageDetails Tracked timeFrames SceneList
+
+if isempty(ImageDetails.Scene)
+    ImageDetails.Scene = SceneList{1};
+    
+else
+    sceneval = ImageDetails.Scene;
+    [~,~,~,d] = regexp(SceneList,sceneval);
+    didx = ~cellfun(@isempty,d,'UniformOutput',true);
+    dval = find(didx==1)-1;
+    dval2 = max([dval 1]);
+    ImageDetails.Scene = SceneList{dval2};
+    
+
+end
+
+Trackedz = makeTrackingFile(timeFrames);
+Tracked=Trackedz;
+setSceneAndTime
+
+end
 
 %choose frames
 function nextbutton_callback(~,~) %next buttong
@@ -2466,7 +2526,11 @@ plotTracesCell = cell(size(trackmatrix));
 plotTracesCell(:) = {NaN};
 nucFluorMatrix = nan(size(trackmatrix,2),timeFrames);
 cellFluorMatrix = nan(size(trackmatrix,2),timeFrames);
-centnew = nan(size(trackmatrix,2),size(centroids,2),timeFrames);
+if isempty(centroids)
+    centnew = nan(size(trackmatrix,2),2,timeFrames);
+else
+    centnew = nan(size(trackmatrix,2),size(centroids,2),timeFrames);
+end
 k=1; %choose median
 for i = 1:timeFrames
     a=i;
@@ -4789,7 +4853,7 @@ end
 
 %% Image Display functions
 function setSceneAndTime
-global  Ifstack chanbkgmedianmat nucbkgmedianmat togStruct DICimgstack foStruct backgroundimgstack segStruct nucleusimgstack segmentimgstack channelimgstack pathStruct frameToLoad ImageDetails Tracked SceneList imgfile
+global  dicbkgmedianmat Ifstack chanbkgmedianmat nucbkgmedianmat togStruct DICimgstack foStruct backgroundimgstack segStruct nucleusimgstack segmentimgstack channelimgstack pathStruct frameToLoad ImageDetails Tracked SceneList imgfile
 trackmatrix = Tracked.trackmatrix;
 
 %check for empty variables
@@ -4861,6 +4925,9 @@ end
 %choose the DIC image
 cd(pathStruct.mstackPath)
 ff = dir(strcat('*',ImageDetails.Scene,'*','647','*'));
+if isempty(ff)
+    ff = dir(strcat('*',ImageDetails.Scene,'*','DIC','*'));
+end
 filename = char(ff.name);
 if ~isempty(foStruct.dfoName) %if channelfileObject has been made, check to see if the scene has changed.
     [a,~] = regexp(foStruct.dfoName,ImageDetails.Scene);
@@ -4894,6 +4961,9 @@ cd(pathStruct.segmentPath)
 ff = dir(strcat('*',ImageDetails.Scene,'*',segStruct.nucleus_seg,'*'));
 if length(ff)>1
     ff = dir(strcat('*',ImageDetails.Scene,'*',segStruct.nucleus_seg,'*nucleus*'));
+end
+if isempty(ff)
+    ff = dir(strcat('*',ImageDetails.Scene,'*','mKate','*nucleus*'));
 end
 filename = char(ff.name);
 if ~isempty(foStruct.sfoName) %if channelfileObject has been made, check to see if the scene has changed.
@@ -4948,22 +5018,33 @@ end
 if updatebkgmedianmat %udpdate background subtraction if new files loaded
     chanbkgmedianmat = zeros(1,size(backgroundimgstack,3));
     nucbkgmedianmat = zeros(1,size(backgroundimgstack,3));
+    dicbkgmedianmat = zeros(1,size(backgroundimgstack,3));
     for k = 1:size(backgroundimgstack,3)
         backgroundimg = backgroundimgstack(:,:,k);
         segimg = segmentimgstack(:,:,k);
+        
         chanimg = chanimgstack(:,:,k);
         nucimg = nucimgstack(:,:,k);
+        dicimg = DICimgstack(:,:,k);
+        
         backgroundimg(segimg) = true;
         bkgpixels = chanimg(~backgroundimg);
         nucbkgpixels = nucimg(~backgroundimg);
+        dicbkgpixels = dicimg(~backgroundimg);
+        
         nucbkg = nanmedian(nucbkgpixels);
         chanbkg = nanmedian(bkgpixels);
+        dicbkg = nanmedian(dicbkgpixels);
+        
         chanbkgmedianmat(k) = chanbkg;
         nucbkgmedianmat(k) = nucbkg;
+        dicbkgmedianmat(k) = dicbkg;
+        
         nucleusimgstack(:,:,k) = nucimg - single(nucbkg);
         channelimgstack(:,:,k) = chanimg - single(chanbkg);
+        DICimgstack(:,:,k) = dicimg - single(dicbkg);
     end
-    clear segimg chanimg nucimg
+    clear segimg chanimg nucimg dicimg
     
 end
 
@@ -5016,6 +5097,7 @@ elseif strcmp(ImageDetails.Channel,'EGFP')
 elseif strcmp(ImageDetails.Channel,'DIC')
     channelimg = DICImg;
     bkgmedian = prctile(DICImg(:),1);
+    bkgmedian = 0;
 elseif strcmp(ImageDetails.Channel,'BKGbinary')
     channelimg = cellImg;
     backgroundimg(segmentimg) = true;
@@ -5032,6 +5114,11 @@ elseif strcmp(ImageDetails.Channel,'overlay')
     channelimg(:,:,3) = DICImg;
     bkgmedian = 0;
 elseif strcmpi(ImageDetails.Channel,'FluorOnlyOverlay')
+    channelimg = zeros(size(cellImg,1),size(cellImg,2),3);
+    channelimg(:,:,1) = nucleusImg;
+    channelimg(:,:,2) = cellImg;
+    bkgmedian = 0;
+else
     channelimg = zeros(size(cellImg,1),size(cellImg,2),3);
     channelimg(:,:,1) = nucleusImg;
     channelimg(:,:,2) = cellImg;
@@ -5436,6 +5523,13 @@ global togStruct
 togStruct.SaveMovie = false;
 makeMovieCroppedYEAH([],[])
 togStruct.SaveMovie = false;
+end
+
+function saveFramesCropped(~,~)
+global togStruct
+togStruct.SaveMovie = true;
+exportFramesmakeMovieCroppedYEAH([],[])
+togStruct.SaveMovie = true;
 end
 
 
@@ -8167,7 +8261,550 @@ end
 
 end
 
-function makeMovieCroppedYEAH(~,~)
+function exportFramesmakeMovieCroppedYEAH(~,~)
+%FOR IMMUNO!
+global channelstoinput ExportName ExportNameKey trackfilestr expDetailsStruct dirStruct timeVec pathStruct psettings medmeantot Tracked segStruct Ifstack channelimgstack nucleusimgstack DICimgstack togStruct timeFrames tcontrast lcontrast  ImageDetails prcntl lprcntl cmap cmaplz
+
+bkgmedian=0;
+%LONG TRACK
+
+
+
+%choose the initial cell
+contrastVal = 4000;
+% scenesTo = {'s005','s015','s026','s035','s043','s054','s064','s072','s085','s098','s102','s114','s126','s138'};
+scenesTo = {'s002','s004','s011','s019','s022','s026','s027','s182','s192'};
+% scenesTo = {'s03','s08','s25','s26'};
+% scenesTo = {'s01','s05'};
+
+trange = [2];
+
+
+
+
+%load traces to be plotted
+if togStruct.plotSettingsToggle == 0
+    psettings = PlotSettings_callback([],[]);
+    togStruct.plotSettingsToggle=1;
+end
+framesThatMustBeTracked = psettings.framesThatMustBeTracked;
+
+
+
+for io = 1:length(scenesTo)
+    scenestr = scenesTo{io};
+    for jimmy = 1:length(channelstoinput)
+        ImageDetails.Channel = channelstoinput{jimmy};
+        
+        ImageDetails.Scene = scenestr;
+        setSceneAndTime
+        
+        
+        
+        
+        if togStruct.plotSettingsToggle == 0
+            psettings = PlotSettings_callback([],[]);
+            togStruct.plotSettingsToggle=1;
+        end
+        
+        % %remove all global variables before parfor loop
+        eNameKey = ExportNameKey;
+        eName = ExportName;
+        tPath = pathStruct.trackingPath;
+        
+        
+        cd(tPath)
+        trackfile = dir(strcat(eNameKey,'*',scenestr,'*',eName,'.mat'));
+        trackfilename = char({trackfile.name});
+        
+        if ~isempty(trackfilename)
+            trackedArray = loadTrackedArray(trackfilename); %trackedArray = Tracked
+        end
+        Tracked = trackedArray;
+        % click the desired cell
+        
+        ArrayStruct = trackedArray.arrayStruct;
+        trackmatrix = trackedArray.trackmatrix;
+        smooththat=0;
+        [plotStructUI] = plotthemfunction(framesThatMustBeTracked,trackedArray,pathStruct,ImageDetails,timeFrames,smooththat);
+        
+        
+        % set up figure
+        f33 = figure(33);
+        close 33
+        
+        %%%% make movie by iterating through frames
+        f33 = figure(33);
+        f33.Color = 'w';
+        f33.Units = 'pixels';
+        f33.Position = [593 156 1460 760];
+        
+        ax1 = axes();
+        ax1.Units = 'pixels';
+        ax1.Position = [25 25 720 720];
+        
+        ax2 = axes();
+        ax2.Units = 'pixels';
+        ax2.Position = [1000 425 335 305];
+        
+        ax3 = axes();
+        ax3.Units = 'pixels';
+        ax3.Position = [1000 50 335 305];
+        
+        f33.Units = 'normalized';
+        h = findobj(f33,'Type','Axes');
+        [h.Units] = deal('normalized');
+        f33.Position = [0.05 0.05 0.4 0.5];
+        
+        
+        cropbuffer = 20;
+        imgdim = ImageDetails.ImgSize;
+        celltrack = ~isnan(trackmatrix);
+        nanvec = sum((celltrack),2);
+        % nannum1 = max([2 find(nanvec == max(nanvec),1,'first')]);
+        nannum1 = max([2 find(nanvec > 0,1,'first')]);
+        % nannum1 = 1;
+        
+        % nannum2 = find(nanvec == max(nanvec),1,'last');
+        nannum2 = find(nanvec > 0,1,'last');
+        segment_Centroids_array = ArrayStruct.centroid;
+        
+        %determine crop region
+        xvals = nan(nannum2,2);
+        yvals = nan(nannum2,2);
+        cycle = 0;
+        for tnum = nannum1:nannum2
+            cycle = cycle+1;
+            cellindices = trackmatrix(tnum,:);
+            centroids = segment_Centroids_array{tnum};
+            cellcentroids = centroids(cellindices(~isnan(cellindices)),:);
+            yvals(cycle,:) = round([min(cellcentroids(:,1)) max(cellcentroids(:,1))]);
+            xvals(cycle,:) = round([min(cellcentroids(:,2)) max(cellcentroids(:,2))]);
+        end
+        cropxmin = max([min(xvals(:,1))-cropbuffer 1]);
+        cropxmax = min([max(xvals(:,2))+cropbuffer imgdim(1)]);
+        cropymin = max([min(yvals(:,1))-cropbuffer 1]);
+        cropymax = min([max(yvals(:,2))+cropbuffer imgdim(2)]);
+        xdist = cropxmax-cropxmin;
+        ydist = cropymax-cropymin;
+        
+        ddiff = abs(ydist-xdist);
+        dd2x = floor(ddiff/2);
+        dd2y = ceil(ddiff/2);
+        if ddiff>0
+            if ydist>xdist
+                x1 = cropxmin-1;
+                x2 = 512-cropxmax;
+                if x1 < dd2x
+                    dd2x = x1;
+                    dd2y = ddiff-x1;
+                elseif x2 < dd2y
+                    dd2y = x2;
+                    dd2x = ddiff-x2;
+                end
+                cropxmin = cropxmin-dd2x;
+                cropxmax = cropxmax+dd2y;
+            else
+                x1 = cropymin-1;
+                x2 = 512-cropymax;
+                if x1 < dd2x
+                    dd2x = x1;
+                    dd2y = ddiff-x1;
+                elseif x2 < dd2y
+                    dd2y = x2;
+                    dd2x = ddiff-x2;
+                end
+                cropymin = cropymin-dd2x;
+                cropymax = cropymax+dd2y;
+            end
+        end
+        
+        xdist = cropxmax-cropxmin;
+        ydist = cropymax-cropymin;
+        
+        
+        %     trange = 1:nannum2;
+        for tnum = trange
+            t = tnum;
+            
+            If = Ifstack(:,:,t);
+            nucleusImg = nucleusimgstack(:,:,t);
+            cellImg = channelimgstack(:,:,t);
+            
+            
+            if strcmp(ImageDetails.Channel,segStruct.nucleus_seg)
+                channelimg = nucleusImg;
+            elseif strcmp(ImageDetails.Channel,segStruct.cell_seg)
+                channelimg = cellImg;
+            elseif strcmp(ImageDetails.Channel,'overlay')
+                DICImg = DICimgstack(:,:,t);
+                channelimg = zeros(size(cellImg,1),size(cellImg,2),3);
+                channelimg(:,:,1) = nucleusImg;
+                %         channelimg(:,:,1) = zeros(size(nucleusImg));
+                channelimg(:,:,2) = cellImg;
+                channelimg(:,:,3) = DICImg;
+            elseif strcmpi(ImageDetails.Channel,'FluorOnlyOverlay')
+                DICImg = DICimgstack(:,:,t);
+                channelimg = zeros(size(cellImg,1),size(cellImg,2),3);
+                channelimg(:,:,1) = nucleusImg;
+                channelimg(:,:,2) = cellImg;
+            elseif ~isempty(regexp(ImageDetails.Channel,'647'))
+                channelimg = DICimgstack(:,:,t);
+            elseif strcmpi(ImageDetails.Channel,'DIC')
+                channelimg = DICimgstack(:,:,t);
+            end
+            
+            if length(size(channelimg))>2
+                cropim = channelimg(cropxmin:cropxmax,cropymin:cropymax,:);
+            else
+                cropim = channelimg(cropxmin:cropxmax,cropymin:cropymax);
+            end
+            If = If(cropxmin:cropxmax,cropymin:cropymax);
+            channelimg = cropim;
+            
+            If(If<2)=0;
+            If(If>2) = 100;
+            %     If(If>1) = 0;
+            
+            
+            
+            
+            
+            
+            %scripts for displaying contrasted image
+            alog = regexpi(ImageDetails.Channel,'overlay'); %when overlay display is desired
+            if ~isempty(alog)
+                %scripts for displaying contrasted image
+                disprgb = zeros(size(cropim));
+                channelimgrgb = cropim;
+                Ifrgb = ind2rgb(uint8(If),vertcat([0 0 0],cmap(257:end,:)));
+                for i = 1:size(cropim,3)
+                    if i==3
+                        channelimg = channelimgrgb(:,:,i);
+                        lprcntl = prctile(channelimg(:),lcontrast);
+                        prcntl = prctile(channelimg(:),tcontrast);
+                        scaleFactor = 1./(prcntl - lprcntl);
+                        dispimg = channelimg.*scaleFactor;
+                        dispimg = dispimg-(lprcntl.*scaleFactor);
+                        dispimg(dispimg> 1) =1;
+                        dispimg(dispimg<0) = 0;
+                    else
+                        channelimg = channelimgrgb(:,:,i);
+                        lprcntl = 0;
+                        prcntl = prctile(channelimg(:),tcontrast);
+                        scaleFactor = 1./(prcntl - lprcntl);
+                        dispimg = channelimg.*scaleFactor;
+                        dispimg = dispimg-(lprcntl.*scaleFactor);
+                        dispimg(dispimg> 1) =1;
+                        dispimg(dispimg<0) = 0;
+                    end
+                    
+                    
+                    if i==1
+                        disprgb(:,:,i) = dispimg;
+                    elseif i==2
+                        disprgb(:,:,i) = dispimg;
+                    elseif i==3
+                        OGrgb = disprgb;
+                        
+                        DICrgb = channelimgrgb;
+                        for j = 1:3
+                            cimg =  disprgb(:,:,j);
+                            cimgpre = cimg;
+                            %                 cimg(dispimg>(cimg./a)) = dispimg(dispimg>(cimg./a));
+                            cimg = cimg.*dispimg;
+                            disprgb(:,:,j) = cimg;
+                            DICrgb(:,:,j) = dispimg;
+                        end
+                        cimgmax =  max(disprgb,[],3);
+                        a = 0.1;
+                        for j = 1:3
+                            cimg =  disprgb(:,:,j);
+                            cimg = cimg + dispimg./5;
+                            cimg(cimg>1) = 1;
+                            disprgb(:,:,j) = cimg;
+                        end
+                        
+                    end
+                end
+                
+                newimg = zeros(size(disprgb));
+                for i = 1:size(disprgb,3)
+                    Ifsub = Ifrgb(:,:,i);
+                    Ifnew = zeros(size(Ifsub));
+                    Ifnew(If>0) = Ifsub(If>0);
+                    %             Ifnew(If>0) = 0;
+                    dispimg = disprgb(:,:,i);
+                    dispimg(If>0) = Ifsub(If>0);
+                    %             dispimg(If>0) = 0;
+                    disprgb(:,:,i) = dispimg;
+                    newimg(:,:,i) = Ifnew;
+                end
+                
+                
+                dispimg = disprgb;
+                %     dispimg = uint8(dispimg);
+                image(ax1,dispimg);
+                %     colormap(MainAxes,cmap);
+                %                 set(MainAxes,'CLim',[0 size(cmap,1)]);
+                %             set(MainAxes,'YDir',[0 size(cmap,1)]);
+                
+            else  %under normal circumstances
+                if togStruct.changeSceneOrChannel ==1
+                    prcntl = prctile(channelimg(:),tcontrast);
+                    prcntl = 1800;
+                    prcntl = contrastVal;
+                    togStruct.changeSceneOrChannel =0;
+                end
+                %     lprcntl = bkgmedian.*0.90;
+                lprcntl = bkgmedian;
+                prcntl = contrastVal;
+                scaleFactor = 255./(prcntl - lprcntl);
+                dispimg = channelimg.*scaleFactor;
+                dispimg = dispimg-(lprcntl.*scaleFactor);
+                dispimg(dispimg > 250) =253;
+                dispimg(dispimg < 0) = 0;
+                %     dispimg(If>0)=255;
+                %         dispimg(If>0)=If(If>0)+257;
+                imagesc(ax1,int16(dispimg));
+                colormap(ax1,cmap);
+                set(ax1,'CLim',[0 size(cmap,1)]);
+                set(ax1,'YDir','normal');
+            end
+            
+            %title the displayed image
+            
+            
+            
+            %     frametext= text(ax1,0,0,['frame ' num2str(tnum) '/' num2str(timeFrames)]);
+            %     frametext.Units = 'normalized';
+            %     frametext.Position = [0.01 0.95];
+            %     frametext.FontSize = 12;
+            %     frametext.Color =[1 1 0];
+            minstr = '0000';
+            minsub = num2str(timeVec(tnum));
+            minidx = false(size(minstr));
+            minidx(end-(length(minsub)-1):end) = true;
+            if timeVec(tnum)<0
+                minstr(end-(length(minsub)-1):end) = minsub;
+                minstr(~minidx) = ' ';
+            else
+                minstr(end-(length(minsub)-1):end) = minsub;
+                
+                minstr(~minidx)=' ';
+            end
+            
+            frametext= text(ax1,0,0,[minstr ' min']);
+            frametext.Units = 'normalized';
+            frametext.Position = [0.99 0.02];
+            frametext.FontSize = 15;
+            frametext.Color =[1 1 0];
+            frametext.FontWeight = 'bold';
+            frametext.HorizontalAlignment = 'right';
+            
+            if ~(timeVec(tnum)<0)
+                frametext= text(ax1,0,0,'+TGFbeta');
+                frametext.Units = 'normalized';
+                frametext.Position = [0.99 0.05];
+                frametext.FontSize = 15;
+                frametext.Color =[1 1 0];
+                frametext.FontWeight = 'bold';
+                frametext.HorizontalAlignment = 'right';
+            end
+            
+            
+            stimulationFrame = find(~(timeVec<0),1,'first');
+            
+            set(ax1,'NextPlot','Add')
+            ax1.XTick =[];
+            ax1.YTick = [];
+            %plot cell tracking "tails"
+            if tnum>0
+                
+                trajectForPlot = trackingTrajectories(timeFrames);
+                mainplotX = squeeze(trajectForPlot(:,1,:)); %28x22 means 28 cells on frame 22;
+                mainplotY = squeeze(trajectForPlot(:,2,:));
+                
+                if size(mainplotY,2) == 1
+                    mainplotY=mainplotY';
+                    mainplotX=mainplotX';
+                end
+                %only plot if the cell is currently tracked/segmented in this frame
+                idx = ~isnan(mainplotY(:,stimulationFrame));
+                idxa = find(idx);
+                
+                cmapl = lines(size(mainplotY,1));
+                plotcmap = zeros(length(idxa),3);
+                for i=1:length(idxa)
+                    plotcmap(i,:) =  cmapl(idxa(i),:);
+                end
+                %
+                %             x = mainplotX(idxa,:) - cellcentroid(1) + cropsize;
+                %             y = mainplotY(idxa,:) - cellcentroid(2) + cropsize;
+                x = mainplotX(idxa,:) - cropymin;
+                y = mainplotY(idxa,:) - cropxmin;
+                t0 =max([nannum1-1 tnum-20]);
+                %             h = plot(MainAxes,x(:,t0:tnum)',y(:,t0:tnum)','LineWidth',2);
+                if togStruct.displayTrackingToggle==1
+                    h = line(ax1,x(:,t0:tnum)',y(:,t0:tnum)','LineWidth',4);
+                    set(h, {'color'}, num2cell(plotcmap,2));
+                    nanan = isnan(y(:,tnum));
+                    [h(nanan).Visible] = deal('off');
+                end
+            end
+            set(ax1,'NextPlot','Replace')
+            
+            
+            
+            
+            %plot traces
+            mmsstr = medmeantot;
+            %first axes, plot abundance
+            fcplotstr = '';
+            ylabelstr = 'abundance';
+            if strcmp(ImageDetails.Channel,segStruct.cell_seg)
+                plotstr = ['Smad' fcplotstr];
+            elseif strcmp(ImageDetails.Channel,segStruct.nucleus_seg)
+                plotstr = ['mkate' fcplotstr];
+            else
+                plotstr = ['Smad' fcplotstr];
+            end
+            plotMatOG = plotStructUI.(mmsstr).(plotstr);
+            plotMatSub = plotMatOG(idx,:);
+            % % % %     plotMat = nan(size(plotMatSub));
+            % % % %     for j = 1:size(plotMatSub,1)
+            % % % %         plotMat(j,:) = smooth(plotMatSub(j,:),0.05,'loess');
+            % % % %     end
+            % % % %     plotMat(isnan(plotMatSub)) = NaN;
+            plotMat = medfilt1(plotMatSub,3,[],2);
+            plotMat = plotMatSub./(nanmedian(plotMatSub(:))*0.01);
+            plotMatStat = plotMat(:,nannum1:nannum2);
+            ylimit = [prctile(plotMatStat(:),0)*0.95 prctile(plotMatStat(:),100)*1.2];
+            
+            h = plot(ax2,timeVec(nannum1:tnum),plotMat(:,nannum1:tnum)','LineWidth',2);
+            if togStruct.displayTrackingToggle ==1
+                for i=1:length(h)
+                    h(i).Color = cmapl(i,:);
+                end
+                colormap(cmap);
+            end
+            
+            if sum(diff(timeVec([nannum1 nannum2])))>0
+                xlim = timeVec([nannum1 nannum2]);
+            else
+                xlim = [0 1];
+            end
+            
+            ax2.XLim = xlim;
+            ax2.YLim = (ylimit);
+            ax2.YLabel.String = ['Smad3 ' ylabelstr ' ' mmsstr];
+            ax2.YLabel.String = ['Smad3 ' ylabelstr];
+            ax2.XLabel.String = 'minutes';
+            ax2.XGrid = 'on';
+            ax2.YGrid = 'on';
+            ax2.Color = [0.95 0.95 0.95];
+            ax2.Title.String = ['Nuclear mNG-Smad3 in tracked cells'];
+            ax2.FontSize = 12;
+            
+            
+            %second axes, plot fold-change
+            
+            fcplotstr = 'FC';
+            ylabelstr = 'fold change';
+            if strcmp(ImageDetails.Channel,segStruct.cell_seg)
+                plotstr = ['Smad' fcplotstr];
+            elseif strcmp(ImageDetails.Channel,segStruct.nucleus_seg)
+                plotstr = ['mkate' fcplotstr];
+            else
+                plotstr = ['Smad' fcplotstr];
+            end
+            plotMatOG = plotStructUI.(mmsstr).(plotstr);
+            plotMatSub = plotMatOG(idx,:);
+            % % %     plotMat = nan(size(plotMatSub));
+            % % %     for j = 1:size(plotMatSub,1)
+            % % %         plotMat(j,:) = smooth(plotMatSub(j,:),0.05,'loess');
+            % % %     end
+            % % %     plotMat(isnan(plotMatSub)) = NaN;
+            plotMat = medfilt1(plotMatSub,3,[],2);
+            plotMat = plotMatSub;
+            plotMatStat = plotMat(:,nannum1:nannum2);
+            ylimit = [prctile(plotMatStat(:),0)*0.95 prctile(plotMatStat(:),100)*1.2];
+            
+            idx = true(size(plotMat,1),1);
+            idxa = find(idx==1);
+            h = plot(ax3,timeVec(nannum1:tnum),plotMat(idx,nannum1:tnum)','LineWidth',2);
+            %update color traces to match image
+            if togStruct.displayTrackingToggle ==1
+                for i=1:length(h)
+                    h(i).Color = cmapl(idxa(i),:);
+                end
+                colormap(cmap);
+            end
+            
+            ax3.XLim = xlim;
+            ax3.YLim = (ylimit);
+            %     ax3.YLabel.String = ['Smad3 ' ylabelstr ' ' mmsstr];
+            ax3.YLabel.String = ['Smad3 ' ylabelstr];
+            ax3.XLabel.String = 'minutes';
+            ax3.XGrid = 'on';
+            ax3.YGrid = 'on';
+            ax3.Color = [0.95 0.95 0.95];
+            ax3.FontSize = 12;
+            
+            pause(0.15)
+            drawnow
+            
+            
+            if togStruct.SaveMovie
+                specialdir = [dirStruct.parentdir 'LookingAtData/ExportImageFrames'];
+                olddir = pwd;
+                saveimg = channelimg;
+                if ~isdir(specialdir)
+                    mkdir(specialdir)
+                end
+                cd(specialdir)
+                savedir = [specialdir '/' expDetailsStruct.expDateStr '/'];
+                if ~isdir(savedir)
+                    mkdir(savedir)
+                end
+                cd(savedir)
+                savename = [ImageDetails.Channel ' ' ImageDetails.Scene ' ' num2str(tnum) '.tif'];
+                imwrite(uint16(saveimg),savename,'tif');
+                
+                %SAVE FIGURE
+                %             cd(specialdir)
+                %             %         savedir = [specialdir '/' expDetailsStruct.expDateStr '/' ImageDetails.Scene '-' ImageDetails.Channel ' - ' trackfilestr ' figure png frames'];
+                %             savedir = [specialdir '/' expDetailsStruct.expDateStr '/' ImageDetails.Scene '-' ImageDetails.Channel ' - ' trackfilestr ' figure tiff frames'];
+                %             if ~isdir(savedir)
+                %                 mkdir(savedir)
+                %             end
+                %             cd(savedir)
+                %             %         savename = [ImageDetails.Channel ' ' ImageDetails.Scene ' ' num2str(tnum) '.png'];
+                %             %         saveas(f33,savename,'png')
+                %             savename = [ImageDetails.Channel ' ' ImageDetails.Scene ' ' num2str(tnum) '.tif'];
+                %             saveas(f33,savename,'tif')
+                %             disp(num2str(ImageDetails.Frame));
+                %             cd(olddir)
+                
+                cd(specialdir)
+                savedir = [specialdir '/' expDetailsStruct.expDateStr '/' ImageDetails.Scene '-' ImageDetails.Channel ' - ' trackfilestr ' movieCode'];
+                if ~isdir(savedir)
+                    mkdir(savedir)
+                end
+                cd(savedir)
+                savenamestr = ['uitrackcellz_' ImageDetails.Channel '_' ImageDetails.Scene '_' num2str(tnum) '.m'];
+                mdir = pathStruct.mdirPath;
+                copyfile([mdir '.m'],[savedir '/' savenamestr '.m'])
+                cd(olddir)
+            end
+        end
+    end
+end
+end
+
+
+function makeMovieCroppedYEAHmultipleScenes(~,~)
+%FOR IMMUNO!
 global ExportName ExportNameKey trackfilestr expDetailsStruct dirStruct timeVec pathStruct psettings medmeantot Tracked segStruct Ifstack channelimgstack nucleusimgstack DICimgstack togStruct timeFrames tcontrast lcontrast  ImageDetails prcntl lprcntl cmap cmaplz
 
 bkgmedian=0;
@@ -8177,9 +8814,11 @@ bkgmedian=0;
 
 %choose the initial cell
 contrastVal = 4000;
-scenesTo = {'s03','s08','s25','s26'};
-scenesTo = {'s01','s05'};
-trange = [11 13 15 19 26 39 45];
+scenesTo = {'s005','s015','s026','s035','s043','s054','s064','s072','s085','s098','s102','s114','s126','s138'};
+% scenesTo = {'s03','s08','s25','s26'};
+% scenesTo = {'s01','s05'};
+
+trange = [2 3];
 
 
 
@@ -8220,7 +8859,7 @@ tPath = pathStruct.trackingPath;
     if ~isempty(trackfilename)
         trackedArray = loadTrackedArray(trackfilename); %trackedArray = Tracked
     end
-    
+    Tracked = trackedArray;
     % click the desired cell
     
     ArrayStruct = trackedArray.arrayStruct;
@@ -8323,7 +8962,7 @@ tPath = pathStruct.trackingPath;
     ydist = cropymax-cropymin;
     
     
-    trange = 1:nannum2;
+%     trange = 1:nannum2;
         for tnum = trange
         t = tnum;
         
@@ -8589,7 +9228,13 @@ tPath = pathStruct.trackingPath;
             colormap(cmap);
         end
         
-        ax2.XLim = timeVec([nannum1 nannum2]);
+        if sum(diff(timeVec([nannum1 nannum2])))>0
+            xlim = timeVec([nannum1 nannum2]);
+        else
+            xlim = [0 1];
+        end
+        
+        ax2.XLim = xlim;
         ax2.YLim = (ylimit);
         ax2.YLabel.String = ['Smad3 ' ylabelstr ' ' mmsstr];
         ax2.YLabel.String = ['Smad3 ' ylabelstr];
@@ -8635,7 +9280,7 @@ tPath = pathStruct.trackingPath;
             colormap(cmap);
         end
         
-        ax3.XLim = timeVec([nannum1 nannum2]);
+        ax3.XLim = xlim;
         ax3.YLim = (ylimit);
         %     ax3.YLabel.String = ['Smad3 ' ylabelstr ' ' mmsstr];
         ax3.YLabel.String = ['Smad3 ' ylabelstr];
@@ -8694,9 +9339,8 @@ tPath = pathStruct.trackingPath;
 end
 end
 
-
-
-function makeMovieCroppedYEAHexcellent(~,~)
+%excellent
+function makeMovieCroppedYEAH(~,~)
 global trackfilestr expDetailsStruct dirStruct timeVec pathStruct psettings medmeantot Tracked segStruct Ifstack channelimgstack nucleusimgstack DICimgstack togStruct timeFrames tcontrast lcontrast  ImageDetails prcntl lprcntl cmap cmaplz
 
 bkgmedian=0;
@@ -9078,7 +9722,15 @@ for tnum = nannum1:nannum2
         colormap(cmap);
     end
     
-    ax2.XLim = timeVec([nannum1 nannum2]);
+    
+    if sum(diff(timeVec([nannum1 nannum2])))==0
+        xlim = [0 1];
+    else
+        xlim = timeVec([nannum1 nannum2]);
+    end
+        
+        
+    ax2.XLim = xlim;
     ax2.YLim = (ylimit);
     ax2.YLabel.String = ['Smad3 ' ylabelstr ' ' mmsstr];
     ax2.YLabel.String = ['Smad3 ' ylabelstr];
@@ -9124,7 +9776,7 @@ for tnum = nannum1:nannum2
         colormap(cmap);
     end
     
-    ax3.XLim = timeVec([nannum1 nannum2]);
+    ax3.XLim = xlim;
     ax3.YLim = (ylimit);
 %     ax3.YLabel.String = ['Smad3 ' ylabelstr ' ' mmsstr];
     ax3.YLabel.String = ['Smad3 ' ylabelstr];
@@ -9182,7 +9834,7 @@ for tnum = nannum1:nannum2
 end
 end
 
-
+%BEST
 function makeMovieCroppedYEAHBEST(~,~)
 global trackfilestr expDetailsStruct dirStruct timeVec pathStruct psettings medmeantot Tracked segStruct Ifstack channelimgstack nucleusimgstack DICimgstack togStruct timeFrames tcontrast lcontrast  ImageDetails prcntl lprcntl cmap cmaplz
 

@@ -77,6 +77,11 @@ fileobject = matfile(nucleusFileListArray{1});
 imgstack = fileobject.flatstack;
     %determine number of parallel cores to employ based on memory requirements
         dim = size(imgstack);
+        if max(size(dim))>2
+        else
+            newdim = [dim(:)' 1];
+            dim = newdim;
+        end
         memoryrequired = dim(1)*dim(2)*dim(3)*2*2;%background stack + imagestack
         memoryrequired = dim(1)*dim(2)*dim(3)*2*2*4;%background stack + imagestack + extra processes
 %             disp(strcat('memory required for one image =',num2str(round(memoryrequired./(1e6),2,'decimals')),'MegaBytes'))
@@ -173,10 +178,10 @@ end
 
 function pStruct = defaultpStructFunc(segInstructList)
     pStruct = struct();
-    parameterDefaults.background = [30 1 2 0.5 10];
-    parameterDefaults.nucleus = [30 1 2 0.5 10];
-    parameterDefaults.cell = [40 1 2 0.5 10];
-    parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','metthresh','percentSmoothed'};
+    parameterDefaults.background = [30 1 2 0.5 10 10];
+    parameterDefaults.nucleus = [30 1 2 0.5 10 10];
+    parameterDefaults.cell = [40 1 2 0.5 10 10];
+    parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','metthresh','percentSmoothed','denoise'};
     for p = 1:length(parameterStrings)
         pString = char(parameterStrings{p});
         for c = 1:length(segInstructList)
@@ -207,29 +212,6 @@ end
     
 
 end
-
-function FinalImage=loadStack(FileTif)
-% [a,b] = uigetfile;
-% FileTif = a;
-% cd (b)
-InfoImage=imfinfo(FileTif);
-mImage=InfoImage(1).Width;
-nImage=InfoImage(1).Height;
-NumberImages=length(InfoImage);
-FinalImage=zeros(nImage,mImage,NumberImages,'uint16');
- 
-TifLink = Tiff(FileTif, 'r');
-for i=1:NumberImages
-   TifLink.setDirectory(i);
-   FinalImage(:,:,i)=TifLink.read();
-end
-TifLink.close();
-end
-
-
-
-
-
 
 function [IfFinal,testOut] = segmentationNucleus(FinalImage,segmentPath,nucleus_seg,nucleusFileName,pStruct)
     testOut = struct();                           
@@ -322,42 +304,6 @@ savethatimagestack(IfFinal,bfilename,segmentPath)
 end
 
 
-
-function If = segmentationREPORTERBKG(FinalImage,channel,scenename,filename,segchannel,pStruct)
-global   nucleus_seg foldernameglobal
-mkdir(strcat(segchannel));
-
-foldername = foldernameglobal;
-% foldername = foldernameglobal;
-tsn = determineTimeFrame(foldername);
-
-% parameters
-nucDiameter = pStruct.(channel).nucDiameter;
-threshFactor = pStruct.(channel).threshFactor;
-sigmaScaledToParticle = pStruct.(channel).sigmaScaledToParticle;
-kernelgsize = nucDiameter; %set kernelgsize to diameter of nuclei at least
-sigma = nucDiameter./sigmaScaledToParticle; %make the sigma about 1/5th of kernelgsize
-
-
-for frames=1:size(FinalImage,3)
-img = FinalImage(:,:,frames);
-If = logical(img);
-se = strel('disk',20);
-Ifd = imdilate(If,se);
-If = ~Ifd;
-
-
-    
-    time = tsn{frames};
-    tim = time(2:end);
-%     IfFinal(:,:,frames)=If;
-    savethatimagestack(scenename,time,If.*255,frames,filename,segchannel)
-end
-
-
-stophere=1;
-end
-
 function savethatimagestack(IfFinal,filename,segmentPath)
 olddir  = pwd;
 cd(segmentPath)
@@ -365,77 +311,6 @@ save(filename,'IfFinal','-v7.3');
 cd (olddir)
 
 
-end
-
-function bw = gaussianBlurz(im,sigma,kernelgsize,varargin)
-
-filtersize = [kernelgsize kernelgsize];
-kernelg = fspecial('gaussian',filtersize,sigma);
-
-%% image filtering
-gFrame = imfilter(im,kernelg,'repl');
-
-if ~isempty(varargin)
-    bw=gFrame.*uint16(varargin{1}>0);
-else
-    bw=gFrame;
-end
-end
-
-
-function bw = logMasked(im,ksize,varargin)
-% Discrete Laplacian
-kernel = chooseKernel(ksize);
-%% image filtering
-lapFrame = imfilter(im,kernel,'repl');
-if ~isempty(varargin)
-    bw=lapFrame.*uint16(varargin{1}>0);
-else
-    bw=lapFrame;
-end
-end
-
-function kernel = chooseKernel(ksize)
-if ksize ==5
-kernel = [-4 -1  0 -1 -4;...
-     -1  2  3  2 -1;...
-      0  3  4  3  0;...
-     -1  2  3  2 -1;...
-     -4 -1  0 -1 -4];
-
-
-% % % -4 -1  0 -1 -4
-% % % -1  2  3  2 -1
-% % % 0  3  4  3  0
-% % % -1  2  3  2 -1
-% % % -4 -1  0 -1 -4
-
-elseif ksize == 7
-kernel =[-10 -5 -2 -1 -2 -5 -10;... 
-    -5  0  3  4  3  0  -5;... 
-    -2  3  6  7  6  3  -2;... 
-    -1  4  7  8  7  4  -1;... 
-    -2  3  6  7  6  3  -2;... 
-    -5  0  3  4  3  0  -5;... 
-    -10 -5 -2 -1 -2 -5 -10];... 
-    
-% % % -10 -5 -2 -1 -2 -5 -10 
-% % % -5  0  3  4  3  0  -5 
-% % % -2  3  6  7  6  3  -2 
-% % % -1  4  7  8  7  4  -1 
-% % % -2  3  6  7  6  3  -2 
-% % % -5  0  3  4  3  0  -5
-% % % -10 -5 -2 -1 -2 -5 -10
-end
-end
-
-
-function  LoGstack = LaplacianOfGaussianStack(imgstack,dims,ksize)
-        LoGstack = zeros(dims(1),dims(2),dims(3));
-        for i = 1:size(imgstack,3)
-        LoGstack(:,:,i) = logMasked(imgstack(:,:,i),ksize);
-        end
-        
 end
 
 function tsn = determineTimeFrame(foldername)

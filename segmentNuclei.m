@@ -9,7 +9,13 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
     else
         metthresh=0.1;
     end
-    wienerP=5;
+    fnames = fieldnames(pStruct.(nucleus_seg));
+    if sum(strcmpi(fnames,'denoise'))>0
+        wienerP=pStruct.(nucleus_seg).denoise;
+    else
+        wienerP=5;
+    end
+    
     percentSmoothed = pStruct.(nucleus_seg).percentSmoothed;
     testOut = struct();
            
@@ -170,7 +176,8 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             objectArea = pi.*(obRad.^2);
 
             pxlogS = pxl>(objectArea./8); %only keep if area is bigger than small limit
-            pxlogL = pxl<(objectArea.*8); %only keep if area is smaller than large limit
+%             pxlogL = pxl<(objectArea.*8); %only keep if area is smaller than large limit
+            pxlogL = pxl<(objectArea.*16); %only keep if area is smaller than large limit
 
             %apply logicals that remove small, large, and non-round segmented objects
             PXX = PX(~(pxlogS & pxlogL & metriclog));
