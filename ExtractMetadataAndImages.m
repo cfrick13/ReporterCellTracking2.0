@@ -24,7 +24,7 @@ expdir = strcat(gparentdir,'/',B);
 cd(expdir)
 PathName = pwd;
 
-filelist = dir('*plate exp*.czi');
+filelist = dir('*plate *exp*.czi');
 FileName = char(filelist.name);
 
 cd(PathName)
@@ -69,7 +69,7 @@ stackSizeY = omeMeta.getPixelsSizeY(0).getValue(); % image height, pixels
 stackSizeZ = omeMeta.getPixelsSizeZ(0).getValue(); % number of Z slices
 dimensions = [stackSizeX stackSizeY stackSizeZ]; %[x y z];
 
-timeCount = omeMeta.getPixelsSizeT(0).getValue();
+timeCount = omeMeta.getPixelsSizeT(0).getValue() - 1;
 planeCount = omeMeta.getPlaneCount(0); % a plane is number of images for a certain scene (each channel at each timepoint)
 channelCount = omeMeta.getChannelCount(0); %number of channels
 imageCount = omeMeta.getImageCount(); %number of scenes in experiment
@@ -285,7 +285,7 @@ save(savename)
 
 
 
-% series1 = data{1, 1};
+% series1 = data{7, 1};
 % series_label_array = cell(1,size(series1,1));
 % for p = 1 : size(series1,1)
 % series_label_array{p} = series1{p,2};

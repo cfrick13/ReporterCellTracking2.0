@@ -20,6 +20,7 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
     testOut = struct();
            
             imgRaw = img;
+            imgRaw(imgRaw>prctile(imgRaw(:),95)) = prctile(imgRaw(:),95);
             imgRawDenoised = wiener2(imgRaw,[wienerP wienerP]);
 
 
