@@ -153,8 +153,17 @@ exportStruct = exportStruct(~subidx);
 indices = true(1,length(exportStruct)); %choose all cells initially
 cTracks = struct();
 cTracks.Smad = extractTraces(exportStruct,indices,'NucEGFP',finalFrame,stimulationFrame,basalLength,medfiltnum);
-cTracks.Reporter = extractTraces(exportStruct,indices,'NucmKate',finalFrame,stimulationFrame,basalLength,medfiltnum);
+esfnames = fieldnames(exportStruct);
+[~,~,~,xcell] = regexpi(esfnames,'(NucHoechst|Nucmkate)');
+xidx = cellfun(@(x) ~isempty(x),xcell,'UniformOutput',true);
+xarrayarray = xcell(xidx);
+xarray = cellfun(@(x) x{1},xarrayarray,'UniformOutput',false);
+xstr = unique(xarray);
+if length(xstr)>1
+    error()
+end
 
+cTracks.Reporter = extractTraces(exportStruct,indices,char(xstr),finalFrame,stimulationFrame,basalLength,medfiltnum);
 
 
 if strcmp(SmadTotalOrMedian,'nuccytoXabundance')
@@ -174,13 +183,13 @@ reportertraces = cTracks.('Reporter').(ReporterTotalOrMedian).('none');
 
 %% division identifying and interpolating function
 cellMat = struct();
-[tracemat,divtracemat,allmat,nanidx] = divisionFunction(cTracks,smadtraces,stimulationFrame,timeMatrix,SmadTotalOrMedian);
+[tracemat,divtracemat,allmat,nanidx] = divisionFunction(cTracks,smadtraces,stimulationFrame,timeMatrix,SmadTotalOrMedian,exportStruct);
 cellMat.Smad.division = divtracemat;
 cellMat.Smad.traces = tracemat;
 cellMat.Smad.all = allmat;
 nc = cTracks.('Smad').('nuccyto').('none');
 cellMat.Smad.NC = nc(nanidx,:);
-[tracemat,divtracemat,allmat,~] = divisionFunction(cTracks,reportertraces,stimulationFrame,timeMatrix,ReporterTotalOrMedian);
+[tracemat,divtracemat,allmat,~] = divisionFunction(cTracks,reportertraces,stimulationFrame,timeMatrix,ReporterTotalOrMedian,exportStruct);
 cellMat.Reporter.division = divtracemat;
 cellMat.Reporter.traces = tracemat;
 cellMat.Reporter.all = allmat;
@@ -306,8 +315,10 @@ end
 
 
 
-
 %% find peaks
+
+
+
 sort1 = 'Smad';
 sort2 = smadnormalizestr;
 sort3 = ReporterTotalOrMedian;
@@ -322,45 +333,36 @@ divnum = 3;
 savedir = [mfiledir '/' fileDateStr ' - plots'];
 savenamestr = ['SORT ' sort2 ' of' ' ' sort1 ' TEST ' 'smad-' smadnormalizestr ' rep-' reporternormalizestr '' sort3 ' ' num2str(divnum) 'classes'];
 
-
+%%
+close all
 [sceneList,sceneListArray] = listSpitter(exportSubStruct,'scene');
-
-cellNumMat = horzcat(exportSubStruct.CellNum);
-
-
-cellNumMat = cellNumMat';
-cellNumVec = cellNumMat(:,stimulationFrame);
-[sceneList,sceneArrayList] = listSpitter(exportSubStruct,'scene');
-stimFrameCellID = cell(size(cellNumVec));
-for i = 1:length(cellNumVec)
-   cellnumstr = num2str(cellNumVec(i)); 
-   scenestr = sceneArrayList{i};
-   stimFrameCellID{i} = [scenestr '-' cellnumstr];
-end
-
-if strcmp(fileDateStr,'2017_10_30 plate exp2')
-    plotTheseCells = '(s01-27|s01-28|s01-29|s01-34|s01-37|s01-41)';
-elseif strcmp(fileDateStr,'2017_10_30 plate exp3')
-    plotTheseCells = '(s04-14|s04-17|s04-19|s04-22|s04-23|s04-29|s04_31)';
-    plotTheseCells = 's04';
-end
-
-[~,~,~,d] = regexp(stimFrameCellID,plotTheseCells);    
-didx = ~cellfun(@isempty,d,'UniformOutput',1);
-
+for d = 1:length(subplotList)
+    dstr = subplotList{d};
+    didx = strcmpi(dstr,subplotArrayList);
+    gstr = char(unique(groupArrayList(didx)));
     
+    sidx = strcmpi(gstr,groupArrayList);
+    scenez = unique(sceneListArray(sidx));
+    sstr = char(unique(sceneListArray(didx)));
+    scz = find(strcmpi(sstr,scenez));
+    
+    
+    sceneArraySub = sceneListArray(didx);
+    sceneSub = unique(sceneArraySub);
     
     
     tmat = timeMatrixP(didx,:);
-    toteOrMed = {SmadTotalOrMedian,SmadTotalOrMedian};
-    traceArray = {'Smad','Smad'};
-    tracenormArray = {'abundance','foldchange'};
-    for tracenum = 1:length(traceArray)
+    toteOrMed = {SmadTotalOrMedian,ReporterTotalOrMedian};
+    traceArray = {'Smad','Reporter'};
+    tracenormArray = {smadnormalizestr,reporternormalizestr};
+    %     for tracenum = 1:length(traceArray)
+    for tracenum = 1
         
         tracestr = traceArray{tracenum};
         toteOrMedstr = toteOrMed{tracenum};
         tracenormstr = tracenormArray{tracenum};
         alltraces = corrMat.(tracestr).(tracenormstr);
+        ralltraces = corrMat.Reporter.(reporternormalizestr);
         
         
         divtracesP = cellMat.(tracestr).division;
@@ -368,80 +370,211 @@ didx = ~cellfun(@isempty,d,'UniformOutput',1);
         
         
         celltracemat = alltraces(didx,:);
+        yr = ralltraces(didx,:);
         divtracemat = divtracesP(didx,:);
         tracesforSort = tracesforSortP(didx,:);
+        %         celltracemat(~isnan(divtracemat)) = NaN;
         
-%         [top1,bot1,~] = booterfunc(alltraces);
-%         ylimits = [min(bot1(:)) max(top1(:))];
         ylimits1 = [min(alltraces(:)) prctile(alltraces(:),99.9)];
         ylimits2 = [min(alltraces(:)) prctile(alltraces(:),99.9)];
         xlimits = [min(tmat(:)) max(tmat(:))];
         
-        cmap = parula(sum(didx));
         cmap = feval('lines',sum(didx));
+        D1 = ones(size(cmap,1),1);
+        D2 = size(cmap,2);
+        cmaplzarray = mat2cell(cmap,D1,D2);
         
-        D1 = ones(length(cmap),1);
-        D2 = 3;
-        cmaparray = mat2cell(cmap,D1,D2);
+        tdstr = dstr;
+        a = regexp(dstr,'(\-|\s)');
+        tdstr(a)=[];
+        tgstr = gstr;
+        a = regexp(gstr,'(\-|\s)');
+        tgstr(a) = [];
         
-        f22 = figure(22);
-        f22.Position = [702 520 300*length(doseList) 420];
-        subplot(length(traceArray),1,(tracenum-1)+ 1)
-            idx = true(size(celltracemat,1),1);
-            cellmat = celltracemat(idx,:);
-            timemat = tmat(idx,:);
-            p = plot(timemat',cellmat'); hold on
-            [p.LineWidth] = deal(0.5);
-            ylim(ylimits1)
-            xlim(xlimits)
-            xlabel('minutes')
-            ylabel([toteOrMedstr ' ' tracestr ' '  tracenormstr])
+        fff = find(strcmpi(gstr,groupList));
+        f22 = figure(11+fff);
+        %         f22.Position = [150 300 380*length(subplotList) 600];
+        %         subplot(length(traceArray),length(subplotList),d-1 + (tracenum-1)*length(subplotList) + 1)
+        f22.Position = [150 300 380*length(scenez) 600];
+        subplot(length(traceArray),length(scenez),scz-1 + (tracenum-1)*length(scenez) + 1)
+        idx = 1:length(find(didx));
+        cellmat = celltracemat(idx,:);
+        timemat = tmat(idx,:);
+        p = plot(timemat',cellmat'); hold on
+        [p.LineWidth] = deal(2);
+        ylim(ylimits1)
+        xlim(xlimits)
+        xlabel('minutes')
+        ylabel([toteOrMedstr ' ' tracestr ' '  tracenormstr])
+        title([tgstr ' - ' tdstr])
+        [p.Color] = deal(cmaplzarray{:});
+        
+        
+        
+        
+        
+        cmap = feval('lines',length(subplotList));
+        D1 = ones(size(cmap,1),1);
+        D2 = size(cmap,2);
+        cmaplzarray = mat2cell(cmap,D1,D2);
+        
+        
+        %THIS PLOTS POPULATION DATA
+        %         f25 = figure(111+fff);
+        % %         f25.Position = [200 200 380*length(subplotList) 600];
+        % %         subplot(length(traceArray),length(subplotList),d-1 + (tracenum-1)*length(subplotList) + 1)
+        %         f25.Position = [200 200 380*length(scenez) 600];
+        %         subplot(length(traceArray),length(scenez),scz-1 + (tracenum-1)*length(scenez) + 1)
+        %             idx = 1:length(find(didx));
+        %             cellmat = celltracemat(idx,:);
+        %             timemat = tmat(idx,:);
+        %
+        %             [top1,bot1,med1] = booterfunc(cellmat);
+        %             nval1 = num2str(length(idx));
+        %             nnan = ~isnan(med1);
+        %             tm = timemat(1,nnan);
+        %             mm1 = med1(nnan);
+        %             mt1 = top1(nnan);
+        %             mb1 = bot1(nnan);
+        %             timevec = horzcat(tm,fliplr(tm));
+        %             cellfillvec = horzcat(mm1+mt1,fliplr(mm1-mb1));
+        %             if ~isempty(cellfillvec)
+        %                 p1 = plot(tm,mm1);hold on
+        %                 p1.Color = cmap(d,:);
+        %                 p1.LineWidth = 2;
+        %                 p1.DisplayName = ['class-' num2str(i) ' n=' nval1];
+        %                 p1.DisplayName = ['n=' nval1];
+        %                 fi = fill(timevec,cellfillvec,'g');
+        %                 fi.FaceAlpha = 0.2;
+        %                 fi.FaceColor = cmap(d,:);
+        %                 fi.EdgeColor = fi.FaceColor;
+        %             end
+        %             ylim(ylimits2)
+        %             xlim(xlimits)
+        %             title(dstr)
+        %             xlabel('minutes')
+        %             ylabel([toteOrMedstr ' ' tracestr ' '  tracenormstr])
+        %         if strcmp(tracestr,'Smad')
+        %             o = findobj(gca,'Type','Line');
+        %             l = legend(gca,o);
+        %             l.FontSize = 7;
+        %         end
+        
+        y=cellmat;
+        x =timemat;
+        tlength = max(x(:))-min(x(:));
+        tslice = 20;
+        xq = linspace(min(x(:)),max(x(:)),round(tlength./tslice));
+        xn = nan(size(x,1),length(xq));
+        yn = nan(size(x,1),length(xq));
+        for jh = 1:size(x,1)
+            xi = x(jh,:);
+            yi = y(jh,:);
+            vq = interp1(xi,yi,xq);
+            yn(jh,:) = vq;
+            xn(jh,:) = xq;
+        end
+        g = gradient(yn);
+        % figure(44)
+        % plot(xn',g');
+        
+        np = nan(1,size(x,1));
+        gp = cell(1,size(x,1));
+        pws = cell(1,size(x,1));
+        gpk = cell(1,size(x,1));
+        for jh = 1:size(x,1)
+            gi = g(jh,:);
+            gpeak = find(gi>=0.5);
+            toosoon = xn(jh,gpeak);
+            gpeak(toosoon<150)=[];
+            %     gp{jh} = gpeak;
+            %     np(jh) = length(gpeak);
+            yni = y(jh,:);
+            xni = x(jh,:);
+            [pks,locs,w,p] = findpeaks(yni,xni,'MinPeakWidth',10,'MinPeakDistance',60,'MinPeakProminence',0.2,'WidthReference','halfheight');
+            tgfstim = locs<120;
             
-            [p.Color] = deal(cmaparray{:});
-        
-        
-        f25 = figure(25);
-        f25.Position = [702 100 300*length(doseList) 420];
-        subplot(length(traceArray),1,(tracenum-1)+ 1)
-            cellmat = celltracemat(idx,:);
-            timemat = tmat(idx,:);
+            pks(tgfstim)=[];
+            w(tgfstim)=[];
+            p(tgfstim)=[];
+            locs(tgfstim)=[];
             
-            [top1,bot1,med1] = booterfunc(cellmat);
-            nval1 = num2str(length(idx));
-            nnan = ~isnan(med1);
-            tm = timemat(1,nnan);
-            mm1 = med1(nnan);
-            mt1 = top1(nnan);
-            mb1 = bot1(nnan);
-            timevec = horzcat(tm,fliplr(tm)); 
-            cellfillvec = horzcat(mm1+mt1,fliplr(mm1-mb1));
-            if ~isempty(cellfillvec)
-                p1 = plot(tm,mm1);hold on
-                p1.Color = cmap(tracenum,:);
-                p1.LineWidth = 2;
-                p1.DisplayName = ['class-' num2str(i) ' n=' nval1];
-                p1.DisplayName = ['n=' nval1];
-                fi = fill(timevec,cellfillvec,'g');
-                fi.FaceAlpha = 0.2;
-                fi.FaceColor = cmap(tracenum,:);
-                fi.EdgeColor = fi.FaceColor;
+            np(jh) = length(locs');
+            disp(round(locs(:)))
+            gpk{jh}=pks;
+            gp{jh} = locs;
+            pws{jh} = w;
+        end
+        
+        % figure(444)
+        % cycle=0;
+        % cmap = feval('lines',length(unique(np)));
+        % for jj = unique(np)
+        %     cycle =cycle+1;
+        %     idx = np==jj;
+        %         p = plot(xn(idx,:)',yn(idx,:)'); hold on
+        % %     p = plot(x(idx,:)',y(idx,:)');hold on
+        %     [p.Color] = deal(cmap(cycle,:));
+        %     [p.LineWidth] = deal(2);
+        % end
+        
+        
+        %%%%%%%%%%THIS PLOTS THE PEAKS ON SEPARATE FIGURES
+        if strcmp(sstr,'s07')
+        figure(56+d)
+        f=gcf;
+        f.Position = [1 200 2543 600];
+        cycle=0;
+        cmap = feval('lines',length(unique(np)));
+        for jj = unique(np)
+            cycle =cycle+1;
+            idx = (np==jj);
+            subplot(2,length(unique(np)),cycle)
+            cmap = feval('lines',sum(idx));
+            D1 = ones(size(cmap,1),1);
+            D2 = size(cmap,2);
+            cmaplzarray = mat2cell(cmap,D1,D2);
+%             p = plot(xn(idx,:)',yn(idx,:)'); hold on
+            p = plot(x(idx,:)',y(idx,:)');hold on
+            [p.Color] =cmaplzarray{:};
+            cyp=0;
+            for jh = find(idx)
+                cyp=cyp+1;
+                lcs = gp{jh};
+                pks = gpk{jh};
+                for io = 1:length(lcs)
+%                     text(lcs(io),pks(io)+0.2,[num2str(round(gp{jh}(io))) ' min']); % peak location
+                    text(lcs(io),pks(io)+0.2,[num2str(round(pws{jh}(io)./60,1,'decimal')) ' hrs']); %peak widths
+                end
+                disp('timing')
+                disp(diff(gp{jh}))
+                plot(lcs,pks,'o','MarkerEdgeColor','k','MarkerFaceColor',cmap(cyp,:));hold on
             end
-            ylim(ylimits2)
-            xlim(xlimits)
-            xlabel('minutes')
-            ylabel([toteOrMedstr ' ' tracestr ' '  tracenormstr])
 
-        if strcmp(tracestr,'Smad')
-            o = findobj(gca,'Type','Line');
-            l = legend(gca,o);
-            l.FontSize = 7;
+            %     [p.Color] = deal(cmap(cycle,:));
+            [p.LineWidth] = deal(2);
+            title([num2str(jj) ' peaks'])
+            xlim([min(x(:)) max(x(:))])
+            
+            subplot(2,length(unique(np)),cycle+length(unique(np)))
+            pp = plot(x(idx,:)',yr(idx,:)');
+            [pp.Color] = cmaplzarray{:};
+        end
         end
         
         
         
     end
     
-    f = findobj('Type','Figure');
+    
+    
+    
+    
+    
+end
+
+
+f = findobj('Type','Figure');
 [f.Color] = deal('w');
 h = findobj(f,'Type','Axes');
 [h.Color] =  deal([0.95 0.95 0.95]);
@@ -451,17 +584,8 @@ h = findobj(f,'Type','Axes');
 [h.YGrid] =  deal('on');
 [h.GridAlpha] =  deal(1);
 [h.LineWidth] = deal(1);
-[h.XLim] = deal([-120 360]);
-o = findobj(h,'Type','Line');
-[o.LineWidth] = deal(2);
-f22.Position = [1335 195 258 444];
-f25.Position = [500 195 258 444];
-f22.InvertHardcopy = 'off';
-f25.InvertHardcopy = 'off';
-    
-    
-    
-    
+[f.InvertHardcopy] = deal('off');
+
 
 olddir = pwd;
 cd(mfiledir)
@@ -475,8 +599,8 @@ cd(savedir)
 % cd(savenamestr)
 saveas(f22,[savenamestr 'errorbar.fig'],'fig');
 saveas(f22,[savenamestr 'errobar.png'],'png');
-saveas(f25,[savenamestr ' traces.fig'],'fig');
-saveas(f25,[savenamestr ' traces.png'],'png');
+% saveas(f25,[savenamestr ' traces.fig'],'fig');
+% saveas(f25,[savenamestr ' traces.png'],'png');
 copyfile([mdir '.m'],[savedir '/' savenamestr '.m'])
 cd(olddir)
 
@@ -646,7 +770,21 @@ else
 end
 end
 
-function [tracemat,divtracemat,allmat,nanidx] = divisionFunction(cTracks,smadtraces,stimulationFrame,timeMatrix,normalizestr)
+
+
+function [newmat,newtime] = interpolationFunction(oldmat,oldtime,xq)
+newmat = nan(size(oldmat,1),length(xq));
+newtime = newmat;
+for i = 1:size(newmat,1)
+   x = oldtime(i,:);
+   v = oldmat(i,:);
+   vq = interp1(x,v,xq);
+   newmat(i,:) = vq;
+   newtime(i,:) = xq;
+end
+end
+
+function [tracemat,divtracemat,allmat,nanidx] = divisionFunction(cTracks0,smadtraces0,stimulationFrame,timeMatrix0,normalizestr,exportStruct)
 
 if strcmpi(normalizestr,'total')
     appendlog = true;
@@ -654,57 +792,129 @@ else
     appendlog = false;
 end
 
+%%
+%interpolationFunction
+oldtime = timeMatrix0;
+xq = round(min(oldtime(:))):10:round(max(oldtime(:)));
+% fcell1 = fieldnames(cTracks0);
+% for i = 1:length(fcell1)
+%     fn1 = fcell1{i};
+%     fcell2 = fieldnames(cTracks0.(fn1));
+%     for j = 1:length(fcell2)
+%         fn2 = fcell2{j};
+%         fcell3 = fieldnames(cTracks0.(fn1).(fn2));
+%         for k = 1:length(fcell3)
+%             fn3 = fcell3{k};
+%             oldmat = cTracks0.(fn1).(fn2).(fn3);
+%             [newmat,newtime] = interpolationFunction(oldmat,oldtime,xq);
+%             cTracks.(fn1).(fn2).(fn3) = newmat;
+%         end
+%     end
+% end
+%%
+[smadtraces,newtime] = interpolationFunction(smadtraces0,oldtime,xq);
+timeMatrix = newtime;
 
-celldivtraces = cTracks.Smad.total.foldchange;
-repdivtraces = cTracks.Reporter.total.foldchange;
+% celldivtraces = cTracks.Smad.total.foldchange;
+oldmat = cTracks0.Smad.total.foldchange;
+[celldivtraces,~] = interpolationFunction(oldmat,oldtime,xq);
 
-celldivtracesMed = cTracks.Smad.median.foldchange;
-repdivtracesMed = cTracks.Reporter.median.foldchange;
+% repdivtraces = cTracks.Reporter.total.foldchange;
+oldmat = cTracks0.Reporter.total.foldchange;
+[repdivtraces,~] = interpolationFunction(oldmat,oldtime,xq);
+
+% celldivtracesMed = cTracks.Smad.median.foldchange;
+oldmat = cTracks0.Smad.median.foldchange;
+[celldivtracesMed,~] = interpolationFunction(oldmat,oldtime,xq);
+
+% repdivtracesMed = cTracks.Reporter.median.foldchange;
+oldmat = cTracks0.Reporter.median.foldchange;
+[repdivtracesMed,~] = interpolationFunction(oldmat,oldtime,xq);
 
 
-nanidx = ~isnan(celldivtraces(:,stimulationFrame));
+celldivtraces0 = cTracks0.Smad.total.foldchange;%cTracks0
+nanidx = ~isnan(celldivtraces0(:,stimulationFrame));%cellDivTraces0
 
 celltraces = smadtraces(nanidx,:);
+celltraces0 = smadtraces0(nanidx,:);
 tmat = timeMatrix(nanidx,:);
 rmat = repdivtraces(nanidx,:);
+rmatorig = rmat;
 pmat = celldivtraces(nanidx,:);
 rmatmed = repdivtracesMed(nanidx,:);
 pmatmed = celldivtracesMed(nanidx,:);
-divtracemat = nan(size(rmat));
-tracemat = nan(size(rmat));
-allmat = nan(size(rmat));
+
+
+divtracemat0 = nan(size(celltraces0));
+tracemat0 = nan(size(celltraces0));
+allmat0 = nan(size(celltraces0));
+
+%correct all traces by median trace based on dose
+exportSubStruct = exportStruct(nanidx);
+[dacList,dacListArray] = listSpitter(exportSubStruct,'doseAndCondition');
+
+newpmat = pmat;
+for i = 1:length(dacList)
+    dacstr = dacList{i};
+    dacidx = strcmp(dacListArray,dacstr);
+    pmatdac = pmat(dacidx,:);
+    meddac = nanmedian(pmatdac);
+    for j = 1:size(pmatdac,1)
+        pmatdac(j,:) = pmatdac(j,:)./meddac;
+    end
+    newpmat(dacidx,:) = pmatdac;
+end
+pmat = newpmat;
+
+newpmat = rmat;
+for i = 1:length(dacList)
+    dacstr = dacList{i};
+    dacidx = strcmp(dacListArray,dacstr);
+    pmatdac = rmat(dacidx,:);
+    meddac = nanmedian(pmatdac);
+    for j = 1:size(pmatdac,1)
+        pmatdac(j,:) = pmatdac(j,:)./meddac;
+    end
+    newpmat(dacidx,:) = pmatdac;
+end
+rmat = newpmat;
+
+
 
 for i = 1:size(rmat,1)
+    %%
     tvec = round(tmat(i,:));
-    pvec = pmat(i,:);
-    rvec = rmat(i,:);
+    pvec = pmat(i,:)./nanmedian(pmat(i,:));
+    rvec = rmat(i,:)./nanmedian(rmat(i,:));
     cellvec = celltraces(i,:);
     cellnan = isnan(cellvec);
-    ps = smooth(pvec,0.05,'sgolay');
-    rs = smooth(rvec,0.05,'sgolay');
-    pvec = ps;
-    rvec = rs;
     pvec(cellnan) = NaN;
     rvec(cellnan) = NaN;
     
     rdiff = zeros(1,size(rmat,2));
     pdiff = zeros(1,size(rmat,2));
+
+    
+    dt = diff(tvec);
+    tstep = min(dt(:))*2;
+    tstep = 40;
     for j = 1:size(rmat,2)
-        afound = find(tvec > tvec(j)-20,1,'first');
-        bfound = find(tvec < tvec(j)+20,1,'last');
+        afound = find(tvec > tvec(j)-tstep,1,'first');
+        bfound = find(tvec < tvec(j)+tstep,1,'last');
         a = max([1 afound]);
         b = min([bfound size(rmat,2)]);
+%         tdiff = (tvec(b)-tvec(a));
         rdiff(1,j) = rvec(b)./rvec(a);
         pdiff(1,j) = pvec(b)./pvec(a);
     end
     pdiff(cellnan) = NaN;
     rdiff(cellnan) = NaN;
     
-   
     
-    se = strel('disk',2);
+    
+    se = strel('disk',4);
     pdiffless = imdilate(pdiff<0.8,se);
-    rdiffless = imdilate(rdiff<0.8,se);
+    rdiffless = imdilate(rdiff<0.7,se);
     divpoint = pdiffless & rdiffless;
     CC = bwconncomp(divpoint);
     PX = CC.PixelIdxList;
@@ -713,16 +923,27 @@ for i = 1:size(rmat,1)
         px = PX{k};
         pxlog = false(size(rvec));
         pxlog(px) = true;
-        se = strel('disk',9);
+        se = strel('disk',4);
         pxdilate = find(imdilate(pxlog,se));
         rtest = rdiff(pxdilate);
-        idx = rtest>1.1 | rtest<0.9;
+        pptest = pdiff(pxdilate);
+        gpdiff = abs(gradient(pdiff));
+        ptest = gpdiff(pxdilate);
+%         idx = (rtest>1.2 | rtest<0.9) | (ptest>0.5);
+        idx = (rtest>1.2 | rtest<0.9) | pptest<0.9;
         pxnew = pxdilate(idx);
         imglog(pxnew) = true;
     end
     se =strel('disk',1);
-    imglogc = imclose(imglog,se);
-    CC = bwconncomp(imglogc);
+    imglogc0 = imclose(imglog,se);
+    xq = timeMatrix(1,:);
+    if sum(imglogc0)>0
+        imglogc = interp1(xq,single(imglogc0),timeMatrix0(i,:));
+        imglogc(isnan(imglogc)) = 0;
+    else
+        imglogc = imglogc0;
+    end
+    CC = bwconncomp(logical(imglogc));
     PX = CC.PixelIdxList;
     pxlog = cellfun(@(x) length(x)>1,PX,'UniformOutput',1);
     PXnew = PX(pxlog);
@@ -731,13 +952,15 @@ for i = 1:size(rmat,1)
     
     
     %now interpolate through the dividing region
-    cellvec = celltraces(i,:);
+    xq = timeMatrix(1,:);
+    pdiff0 = interp1(xq,pdiff,timeMatrix0(i,:));
+    cellvec = celltraces0(i,:);
     cellvectest = cellvec;
-    cellvectest(isnan(pdiff))=NaN;
-    tracevec = nan(size(rvec));
-    divvec = nan(size(rvec));
-    pxstartmat = [1 cellfun(@(x) min([x(end)+1 length(rvec)]),PXnew,'UniformOutput',1)];
-    pxendmat = [cellfun(@(x) max([1 x(1)-1]),PXnew,'UniformOutput',1) length(rvec)];
+    cellvectest(isnan(pdiff0))=NaN;
+    tracevec = nan(size(pdiff0));
+    divvec = nan(size(pdiff0));
+    pxstartmat = [1 cellfun(@(x) min([x(end)+1 length(pdiff0)]),PXnew,'UniformOutput',1)];
+    pxendmat = [cellfun(@(x) max([1 x(1)-1]),PXnew,'UniformOutput',1) length(pdiff0)];
     for k = 1:length(pxstartmat)
         pxstart = pxstartmat(k);
         pxend = pxendmat(k);
@@ -752,8 +975,8 @@ for i = 1:size(rmat,1)
         end
         tracevec(pxstart:pxend) = cellvec(pxstart:pxend)+adjustval;
         if k>1
-            c = min([max([2 pxendmat(k-1)]) length(rvec)-1]);
-            d = min([max([2 pxstartmat(k)]) length(rvec)-1]);
+            c = min([max([2 pxendmat(k-1)]) length(pdiff0)-1]);
+            d = min([max([2 pxstartmat(k)]) length(pdiff0)-1]);
             x = [c-1 c d d+1];
             v = [cellvectest(c-1) cellvectest(c) cellvectest(d)+adjustval cellvectest(d+1)+adjustval];
             xq = c:1:d;
@@ -761,31 +984,44 @@ for i = 1:size(rmat,1)
             divvec(c:d) = interpp;
         end
     end
-    allvec = tracevec;
-    allvec(~isnan(divvec)) = divvec(~isnan(divvec));
-    tracemat(i,:) = tracevec;
-    divtracemat(i,:) = divvec;
-    allmat(i,:) = allvec;
+    allvec0 = tracevec;
+    allvec0(~isnan(divvec)) = divvec(~isnan(divvec));
+    tracemat0(i,:) = tracevec;
+    divtracemat0(i,:) = divvec;
+    allmat0(i,:) = allvec0;
+
+    xq = timeMatrix0(1,:);
+    disp(i)
     
-%     figure(2)
-%     subplot(1,3,1);
-%     plot(tvec,cellvec,'LineWidth',1);hold on
-%     plot(tvec,tracevec,'LineWidth',2);hold on
-%     plot(tvec,divvec,'k:','LineWidth',2);hold off
-%     xlim([-100 1400])
-%     subplot(1,3,2);
-%     plot(tvec,pvec,'LineWidth',1);hold on
-%     plot(tvec,rvec,'LineWidth',1);hold off
-%     xlim([-100 1400])
-%     ylim([0 4])
-%     subplot(1,3,3);
-%     plot(tvec,pdiff,'LineWidth',1);hold on
-%     plot(tvec,rdiff,'LineWidth',1);hold off
-%     xlim([-100 1400])
-%     ylim([0 2])
-%     if i>130
-%         stophere=1;
-%     end
+    allvec = allvec0;
+    tracemat = tracemat0;
+    divtracemat = divtracemat0;
+    allmat = allmat0;
+    
+    
+%     tvec=newt(1,:);
+%         if sum(max(tvec(~isnan(cellvec)))-min(tvec(~isnan(cellvec))))>15*60
+%         figure(2)
+%         subplot(1,3,1);
+%         plot(tvec,cellvec,'LineWidth',1);hold on
+%         plot(tvec,tracevec,'LineWidth',2);hold on
+%         plot(tvec,divvec,'k:','LineWidth',2);hold off
+%         xlim([-100 1400])
+%         subplot(1,3,2);
+%         plot(tvec,pvec,'LineWidth',1);hold on
+%         plot(tvec,rvec,'LineWidth',1);hold off
+%         xlim([-100 1400])
+%         ylim([0 4])
+%         subplot(1,3,3);
+%         plot(tvec,pdiff,'LineWidth',1);hold on
+%         plot(tvec,rdiff,'LineWidth',1);hold on
+%         plot(tvec,gpdiff,'LineWidth',1);hold off
+%         xlim([-100 1400])
+%         ylim([-0.5 1.5])
+%         if i>130
+%             stophere=1;
+%         end
+%         end
 end
 end
 
@@ -1011,7 +1247,7 @@ iter=20;
 % botvals = bootstrp(100,@(x) prctile(x,10,1),cellmat1);
 % topvals = bootstrp(100,@(x) prctile(x,90,1),cellmat1);
 % medvals = bootstrp(100,@(x) prctile(x,50,1),cellmat1);
-% 
+%
 % med1 = nanmean(medvals,1);
 % top1 = nanmean(topvals,1)-med1;
 % bot1 = med1 - nanmean(botvals,1);
