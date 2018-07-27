@@ -728,6 +728,8 @@ switch key
         replaceareabutton_Callback([],[]);
     case 'c'
         linkCells_Callback([],[]);
+    case 'x'
+        linkCellsReverse_Callback([],[]);
     case 'm'
         displayTrackingButton_Callback([],[])
     case 'j'
@@ -1476,6 +1478,139 @@ notACell = isempty(idx);
 % if ~notACell && ~isempty(idx)
 %     plotTheChosenCells(idx);
 % end
+end
+function linkCellsReverse_Callback(~,~)
+%fast link!
+global ImageDetails Tracked  timeFrames
+
+
+trackmatrix = Tracked.trackmatrix;
+
+%set accumulating variables equal to empty
+cellxx = [];
+cellyy = [];
+cellnn = [];
+idxnn = [];
+timingkeeper=[];
+
+
+%choose the initial cell
+t = ImageDetails.Frame;
+notACell = true;
+while notACell %keep running until a cell is clicked
+    ginputnum=1;
+    [cxx,cyy,tkeeper,button] = identifyCellbyClick(t,ginputnum);
+    if isempty(button)
+        return
+    end
+    %find cell
+    [idx,~,notACell] = findCellByCoordinate(Tracked,ImageDetails.ImgSize,cxx,cyy,tkeeper);
+    if ~notACell && ~isempty(idx)
+        plotTheChosenCells(idx);
+    end
+end
+cellxx =[cellxx(:)' cxx];
+cellyy =[cellyy(:)' cyy];
+timingkeeper =[timingkeeper(:)' tkeeper];
+%update cellnum
+alltrackframe = trackmatrix(t,:);
+cellnum = find(alltrackframe == idx); %find cell in existing track matrix
+if isempty(cellnum)
+    newtrack = nan(size(trackmatrix,1),1);
+    trackmatrix = horzcat(trackmatrix,newtrack);
+    cellnum = size(trackmatrix,2);
+    trackmatrix(t,cellnum) = idx;
+end
+cellnn = [cellnn(:)' cellnum];
+idxnn = [idxnn(:)' idx];
+
+a=1;
+while a ==1 
+    broken = false; %broken is false if no left or right mouse click is made
+    if button == 1
+        for t = fliplr(1:tkeeper)
+            ImageDetails.Frame = t;
+            setSceneAndTime
+%             pause(0.005)
+            nanidx = isnan(trackmatrix(t,cellnum));
+            if nanidx
+                broken = true;
+                break
+            end
+        end
+    elseif button ==3
+        t=t-1;
+        broken = true;
+        ImageDetails.Frame = t;
+        setSceneAndTime
+    end
+    
+    if broken %==true
+        notACell = true;
+        while notACell %keep running until a cell is clicked
+            ginputnum=1;
+            [cxx,cyy,tkeeper,button] = identifyCellbyClick(t,ginputnum);
+            if isempty(button)
+                break
+            end
+            %find cell
+            [idx,~,notACell] = findCellByCoordinate(Tracked,ImageDetails.ImgSize,cxx,cyy,tkeeper);
+            if ~notACell && ~isempty(idx)
+                plotTheChosenCells(idx);
+            end
+        end
+        if isempty(button) %break loop if non-mouse button is pressed
+            break
+        end
+        cellxx =[cellxx(:)' cxx];
+        cellyy =[cellyy(:)' cyy];
+        timingkeeper =[timingkeeper(:)' tkeeper];
+        %update cellnum
+        alltrackframe = trackmatrix(t,:);
+        cellnum = find(alltrackframe == idx); %find track of cell being linked
+        if isempty(cellnum) %if not a tracked nuclei, add track to existing track matrix
+            newtrack = nan(size(trackmatrix,1),1);
+            trackmatrix = horzcat(trackmatrix,newtrack);
+            cellnum = size(trackmatrix,2);
+            trackmatrix(t,cellnum) = idx;
+        end
+        cellnn = [cellnn(:)' cellnum];
+        idxnn = [idxnn(:)' idx];
+    end
+    
+    if ~broken
+        break
+    end
+end
+
+timestart = horzcat(timingkeeper(2:end)-1,1);
+timeend = horzcat(timeFrames,timingkeeper(2:end));
+% disp(horzcat(timestart',timeend'))
+cellnnz = horzcat(cellnn,cellnn(end));
+cellLoc = cellnnz(1);
+newtrackmatrix = trackmatrix;
+for i = 1:length(timestart)
+    trange = timestart(i):timeend(i);
+    newtrackmatrix(trange,cellLoc) = trackmatrix(trange,cellnnz(i));
+    if ~(cellnnz(i)==cellLoc)
+        newtrackmatrix(trange,cellnnz(i)) = NaN;
+    end
+end
+
+
+ucell = 1:size(newtrackmatrix,2);
+trackmatrix = refineTrackingMatrix(newtrackmatrix,ucell);
+ImageDetails.Frame = max([1 ImageDetails.Frame]);
+Tracked.trackmatrix = trackmatrix;
+setSceneAndTime
+alltrackframe = trackmatrix(timingkeeper(end),:);
+idx = idxnn(end);
+cellnum = find(alltrackframe == idx);
+alltrackframe = trackmatrix(ImageDetails.Frame,:);
+idx = alltrackframe(cellnum);
+    if  ~isempty(idx)
+        plotTheChosenCells(idx);
+    end
 end
 function linkCells_Callback(~,~)
 %fast link!
@@ -2476,6 +2611,27 @@ for j = 1:length(px)
 end
 ncpx = px;
 
+end
+
+function xy = labelCells(~,~)
+global ImageDetails Tracked timeFrames MainAxes
+
+ArrayStruct = Tracked.arrayStruct;
+trackmatrix = Tracked.trackmatrix;
+segment_Centroid_array = ArrayStruct.centroid;
+
+t = ImageDetails.Frame;
+centroids = segment_Centroid_array{t};
+cellnumeros = ArrayStruct.cellnum{t};
+
+for j = 1:length(cellnumeros)
+   figure(22)
+   tstr = num2str(cellnumeros(j));
+   tex = text(centroids(j,1),centroids(j,2),tstr);
+   tex.Color = 'r';
+end
+
+xy = centroids;
 end
 
 
@@ -4316,7 +4472,7 @@ for iNW = 1:nWorkers
             %two cells are the same
             knnnum = 5;
             
-            areachoice = 1.2; %1.2
+            areachoice = 1.5; %1.2
             displacementCutoff = (nucleiDist)*(tsteps(i-1)./4); %(nucleiDist)*(tsteps(i-1)./10);
             nucFluorchoice = 3; %1.2
             cellFluorchoice = 3; %1.2
@@ -7065,6 +7221,8 @@ for tnum = nannum1:nannum2
         channelimg = stackstruct.('DIC')(:,:,t);
     elseif strcmpi(ImageDetails.Channel,'DIC')
         channelimg = stackstruct.('DIC')(:,:,t);
+    else
+        channelimg = stackstruct.(ImageDetails.Channel)(:,:,t);
     end
     
     if length(size(channelimg))>2
@@ -7211,7 +7369,7 @@ end
 %         minstr(~minidx)=' ';
     end
     
-        hrstr = '00';
+        hrstr = '000';
 %     minsub = num2str(round(timeVec(tnum)./60,1,'decimals'));
     minsub = num2str(hr);
     minidx = false(size(hrstr));
@@ -7238,7 +7396,7 @@ end
     if ~(timeVec(tnum)<0)
         frametext= text(ax1,0,0,'+TGFbeta');
         frametext.Units = 'normalized';
-        frametext.Position = [0.99 0.12];
+        frametext.Position = [0.99 0.14];
         frametext.FontSize = 26;
         frametext.Color =[1 1 0];
         frametext.FontWeight = 'bold';
@@ -7483,16 +7641,65 @@ cellidx = alltrackframe == idx;
 
 %%%% make movie by iterating through frames
 f33 = figure(33);
+f33.Units = 'pixels';
+f33.Position = [500 500 512 512];
+
 axes();
 MainAxes = gca;
+MainAxes.Position = [0 0 1 1];
 
 
 cropsize = 75;
+
+f33.Position = [500 500 cropsize*4 cropsize*4];
+
 imgdim = ImageDetails.ImgSize;
 celltrack = trackmatrix(:,cellidx);
 nannum = find(~isnan(celltrack));
 segment_Centroids_array = ArrayStruct.centroid;
 tval=t;
+
+
+
+
+
+
+if togStruct.SaveMovie
+    %%%% new movie Writer testing
+    cellidxstr = num2str(find(cellidx));
+    specialdir = [dirStruct.parentdir 'LookingAtData/SingleCellMovies'];
+    savedir = [specialdir '/' expDetailsStruct.expDateStr '/' ImageDetails.Scene '-' ImageDetails.Channel 'cell' cellidxstr ' - Movie'];
+    if ~isdir(savedir)
+        mkdir(savedir)
+    end
+    savename = [savedir '/' ImageDetails.Channel ' ' ImageDetails.Scene '.avi'];
+    
+    profile = 'Motion JPEG AVI';
+    v = VideoWriter(savename,profile);
+    % t = frames/(frames/s);
+    frameRate = 10;
+    % v.Duration = length(nannum(1):nannum(end))./frameRate;
+    v.FrameRate = 10;
+    v.Quality = 95;
+    
+    open(v);
+end
+
+% %make interpolated movie!!!
+% x = timeVec;
+% xq = linspace(timeVec(1),timeVec(end),100);
+% newimgstack = zeros([size(Ifstack,1) size(Ifstack,2) length(xq)]);
+%     for jj = 1:size(Ifstack,1)
+%         for kk = 1:size(Ifstack,2)
+%             v = squeeze(Ifstack(jj,kk,:));
+%             vq = interp1(x,v,xq);
+%             newimgstack(jj,kk,:) = vq;
+%         end
+%     end
+% newmovie = interp1(x,v,xq);
+
+
+
 for tnum = nannum(1):nannum(end)
     t = tnum;
     
@@ -7647,52 +7854,35 @@ for tnum = nannum(1):nannum(end)
     
     %title the displayed image
     
-    
-    
-%     frametext= text(MainAxes,0,0,[' frame ' num2str(tnum) '/' num2str(timeFrames)]);
-%     % frametext.Units = 'normalized';
-%     imgsize = size(dispimg);
-%     textspace = round(imgsize(1)/100);
-%     texty = imgsize(2)-textspace*2;
-%     frametext.Position = [textspace texty];
-%     frametext.FontSize = 12;
-%     frametext.Color =[1 0 0];
-%     
-    %     frametext= text(ax1,0,0,['frame ' num2str(tnum) '/' num2str(timeFrames)]);
-%     frametext.Units = 'normalized';
-%     frametext.Position = [0.01 0.95];
-%     frametext.FontSize = 12;
-%     frametext.Color =[1 1 0];
-    minstr = '0000';
-    minsub = num2str(round(timeVec(tnum)./60,1,'decimals'));
-    minidx = false(size(minstr));
-    minidx(end-(length(minsub)-1):end) = true;
-    if timeVec(tnum)<0
-        minstr(end-(length(minsub)-1):end) = minsub;
-        minstr(~minidx) = ' ';
+    ttVec= timeVec-min(timeVec(nannum(1)));
+    mins =ttVec(tnum);
+    hr_min = [fix(mins/60),rem(mins,60)];
+    hrstr = num2str(hr_min(1),'%03d');
+    minstr = num2str(abs(hr_min(2)),'%02d');
+    if strcmp(hrstr(1),'-')
     else
-        minstr(end-(length(minsub)-1):end) = minsub;
-
-        minstr(~minidx)=' ';
+        hrstr(1) = char(32);
     end
+    timestr = [hrstr ':' minstr ' hr:min'];
+%     disp(timestr)
     
-    frametext= text(MainAxes,0,0,[minstr ' hr']);
+    frametext= text(MainAxes,0,0,timestr);
     frametext.Units = 'normalized';
     frametext.Position = [0.99 0.035];
-    frametext.FontSize = 15;
+    frametext.FontSize = 20;
     frametext.Color =[1 1 0];
     frametext.FontWeight = 'bold';
     frametext.HorizontalAlignment = 'right';
     
-    if ~(timeVec(tnum)<0)
-        frametext= text(MainAxes,0,0,'+TGFbeta');
-        frametext.Units = 'normalized';
-        frametext.Position = [0.99 0.10];
-        frametext.FontSize = 15;
-        frametext.Color =[1 1 0];
-        frametext.FontWeight = 'bold';
-        frametext.HorizontalAlignment = 'right';
-    end
+%     if ~(timeVec(tnum)<0)
+%         frametext= text(MainAxes,0,0,'+TGFbeta');
+%         frametext.Units = 'normalized';
+%         frametext.Position = [0.99 0.10];
+%         frametext.FontSize = 15;
+%         frametext.Color =[1 1 0];
+%         frametext.FontWeight = 'bold';
+%         frametext.HorizontalAlignment = 'right';
+%     end
 
 
 
@@ -7749,7 +7939,7 @@ cellidxstr = num2str(find(cellidx));
             mkdir(savedir)
         end
         cd(savedir)
-        savename = [ImageDetails.Channel ' ' ImageDetails.Scene ' ' num2str(tnum) '.tif'];
+        savename = [ImageDetails.Channel ' ' ImageDetails.Scene ' ' num2str(tnum,'%03d') '.tif'];
         imwrite(uint16(saveimg),savename,'tif');
         
         cd(specialdir)
@@ -7758,16 +7948,19 @@ cellidxstr = num2str(find(cellidx));
             mkdir(savedir)
         end
         cd(savedir)
-        savename = [ImageDetails.Channel ' ' ImageDetails.Scene ' ' num2str(tnum) '.tif'];
-%         saveas(f33,savename,'tif')
+        savename = [ImageDetails.Channel ' ' ImageDetails.Scene ' ' num2str(tnum,'%03d') '.tif'];
+        saveas(f33,savename,'tif')
         disp(num2str(ImageDetails.Frame));
         cd(olddir)
+        frame = getframe(gcf);
+        writeVideo(v,frame);
     end
 
 
+end
 
-
-
+if togStruct.SaveMovie
+    close(v);
 end
 end
 

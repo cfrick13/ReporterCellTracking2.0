@@ -69,7 +69,7 @@ stackSizeY = omeMeta.getPixelsSizeY(0).getValue(); % image height, pixels
 stackSizeZ = omeMeta.getPixelsSizeZ(0).getValue(); % number of Z slices
 dimensions = [stackSizeX stackSizeY stackSizeZ]; %[x y z];
 
-timeCount = omeMeta.getPixelsSizeT(0).getValue() - 1;
+timeCount = omeMeta.getPixelsSizeT(0).getValue();
 planeCount = omeMeta.getPlaneCount(0); % a plane is number of images for a certain scene (each channel at each timepoint)
 channelCount = omeMeta.getChannelCount(0); %number of channels
 imageCount = omeMeta.getImageCount(); %number of scenes in experiment

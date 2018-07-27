@@ -115,6 +115,9 @@ imgstack = fileobject.flatstack;
 
     %split scenes across workers as evenly as possible
     sList = SceneList;
+%     exclude={'s01','s02','s03','s08','s09','s10','s16','s17','s22','s23','s24','s29','s30','s31'};
+%     smem = ismember(sList,exclude);
+%     sList(~smem)=[];
     sceneVector = 1:length(sList);
     fractions = length(sceneVector)./nWorkers;
     firstlengths = ceil(fractions);
@@ -152,7 +155,7 @@ imgstack = fileobject.flatstack;
             [~,~] = segmentationNucleus(FinalImage,segmentPath,'nucleus',nucleusFileName,pStruct);
             nuctoc = num2str(round(toc(nuctic),0,'decimals'));
 
-            
+
         %locate cell fluorescence data set for background segmentation
             backtic = tic;
             cd(mstackPath)
@@ -171,6 +174,7 @@ imgstack = fileobject.flatstack;
             
             disp([scenestr ' nucSeg time= ' nuctoc ' s , backSeg time= ' backtoc ' s'])
             ssss=1;
+            %%
         end
     end
 end
@@ -291,6 +295,7 @@ function [IfFinal,testOut] = segmentationImageBackground(FinalImage,segmentPath,
     IfFinal = false(size(FinalImage));
 %     parfor frames = 1:size(FinalImage,3)
     for frames = 1:size(FinalImage,3)
+%         disp(frames)
         img = FinalImage(:,:,frames); 
         [If,~] = segmentCellBackground(img,background_seg,pStruct,frames);
         IfFinal(:,:,frames)=If;

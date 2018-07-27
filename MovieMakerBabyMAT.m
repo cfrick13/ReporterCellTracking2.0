@@ -1,6 +1,6 @@
 
 %% fullbkg
-function MovieMakerBaby(~,datename,channelstoinput,stimulationFrame)
+function MovieMakerBabyMAT(~,datename,channelstoinput,stimulationFrame)
 % datename = '2015_12_15 smad3g smFISH';
 E={datename}; %beginning of file name for saving
 
@@ -30,8 +30,8 @@ expnum = datename(a:b);
 dateofexp = datename(1:10);
 
 %assign path to .mat image stack exports
-mstackdir = 'tifftack images';
-flatfielddirname = 'tiflat tifftack';
+mstackdir = 'mstack images';
+flatfielddirname = 'flat mstack';
 moviedirname = 'moviestack';
 
 mstackPath = strcat(expPath,'/',mstackdir);
@@ -54,7 +54,7 @@ timeMatrix = A.timeVec;
 channelinputs =channelregexpmaker(channelstoinput);
 
 cd(flatstackPath)
-dirlist = dir('*.tif');
+dirlist = dir('*.mat');
 [~,~,~,channelsListed] = regexp([dirlist.name],channelinputs);
 [~,~,~,sceneListArray] = regexp([dirlist.name],'s[0-9]+');
 channelList = unique(channelsListed);
@@ -68,10 +68,11 @@ cd(flatstackPath)
 % conditionsArray = {'CMV-NG-Smad3 (NMuMG)','NG-Smad3(NMuMG)'};
 % LigandArray = {'Tgf','Tgf'};
 
-sceneVec = {'s06','s18','s32'};
-conditionsArray = {'C2C12','C2C12','C2C12'};
-LigandArray = {'BMP-4','Tgfbeta','BMP-4'};
-smadArray = {'Citrine-Smad1','Citrine-Smad3','Citrine-Smad5'};
+sceneVec = {'s07','s12','s26','s33','s52'};
+conditionsArray = {'C2C12','C2C12','C2C12','C2C12','C2C12'};
+LigandArray = {'BMP-10','BMP-10','BMP-10','BMP-10','BMP-10'};
+smadArray = {'Citrine-Smad5','Citrine-Smad1','Citrine-Smad1','Citrine-Smad5','Citrine-Smad3'};
+scarlettArray = {'Scarlett-Smad1','Scarlett-Smad5','Scarlett-Smad1','Scarlett-Smad5','Scarlet-Smad1'};
 
 
 for j = 1:length(sceneVec)
@@ -81,7 +82,7 @@ for j = 1:length(sceneVec)
         channel = channelList{c};
      
         scenestr = sceneVec{j};
-        filelist = dir(strcat('*',scenestr,'*',channel,'*.tif'));
+        filelist = dir(strcat('*',scenestr,'*',channel,'*.mat'));
         filename = char(filelist.name);
         
         [a,b] = regexp(filename,'s[0-9]++'); %determine scene
@@ -92,18 +93,12 @@ for j = 1:length(sceneVec)
         chan = filename(e:f);
         
         
+        mfile = matfile(filename);
+        imgs1 = mfile.flatstack;
+%         imgs1 = imgs1(:,:,1:num_images);
+%         imgs1 = double(imgs1);
         
-        info = imfinfo(filename);
-        sz1 = info.Height;
-        sz2 = info.Width;
-        num_images = numel(info);
-        num_images=25;
-        imgs = zeros(sz1,sz2,num_images);
-        imgs1 = zeros(sz1,sz2,num_images);
-        for k = 1:num_images
-            imgs1(:,:,k) = imread(filename, k, 'Info', info);
-        end
-        imgs1 = double(imgs1);
+        
         
         
 
@@ -111,25 +106,16 @@ for j = 1:length(sceneVec)
         timeVec = round(timeMatrix(sidx,:));
         timeVec = timeVec - timeVec(stimulationFrame);
         
-        datename = '2018_04_11 plate james mrna bmp tgf smad135 exp2';
+        datename = '2018_04_25 plate citrine scarlett james mrna exp1';
 %         fluor = 'NG-Smad3 (endogenous)';
         condition = conditionsArray{j};
         CHANNEL = char(channel);
-%         if strcmp(channel,'EGFP')
-%             CHANNEL = 'Citrine-Smad1 (mRNA)';
-%         elseif strcmp(channel,'mKate') && ~isempty(regexpi(condition,'Smad5'))
-%             CHANNEL = 'mCherry-Smad5 (mRNA)';
-%             timeVec = round(timeMatrix(sidx,:));
-%             timeVec = timeVec - timeVec(15);
-%         elseif strcmp(channel,'mKate') && ~isempty(regexpi(condition,'Smad3'))
-%             CHANNEL = 'mCherry-Smad3(mRNA)';
-%         elseif strcmp(channel,'DIC')
-%             CHANNEL = 'DIC';
-%         elseif strcmp(channel,'mKate')
-%             CHANNEL = 'mCherry-Smad3 (mRNA)';
-%         end
+        if strcmp(channel,'EGFP')
+            CHANNEL = [smadArray{j} ' (mRNA)'];
+        elseif strcmp(channel,'mKate')
+            CHANNEL = [scarlettArray{j} ' (mRNA)'];
+        end
         
-        CHANNEL = [smadArray{j} ' (mRNA)'];
 
         ligand = LigandArray{j};
         str = scenestr;
@@ -138,8 +124,9 @@ for j = 1:length(sceneVec)
         detY = linspace(340,480,length(detailsArray))-80;
         fontSize = 34;
         
-        imgs = zeros(sz1,sz2,num_images);
-        for k = 1:num_images
+        dim = size(imgs1);
+        imgs = zeros(dim);
+        for k = 1:dim(3)
             %%
             tnum=k;
             img = zeros(dim(1),dim(2),3,'uint16');
