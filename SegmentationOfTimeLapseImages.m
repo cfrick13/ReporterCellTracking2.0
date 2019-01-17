@@ -182,8 +182,8 @@ end
 
 function pStruct = defaultpStructFunc(segInstructList)
     pStruct = struct();
-    parameterDefaults.background = [30 1 2 0.5 10 10];
-    parameterDefaults.nucleus = [30 1 2 0.5 10 10];
+    parameterDefaults.background = [150 1 2 0.5 1 2];
+    parameterDefaults.nucleus = [30 1 2 0.5 1 2];
     parameterDefaults.cell = [40 1 2 0.5 10 10];
     parameterStrings = {'nucDiameter','threshFactor','sigmaScaledToParticle','metthresh','percentSmoothed','denoise'};
     for p = 1:length(parameterStrings)
