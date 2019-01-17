@@ -20,7 +20,7 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
     testOut = struct();
            
             imgRaw = img;
-            imgRaw(imgRaw>prctile(imgRaw(:),95)) = prctile(imgRaw(:),95);
+%             imgRaw(imgRaw>prctile(imgRaw(:),95)) = prctile(imgRaw(:),95);
             imgRawDenoised = wiener2(imgRaw,[wienerP wienerP]);
 
 
@@ -31,8 +31,7 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             sigma = nucDiameter./sigmaScaledToParticle; %make the sigma about 1/5th of kernelgsize
             imgLowPass = gaussianBlurz(single(imgRawDenoised),sigma,kernelgsize);
             rawMinusLP = single(imgRawDenoised) -single(imgLowPass);%%%%%%% key step!
-            rawMinusLPvec = reshape(rawMinusLP,size(rawMinusLP,1)^2,1);
-            globalMinimaValues = prctile(rawMinusLPvec,0.01);
+            globalMinimaValues = prctile(rawMinusLP(:),0.01);
             globalMinimaIndices = find(rawMinusLP < globalMinimaValues);
             LPscalingFactor = imgRawDenoised(globalMinimaIndices)./imgLowPass(globalMinimaIndices);
             imgLPScaled = imgLowPass.*nanmedian(LPscalingFactor);
@@ -91,12 +90,21 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             subtracted = single(rawMinusLPScaledContrasted)-subtractionThresholdScaled;
             subzero = (subtracted<0);
             Ih = ~subzero;
-            Ihe = imerode(Ih,strel('disk',2));
-            Ihed = imdilate(Ihe,strel('disk',2));
-            Ihc = imclose(Ihed,strel('disk',2));
+            
+            if nucDiameter>25
+                ihs = 2;
+            else
+                ihs =1;
+            end
+            
+            Ihe = imerode(Ih,strel('disk',ihs));
+            Ihed = imdilate(Ihe,strel('disk',ihs));
+            Ihc = imclose(Ihed,strel('disk',ihs));
             Ihcf = imfill(Ihc,'holes');
-            Im=Ihcf;
-%             Im=Ih;
+            
+            Im = Ihc;
+%             Im=Ihcf; 
+%             Im=Ih; %huge change!!!
 
 
             %%%% this is the ultimate addition for watershed segmentation!!!
@@ -110,7 +118,7 @@ function [If,testOut] = segmentNuclei(img,nucleus_seg,pStruct,frames)
             Isum(Isum>nucDiameter) = nucDiameter;
             waterBoundary = imerode(Im,strel('disk',1));
 
-            %BEGIN THE WATERSHET ALGORITHM
+            %BEGIN THE WATERSHED ALGORITHM
 %             I = imgRawDenoised;
 %             I = gaussianBlurz(rawMinusLPScaled,sigma./4,kernelgsize);
 %             I = rawMinusLPScaledContrasted;

@@ -20,7 +20,7 @@ cd(parentdir)
     gparentdir = parentdir(1:b(end-1));
 
 cd(gparentdir)
-expdir = strcat(gparentdir,'/',B);
+expdir = strcat(gparentdir,B);
 cd(expdir)
 PathName = pwd;
 
@@ -154,7 +154,7 @@ end
 
 %split scenes across workers as evenly as possible
 sceneVector = 1:imageCount;
-% sceneVector = 14:15;
+% sceneVector = 3:4;
 fractions = length(sceneVector)./nWorkers;
 firstlengths = ceil(fractions);
     if firstlengths*nWorkers > imageCount

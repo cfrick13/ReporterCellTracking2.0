@@ -55,7 +55,8 @@ end
 %%
 %identify background pixels by finding and grouping low fluorescence pixels in the non
 %segmented area
-fillIh = imfill(Ih,'holes');
+% fillIh = imfill(Ih,'holes'); old
+fillIh = imclose(Ih,strel('disk',10));
 newlog = img<prctile(img(~fillIh),20); %mask -->nonsegmentated areas, 20th prctile fluorescence
 newlogclose = imclose(newlog,strel('disk',20)); %mask -->cluster the regions together
 newlogclose(fillIh) = false; %mask -->make sure clustered regions don't overlap with original segmentation

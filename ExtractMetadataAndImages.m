@@ -87,6 +87,7 @@ channelNameSwapArray = cell(1,channelCount);
 for cycle = 1:channelCount
     
     cname = channelNames{cycle};
+    disp(cname)
     aname = regexp(cname,'DIC');
     if isempty(aname)
         emwave = double(omeMeta.getChannelEmissionWavelength(0,cycle-1).value);
@@ -108,6 +109,10 @@ for cycle = 1:channelCount
         a = regexp(cname,'\s');
         cswap = cname;
         cswap(a) = [];
+    end
+    
+    if regexp(cname,'LOW')
+        cswap = 'LOW';
     end
 channelNameSwapArray{cycle} = cswap;
 end
@@ -274,7 +279,7 @@ datastruct.sceneCount = imageCount;
 datastruct.channelNames = channelNameSwapArray;
 
 
-[~,b] = regexp(FileName,'exp[0-9]');
+[~,b] = regexp(FileName,'exp[0-9]+');
 savename = FileName(1:b);
 cd(exportdir)
 savename = strcat(savename,'-metaData.mat');

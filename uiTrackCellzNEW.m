@@ -2593,7 +2593,34 @@ end
 
 
 
+function ncpx = nuccytopxspitterWIDE(px,imdim)
 
+newim = zeros(imdim(1),imdim(2));
+for j = 1:length(px)
+    subpx = px{j};
+    newim(subpx) =j;
+end
+
+se = strel('disk',8);
+newimd2 = imdilate(newim,se);
+se = strel('disk',1);
+newimd1 = imdilate(newim,se);
+newimd2log = newimd2>0;
+newimd1log = newimd1>0;
+newimlog = ~newimd1log & newimd2log;
+newimnew = newimd2;
+newimnew(~newimlog) = 0;
+
+for j = 1:length(px)
+    newpx = find(newimnew==j);
+    px{j} = newpx;
+end
+ncpx = px;
+%%
+% figure(221)
+% imagesc(newimnew)
+
+end
 function ncpx = nuccytopxspitter(px,imdim)
 
 newim = zeros(imdim(1),imdim(2));
@@ -2617,6 +2644,9 @@ for j = 1:length(px)
     px{j} = newpx;
 end
 ncpx = px;
+%%
+% figure(221)
+% imagesc(newimnew)
 
 end
 
@@ -2702,7 +2732,9 @@ end
 
 
 ncRatio = cell(size(trackmatrix));
+cytoWide = ncRatio;
 ncRatio(:) = {NaN};
+cytoWide(:) = {NaN};
 % nucFluorMatrix = nan(size(trackmatrix,2),timeFrames);
 % cellFluorMatrix = nan(size(trackmatrix,2),timeFrames);
 % centnew = nan(size(trackmatrix,2),size(centroids,2),timeFrames);
@@ -2717,6 +2749,7 @@ for i = 1:timeFrames
     
     if ~isempty(px) 
         ncpx = nuccytopxspitter(px,imdim);
+        ncpxwide = nuccytopxspitterWIDE(px,imdim);
         px = ncpx;
 
             
@@ -2724,11 +2757,17 @@ for i = 1:timeFrames
         pxpx = ncRatio(i,:);
         pxpx(trackidx) = px(tracknums);
         ncRatio(i,:) = pxpx;
+        
+        %first pixels
+        pxpx = cytoWide(i,:);
+        pxpx(trackidx) = ncpxwide(tracknums);
+        cytoWide(i,:) = pxpx;
     end
     
 end
 
 ncRatio = ncRatio';
+cytoWide = cytoWide';
 plotTracesCell = plotTracesCell';
 
 
@@ -2833,6 +2872,7 @@ for n = 1:length(nctnames)
     
     img_pxls = cell(size(plotTracesCell,1),size(plotTracesCell,2));
     img_nc_pxls = img_pxls;
+    img_cw_pxls = img_pxls;
     imgstack = subimgstruct.(nstr);
     cellBKG =  bkgstruct.(nctstr);
     
@@ -2841,13 +2881,16 @@ for n = 1:length(nctnames)
         for j=1:size(plotTracesCell,1)
             pxidx = plotTracesCell{j,i};
             ncidx = ncRatio{j,i};
+            cytowideidx = cytoWide{j,i};
             
             if ~isnan(pxidx)
                 img_pxls(j,i) = {img_img(pxidx)};
                 img_nc_pxls(j,i) = {img_img(ncidx)};
+                img_cw_pxls(j,i) = {img_img(cytowideidx)};
             else
                 img_pxls(j,i) = {single(13579)};
                 img_nc_pxls(j,i) = {single(13579)};
+                img_cw_pxls(j,i) = {single(13579)};
             end
             
         end
@@ -2873,6 +2916,33 @@ for n = 1:length(nctnames)
     for i = 1:size(img_nc_pxls,1)
         plotStruct(i).(['cytoplasmicNuc' nstr]) = img_nc(i,:);
     end
+
+    
+    
+    %determine maximum pxl intensities of cytoplasm
+    img_nc = cellfun(@(x) prctile(x(:),100),img_nc_pxls,'UniformOutput',1);
+    img_nc(img_nc==single(13579)) = NaN;
+    for i = 1:size(img_nc_pxls,1)
+        plotStruct(i).(['cytoplasmicMAXNuc' nstr]) = img_nc(i,:);
+    end
+    
+    
+        %determine median pxl intensities of cytoplasm
+    img_nc = cellfun(@nanmedian,img_cw_pxls,'UniformOutput',1);
+    img_nc(img_nc==single(13579)) = NaN;
+    for i = 1:size(img_cw_pxls,1)
+        plotStruct(i).(['widecytoplasmicNuc' nstr]) = img_nc(i,:);
+    end
+
+    
+    
+    %determine maximum pxl intensities of cytoplasm
+    img_nc = cellfun(@(x) prctile(x(:),100),img_cw_pxls,'UniformOutput',1);
+    img_nc(img_nc==single(13579)) = NaN;
+    for i = 1:size(img_cw_pxls,1)
+        plotStruct(i).(['widecytoplasmicMAXNuc' nstr]) = img_nc(i,:);
+    end
+    
     
     
     %determine total pxl intensities
@@ -3165,8 +3235,8 @@ cd(tPath)
 cd ..
 
 plotStructArray = cell(1,length(sList));
-% for scenenumber = 1:length(sList)
-parfor scenenumber = 1:length(sList)
+for scenenumber = 1:length(sList)
+% parfor scenenumber = 1:length(sList)
     cd(tPath)
     sceneN = sList{scenenumber};
     disp(sceneN)
@@ -3482,6 +3552,7 @@ for k = 1:length(nctnames)
 %             stophere=1;
 %         end
         exportNucleiStruct(i).(['cytoMAX' nctstr]) = cellfun(@(x) prctile(x(:),100), cytoIntensities,'UniformOutput',1);
+        exportNucleiStruct(i).(['cytoSUM' nctstr]) = cellfun(@(x) nansum(x(:)), cytoIntensities,'UniformOutput',1);
         exportNucleiStruct(i).Centroid = Centroid;
     end
     
@@ -6709,7 +6780,7 @@ for tnum = nannum1:nannum2
     
     ax5.XLim = timeVec([nannum1 nannum2]);
     
-    ylimit(2) =3.5;
+    ylimit(2) =6;
     ax5.YLim = (ylimit);
     
 %     ax5.YLabel.String = ['Smad3 ' ylabelstr ' ' mmsstr];

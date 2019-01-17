@@ -64,7 +64,7 @@ close all
 %determine date of experiment
     cd (mstackPath)
     [a,b] = regexp(A,'201[0-9]');
-    [c,d] = regexp(A,'exp[0-9]');
+    [c,d] = regexp(A,'exp[0-9]+');
     ExpDate = A(a:b+6);OGExpDate = A(a:d); [a,~] = regexp(ExpDate,'_');ExpDate(a) = '-';
     disp(A)
 
@@ -459,9 +459,9 @@ sliderspacing = linspace(0.8,0.7,length(fnames));
             maxz = 100;
             ssa = 1/2.5;
         elseif strcmp(str,'denoise')
-            minz = 5;
+            minz = 2;
             maxz = 40;
-            ssa = 1/2.5;
+            ssa = 1/5;
         else
             disp('parameter NOT CURRENTLY DEFINED') 
             if sum(strcmp(fnames,'metthresh'))<1
@@ -555,7 +555,7 @@ function plotTestOut(testOut,channel)
     stringsToTest = {'rawMinusLPScaled','Inew','gradmag2','Ieg'};
     else
 %     stringsToTest = {'rawMinusLPScaled','Ih','Ihcd','Shapes'};
-    stringsToTest = {'imgRawDenoised','Inew','imgLowPass','Ih'};
+    stringsToTest = {'rawMinusLPScaled','Inew','gradmag2','Ieg'};
     end
     for i = 1:length(subaxestwo)
     axes(subaxestwo(i))

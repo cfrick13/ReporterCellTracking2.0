@@ -15,7 +15,7 @@ FileName = savename;
 load(savename)
 % load(FileName)
 % FileName = savename;
-[~,b] = regexp(FileName,'exp[0-9]');
+[~,b] = regexp(FileName,'exp[0-9]+');
 queryname = strcat(FileName(1:b),'*experimentInfo.xlsx');
 filelist = dir(queryname);
 if length({filelist.name}) ==1
@@ -196,7 +196,7 @@ segInstruct.background = txt{2,16};
 end
 
 exportdir = exportdirz;
-[~,b] = regexp(FileName,'exp[0-9]');
+[~,b] = regexp(FileName,'exp[0-9]+');
 savename = FileName(1:b);
 cd(exportdir)
 savename = strcat(savename,'-DoseAndSceneData.mat');

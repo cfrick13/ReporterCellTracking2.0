@@ -144,6 +144,7 @@ for channel = channelList %cycle through one channel at a time
     normBkgimgMat = zeros(dim(1),dim(2),timeCount,'single');
     for k = 1:timeCount
         normBkgimgMat(:,:,k) = bkflat(:,:,k)./p(k);
+%         normBkgimgMat(:,:,k) = bkflat(:,:,14)./p(14);
     end
     
     chanstruct = alterChanName(chan);
